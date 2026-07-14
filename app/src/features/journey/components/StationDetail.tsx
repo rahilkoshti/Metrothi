@@ -1,0 +1,557 @@
+import { useEffect, useRef, useState, useMemo } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { ArrowLeft, ArrowRight, Navigation2, AlertTriangle, Clock } from "lucide-react";
+import {
+  STATION_BY_ID,
+  fullDayStationSchedule,
+  estimateLine,
+  formatDuration,
+  LINE_META,
+  LINE_PATHS,
+} from "../engine/journeyEngine";
+import { useNow } from "../hooks/useNow";
+import type { DayScheduleDirection, DayTrain } from "../engine/journeyEngine";
+
+import { LineBadge } from "../../../components/LineBadge";
+import { LINE_COLORS, LINE_NAMES, LINE_LETTER } from "../constants";
+import { TrainRouteSheet } from "./TrainRouteSheet";
+
+// ─── Direction Schedule (speedometer list) ───────────────────────────
+
+
+// ─── Direction Schedule (speedometer list) ───────────────────────────
+function DirectionSchedule({
+  dir,
+  line,
+  stationId,
+  autoOpenNext = false,
+}: {
+  dir: DayScheduleDirection;
+  line: string;
+  stationId: string;
+  autoOpenNext?: boolean;
+}) {
+  const now = useNow();
+  const listRef = useRef<HTMLDivElement>(null);
+  const nextRef = useRef<HTMLButtonElement>(null);
+  const [selectedTrain, setSelectedTrain] = useState<DayTrain | null>(null);
+
+  // Auto-open the next train's route sheet when deep-linked from the home page
+  useEffect(() => {
+    if (!autoOpenNext) return;
+    const nextTrain = dir.trains.find((t) => t.isNext && !t.departed) ?? dir.trains.find((t) => !t.departed) ?? null;
+    if (nextTrain) setSelectedTrain(nextTrain);
+  // Only run once on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const el = nextRef.current;
+    if (!el || !listRef.current) return;
+    const container = listRef.current;
+    const rowH = el.offsetHeight;
+    const offset = el.offsetTop - rowH * 2;
+    container.scrollTo({ top: Math.max(0, offset), behavior: "smooth" });
+  }, [dir.nextIndex, now]);
+
+  const status = estimateLine(line, now);
+  const color = LINE_COLORS[line];
+
+  return (
+    <>
+      <div className="flex flex-col h-full">
+        {/* Direction header */}
+        <div
+          className="flex items-center gap-2 px-4 pt-3 pb-3"
+          style={{ borderBottom: "1px solid var(--c-border)" }}
+        >
+          <span className="text-xs font-bold" style={{ color: "var(--c-text-3)" }}>
+            {dir.originName}
+          </span>
+          <ArrowRight size={11} style={{ color: "var(--c-text-4)" }} />
+          <span className="text-xs font-bold" style={{ color: "var(--c-text)" }}>
+            {dir.destinationName}
+          </span>
+          {status.status === "running" && (
+            <span className="ml-auto flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-green-500">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+              Live
+            </span>
+          )}
+        </div>
+
+        {/* Train rows */}
+        <div
+          ref={listRef}
+          className="flex-1 overflow-y-auto"
+          style={{ maxHeight: 340, scrollbarWidth: "none" }}
+        >
+          {dir.trains.map((train, i) => {
+            const isNext = train.isNext;
+            const isDep = train.departed;
+            const absMins = Math.abs(train.waitMins);
+
+            return (
+              <button
+                key={train.id}
+                ref={isNext ? nextRef : undefined}
+                onClick={() => setSelectedTrain(train)}
+                className="w-full flex items-center justify-between px-4 text-left transition-colors active:opacity-70"
+                style={{
+                  paddingTop: isNext ? 14 : 9,
+                  paddingBottom: isNext ? 14 : 9,
+                  borderBottom: i !== dir.trains.length - 1 ? "1px solid var(--c-border)" : "none",
+                  background: isNext ? `${color}12` : "transparent",
+                }}
+              >
+                {/* Left: route label + time */}
+                <div className="flex items-center gap-3">
+                  {isNext && (
+                    <div className="w-1 h-10 rounded-full shrink-0" style={{ background: color }} />
+                  )}
+                  <div>
+                    {/* Route label */}
+                    <div className="flex items-center gap-1 mb-0.5">
+                      <span
+                        className="text-[10px] font-bold"
+                        style={{ color: isDep ? "var(--c-text-4)" : "var(--c-text-3)" }}
+                      >
+                        {dir.originName}
+                      </span>
+                      <ArrowRight size={9} style={{ color: "var(--c-text-4)" }} />
+                      <span
+                        className="text-[10px] font-bold"
+                        style={{ color: isDep ? "var(--c-text-4)" : "var(--c-text-3)" }}
+                      >
+                        {dir.destinationName}
+                      </span>
+                    </div>
+                    {/* Clock time */}
+                    <div
+                      className={`font-bold tabular-nums ${
+                        isNext ? "text-xl" : isDep ? "text-[13px] line-through" : "text-[15px]"
+                      }`}
+                      style={{
+                        color: isNext
+                          ? "var(--c-text)"
+                          : isDep
+                          ? "var(--c-text-4)"
+                          : "var(--c-text-2)",
+                      }}
+                    >
+                      {train.clockTime}
+                    </div>
+                    {isNext && (
+                      <div className="text-[11px] font-semibold mt-0.5" style={{ color: "var(--c-text-3)" }}>
+                        Next train · tap for route
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right: wait / departed */}
+                <div className="text-right shrink-0">
+                  {isDep ? (
+                    <span
+                      className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
+                      style={{ background: "var(--c-card-alt)", color: "var(--c-text-4)" }}
+                    >
+                      {absMins > 0 ? `${absMins}m ago` : "Departed"}
+                    </span>
+                  ) : isNext ? (
+                    <div>
+                      <div
+                        className="text-2xl font-bold leading-none tabular-nums"
+                        style={{ color }}
+                      >
+                        {train.waitMins === 0 ? "Due" : formatDuration(train.waitMins)}
+                      </div>
+                      <div className="text-[10px] font-semibold mt-0.5 uppercase" style={{ color: "var(--c-text-4)" }}>
+                        from now
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="text-[13px] font-semibold tabular-nums" style={{ color: "var(--c-text-3)" }}>
+                      {formatDuration(train.waitMins)}
+                    </span>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+
+          <div className="px-4 py-5 text-center">
+            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--c-text-4)" }}>
+              End of service
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Route sheet */}
+      {selectedTrain && (
+        <TrainRouteSheet
+          stationId={stationId}
+          line={line}
+          dir={dir}
+          train={selectedTrain}
+          now={now}
+          onClose={() => setSelectedTrain(null)}
+        />
+      )}
+    </>
+  );
+}
+
+// ─── Per-line card ───────────────────────────────────────────────────
+function LineScheduleCard({ stationId, line, autoOpenDirDest }: { stationId: string; line: string; autoOpenDirDest?: string }) {
+  const now = useNow();
+  const station = STATION_BY_ID[stationId];
+  const [activeDir, setActiveDir] = useState(0);
+
+  const schedule = useMemo(
+    () => fullDayStationSchedule(stationId, line, now),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [stationId, line, now.getMinutes()]
+  );
+
+  // If deep-linked, find the direction index matching the dest name
+  const autoOpenDirIdx = useMemo(() => {
+    if (!autoOpenDirDest) return -1;
+    return schedule.findIndex(
+      (d) => d.destinationName.toLowerCase() === autoOpenDirDest.toLowerCase()
+    );
+  }, [schedule, autoOpenDirDest]);
+
+  // Switch to the matching direction tab on mount when deep-linked
+  useEffect(() => {
+    if (autoOpenDirIdx >= 0) setActiveDir(autoOpenDirIdx);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpenDirIdx]);
+
+  const autoOpenNext = activeDir === autoOpenDirIdx && autoOpenDirIdx >= 0;
+
+  const status = estimateLine(line, now);
+  const color = LINE_COLORS[line];
+
+  if (station.operational === false) {
+    return (
+      <div
+        className="rounded-2xl p-6 text-center flex flex-col items-center gap-3"
+        style={{ background: "var(--c-card)" }}
+      >
+        <AlertTriangle size={22} style={{ color: "var(--c-text-3)" }} />
+        <p className="font-semibold text-sm" style={{ color: "var(--c-text-3)" }}>
+          Station not yet open
+        </p>
+      </div>
+    );
+  }
+
+  if (schedule.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl overflow-hidden" style={{ background: "var(--c-card)" }}>
+      {/* Line header */}
+      <div
+        className="flex items-center gap-3 px-4 py-3"
+        style={{ borderBottom: "1px solid var(--c-border)" }}
+      >
+        <LineBadge line={line} size="md" />
+        <div>
+          <div className="font-bold text-sm" style={{ color: "var(--c-text)" }}>
+            {LINE_NAMES[line]}
+          </div>
+          <div className="text-[10px] font-semibold" style={{ color: "var(--c-text-4)" }}>
+            Every ~{LINE_META[line].avgFrequencyMins} min
+          </div>
+        </div>
+        <div className="ml-auto flex items-center gap-1.5">
+          {status.status === "after-last-train" && (
+            <span className="text-[9px] font-bold uppercase tracking-widest text-red-400">
+              Service ended
+            </span>
+          )}
+          {status.status === "before-first-train" && (
+            <span className="text-[9px] font-bold uppercase tracking-widest text-yellow-500">
+              Starts in {formatDuration(status.minsUntilFirst)}
+            </span>
+          )}
+          {status.status === "bus-only" && (
+            <span className="text-[9px] font-bold uppercase tracking-widest text-purple-400">
+              Bus only
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Direction tabs */}
+      {schedule.length > 1 && (
+        <div className="flex" style={{ borderBottom: "1px solid var(--c-border)" }}>
+          {schedule.map((_dir, i) => (
+            <button
+              key={i}
+              onClick={() => setActiveDir(i)}
+              className="flex-1 py-2.5 text-[11px] font-bold transition-colors"
+              style={{
+                color: activeDir === i ? color : "var(--c-text-3)",
+                background: "transparent",
+                borderBottom:
+                  activeDir === i ? `2px solid ${color}` : "2px solid transparent",
+              }}
+            >
+              → {schedule[i].destinationName}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <DirectionSchedule
+        dir={schedule[activeDir]}
+        line={line}
+        stationId={stationId}
+        autoOpenNext={autoOpenNext}
+      />
+    </div>
+  );
+}
+
+// ─── Main page ───────────────────────────────────────────────────────
+export function StationDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+
+  const location = useLocation();
+
+  if (!id || !STATION_BY_ID[id]) {
+    return (
+      <div className="p-8 text-center pt-24">
+        <h2 className="text-xl font-bold" style={{ color: "var(--c-text)" }}>
+          Station not found
+        </h2>
+        <button onClick={() => navigate(-1)} className="mt-4 text-yellow-400 font-semibold">
+          Go back
+        </button>
+      </div>
+    );
+  }
+
+  const deepLinkState = (location.state as { openLine?: string; openDirDest?: string } | null) ?? {};
+
+  const station = STATION_BY_ID[id];
+  const lines = [station.line, ...(station.secondLine ? [station.secondLine] : [])];
+
+  const handlePlanFromHere = () => navigate("/go", { state: { prefillSource: station.id } });
+
+  const posOnLine = useMemo(() => {
+    const path = LINE_PATHS[station.line];
+    if (!path) return null;
+    const idx = path.indexOf(id);
+    if (idx === -1) return null;
+    return { idx, total: path.length - 1 };
+  }, [id, station.line]);
+
+  const primaryColor = LINE_COLORS[station.line];
+
+  return (
+    <div className="min-h-screen pb-28 animate-in fade-in slide-in-from-right-4 duration-300">
+      {/* Sticky top bar */}
+      <div
+        className="sticky top-0 z-30 px-4 py-3 flex items-center gap-3 transition-colors"
+        style={{
+          background: "var(--c-blur)",
+          borderBottom: "1px solid var(--c-border)",
+          backdropFilter: "blur(20px)",
+        }}
+      >
+        <button
+          onClick={() => navigate(-1)}
+          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+          style={{ background: "var(--c-card)" }}
+        >
+          <ArrowLeft size={18} style={{ color: "var(--c-text)" }} />
+        </button>
+        <span className="font-bold text-[14px] truncate" style={{ color: "var(--c-text)" }}>
+          {station.name}
+        </span>
+      </div>
+
+      {/* Station Banner */}
+      <div
+        className="relative overflow-hidden"
+        style={{
+          height: 160,
+          background: `linear-gradient(135deg, ${primaryColor}22 0%, ${primaryColor}08 60%, var(--c-bg) 100%)`,
+          borderBottom: `1px solid ${primaryColor}22`,
+        }}
+      >
+        {/* Decorative blobs */}
+        <div
+          className="absolute rounded-full"
+          style={{
+            width: 220,
+            height: 220,
+            top: -80,
+            right: -60,
+            background: `radial-gradient(circle, ${primaryColor}30 0%, transparent 70%)`,
+            animation: "pulse 4s ease-in-out infinite",
+          }}
+        />
+        <div
+          className="absolute rounded-full"
+          style={{
+            width: 120,
+            height: 120,
+            bottom: -40,
+            left: 20,
+            background: `radial-gradient(circle, ${primaryColor}18 0%, transparent 70%)`,
+            animation: "pulse 6s ease-in-out infinite",
+            animationDelay: "1s",
+          }}
+        />
+
+        {/* Rail track motif */}
+        {/* Schematic line mini-map */}
+        {posOnLine && (
+          <div className="absolute bottom-0 left-0 right-0 w-full h-8 flex items-center px-6" style={{ paddingBottom: '12px' }}>
+            <div className="relative w-full h-1.5" style={{ background: primaryColor, opacity: 0.9 }}>
+              {Array.from({ length: posOnLine.total + 1 }).map((_, i) => {
+                const isCurrent = i === posOnLine.idx;
+                const left = `${(i / posOnLine.total) * 100}%`;
+                return (
+                  <div
+                    key={i}
+                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2"
+                    style={{
+                      left,
+                      width: isCurrent ? 8 : 4,
+                      height: isCurrent ? 14 : 10,
+                      background: "white",
+                      border: `2px solid ${primaryColor}`,
+                      zIndex: isCurrent ? 10 : 1,
+                    }}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Line badge watermark */}
+        <div
+          className="absolute top-5 right-6 font-black text-[80px] leading-none select-none pointer-events-none"
+          style={{ color: primaryColor, opacity: 0.07, fontVariantNumeric: "tabular-nums" }}
+        >
+          {LINE_LETTER[station.line]}
+        </div>
+
+        {/* Line pill */}
+        <div className="absolute bottom-16 left-5 flex items-center gap-2">
+          <LineBadge line={station.line} size="xs" />
+          <span
+            className="text-[10px] font-bold uppercase tracking-widest"
+            style={{ color: primaryColor, opacity: 0.85 }}
+          >
+            {LINE_NAMES[station.line]}
+          </span>
+          {station.interchange && (
+            <span
+              className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded"
+              style={{ background: `${primaryColor}22`, color: primaryColor }}
+            >
+              Interchange
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="p-5 max-w-[var(--layout-max-width)] mx-auto space-y-6">
+        {/* Hero */}
+        <div className="pt-4">
+          <div className="flex items-start gap-4 mb-5">
+            <div className="flex flex-col gap-2 pt-1">
+              {lines.map((l) => (
+                <LineBadge key={l} line={l} size="xl" />
+              ))}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h1
+                className="text-4xl font-bold tracking-tight leading-tight"
+                style={{ color: "var(--c-text)" }}
+              >
+                {station.name}
+              </h1>
+              <div className="flex flex-wrap gap-2 mt-3">
+                <span
+                  className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded"
+                  style={{ color: "var(--c-text-3)", border: "1px solid var(--c-border-2)" }}
+                >
+                  Phase {station.phase}
+                </span>
+                {station.interchange && (
+                  <span
+                    className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded"
+                    style={{ color: "var(--c-text)", border: "1px solid var(--c-border-2)" }}
+                  >
+                    Interchange
+                  </span>
+                )}
+                {station.operational === false && (
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-yellow-600 border border-yellow-900/40 px-2 py-1 rounded">
+                    Opening Soon
+                  </span>
+                )}
+              </div>
+              <div className="mt-2 flex gap-3 flex-wrap">
+                {lines.map((l) => (
+                  <span key={l} className="text-xs font-semibold" style={{ color: "var(--c-text-3)" }}>
+                    {LINE_NAMES[l]}
+                  </span>
+                ))}
+              </div>
+              {posOnLine && (
+                <div className="mt-2 flex items-center gap-1.5">
+                  <Navigation2 size={11} style={{ color: "var(--c-text-4)" }} />
+                  <span className="text-[11px]" style={{ color: "var(--c-text-4)" }}>
+                    Stop {posOnLine.idx + 1} of {posOnLine.total + 1}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <button
+            onClick={handlePlanFromHere}
+            className="w-full py-3.5 rounded-2xl text-[15px] font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+            style={{ background: "#FACC15", color: "#000" }}
+          >
+            Plan Trip From Here <ArrowRight size={16} strokeWidth={2.5} />
+          </button>
+        </div>
+
+        {/* Schedule */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Clock size={13} style={{ color: "var(--c-text-4)" }} />
+            <span
+              className="text-[10px] font-bold uppercase tracking-widest"
+              style={{ color: "var(--c-text-4)" }}
+            >
+              Today&apos;s Schedule · tap any train for full route
+            </span>
+          </div>
+          <div className="space-y-4">
+            {lines.map((line) => (
+              <LineScheduleCard
+                key={line}
+                stationId={id}
+                line={line}
+                autoOpenDirDest={deepLinkState.openLine === line ? deepLinkState.openDirDest : undefined}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

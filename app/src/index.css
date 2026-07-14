@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+/* ─── Design token layer ─────────────────────────────────────────────────── */
+:root {
+  /* Default (Light) */
+  --c-bg:        #f4f4f5;
+  --c-card:      #ffffff;
+  --c-card-alt:  #fafafa;
+  --c-border:    #e4e4e7;
+  --c-border-2:  #d4d4d8;
+  --c-blur:      rgba(244, 244, 245, 0.96);
+  --c-text:      #18181b;
+  --c-text-2:    #52525b;
+  --c-text-3:    #71717a;
+  --c-text-4:    #a1a1aa;
+  --layout-max-width: 768px;
+}
+
+:root[data-theme="dark"] {
+  --c-bg:        #0f0f0f;
+  --c-card:      #1a1a1a;
+  --c-card-alt:  #222222;
+  --c-border:    #1f1f1f;
+  --c-border-2:  #2a2a2a;
+  --c-blur:      rgba(15, 15, 15, 0.96);
+  --c-text:      #ffffff;
+  --c-text-2:    #a1a1aa;
+  --c-text-3:    #71717a;
+  --c-text-4:    #52525b;
+}
+
+html, body, #root {
+  background: var(--c-bg);
+  transition: background 0.25s ease;
+}
+
+/* Leaflet Vignelli Tooltip Overrides */
+.leaflet-tooltip.vignelli-label {
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+  color: #000;
+  font-family: Helvetica, Arial, sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 0;
+  margin: 0;
+  letter-spacing: -0.02em;
+  text-shadow: 1px 1px 0px #ebe8e0, -1px -1px 0px #ebe8e0, 1px -1px 0px #ebe8e0, -1px 1px 0px #ebe8e0;
+}
+.leaflet-tooltip-left.vignelli-label::before,
+.leaflet-tooltip-right.vignelli-label::before {
+  display: none; /* hide the little triangle arrow */
+}

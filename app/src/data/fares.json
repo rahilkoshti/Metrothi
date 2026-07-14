@@ -1,0 +1,20 @@
+{
+  "_meta": {
+    "status": "PLACEHOLDER — real slab data not available (GMRC site computes fares via JS, not published as a static table). Do NOT ship these numbers to real users; logic + real values to be filled in later.",
+    "confirmedRulesOnly": {
+      "minFare": 5,
+      "maxFareApprox": "conflicting sources say 25 or 40 — unconfirmed",
+      "ncmcDiscount": "10% off any fare when paying with NCMC card",
+      "childrenFree": "below ~90cm / 3 feet height, travelling with adult",
+      "touristDailyPass": "₹100 unlimited rides/day (unconfirmed if still active)",
+      "crossPhaseRule": "Token & GMRC Smart Card (CSC) NOT valid between Phase 1 (Ahmedabad) and Phase 2 (Gandhinagar/GIFT City) stations — only NCMC card works across both phases"
+    }
+  },
+  "placeholderSlabs": [
+    { "minStations": 1, "maxStations": 2, "fare": 5 },
+    { "minStations": 3, "maxStations": 5, "fare": 10 },
+    { "minStations": 6, "maxStations": 9, "fare": 15 },
+    { "minStations": 10, "maxStations": 15, "fare": 20 },
+    { "minStations": 16, "maxStations": 99, "fare": 25 }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "_meta": {
+    "source": "Official GMRC timetable image 'Revised-Time-Table-on-18.05.2026updated.jpg' (Phase 1 & 2 summary chart) + Tentative-TT-18.05.26.pdf for detailed APMC-GIFT City timing points",
+    "effectiveFrom": "2026-05-18",
+    "status": "Frequency/first-last train data now complete for all 4 lines. Stop-by-stop intermediate timings still only available for the Red/Yellow corridor (via PDF timing points) — needs interpolation elsewhere.",
+    "note": "'Average X minutes' frequencies on Line-3 and Line-4 are wider-spaced schedules (not fixed headway), since ridership is lower on the Gandhinagar/GIFT City stretch."
+  },
+  "lines": {
+    "blue": {
+      "displayName": "Line 1: Vastral Gam - Thaltej Gam (East-West Corridor)",
+      "distanceKm": 21.1,
+      "totalTravelTimeMins": 45,
+      "firstTrain": { "vastralGam": "06:20", "thaltejGam": "06:20" },
+      "lastTrain": { "vastralGam": "23:00", "thaltejGam": "23:00" },
+      "frequencyMins": [
+        { "when": "Weekdays peak (08:00-11:00 & 17:00-20:00)", "everyMins": 7 },
+        { "when": "Weekdays non-peak & Saturday peak", "everyMins": 10 },
+        { "when": "Saturday non-peak & all-day Sunday", "everyMins": 12 },
+        { "when": "All days 06:20-07:00 & 22:00-23:00", "everyMins": 20 }
+      ]
+    },
+    "red": {
+      "displayName": "Line 2: APMC - Koteshwar Road (North-South Corridor)",
+      "distanceKm": 20.2,
+      "totalTravelTimeMins": 35,
+      "firstTrain": { "apmc": "06:20", "koteshwarRoad": "06:16" },
+      "lastTrain": { "apmc": "23:10", "koteshwarRoad": "23:00" },
+      "frequencyMins": [
+        { "when": "Mon-Sun 06:16-22:00", "everyMins": 12 },
+        { "when": "Mon-Sun 22:00-23:00", "everyMins": 20 }
+      ]
+    },
+    "yellow": {
+      "displayName": "Line 3: Koteshwar Road - Mahatma Mandir (Phase 2, Corridor-1)",
+      "distanceKm": 20.87,
+      "totalTravelTimeMins": 43,
+      "firstTrain": { "koteshwarRoad": "06:55", "mahatmaMandir": "06:40" },
+      "lastTrain": { "koteshwarRoad": "21:20", "mahatmaMandir": "21:00" },
+      "frequencyMins": [
+        { "when": "Mon-Sun 06:40-08:00", "averageMins": 40 },
+        { "when": "Mon-Sun 08:00-21:00", "averageMins": 24 }
+      ]
+    },
+    "violet": {
+      "displayName": "Line 4: GNLU - GIFT City (Phase 2, Corridor-2)",
+      "distanceKm": 5.8,
+      "totalTravelTimeMins": 6,
+      "firstTrain": { "gnlu": "07:36", "giftCity": "07:48" },
+      "lastTrain": { "gnlu": "18:57", "giftCity": "19:13" },
+      "frequencyMins": [
+        { "when": "07:36-10:18", "averageMins": 49 },
+        { "when": "10:18-16:06", "note": "Only bus services for GNLU-GIFT City, no train" },
+        { "when": "16:06-19:13", "averageMins": 57 }
+      ]
+    }
+  },
+  "detailedTimingPoints": {
+    "apmc-to-giftcity": {
+      "timingPointStations": [
+        "apmc", "old-high-court", "motera-stadium", "koteshwar-road",
+        "gnlu", "infocity", "sachivalaya", "mahatma-mandir", "gift-city"
+      ],
+      "tripsPerDayEachDirection": 42,
+      "avgSegmentTimeMins": 2.3
+    }
+  },
+  "generalNotes": [
+    "Ticket windows close 5 minutes before the last revenue train at every station.",
+    "Frequency is subject to change 'due to inevitable reasons' (official wording)."
+  ]
+}
