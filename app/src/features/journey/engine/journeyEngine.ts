@@ -172,6 +172,13 @@ function buildLegs(sourceId: string, destId: string) {
     }
   }
 
+  // An interchange endpoint's stored `line` doesn't always match the line
+  // actually ridden to reach/leave it (e.g. boarding at motera-stadium to go
+  // one stop on yellow still records source.line "red" for chain-building).
+  // That produces a leg that starts and ends on the same station with no
+  // real travel - drop it so it doesn't count as a transfer or a wait.
+  legs = legs.filter((leg) => leg.ids.length > 1);
+
   const merged: any[] = [];
   legs.forEach((leg, idx) => {
     const ids = idx === 0 ? leg.ids : leg.ids.slice(1);
@@ -265,6 +272,83 @@ export function upcomingDepartures(line: string, now: Date, count = 200) {
     cursor = dep;
   }
   return deps;
+}
+
+function stationOffsetHours(line: string, stationId: string, headingId: string) {
+  const path = LINE_PATHS[line];
+  const idx = path.indexOf(stationId);
+  const headIdx = path.indexOf(headingId);
+  const avgSegmentMins = LINE_META[line].avgSegmentMins;
+  const stopsFromOrigin = headIdx > idx ? idx : path.length - 1 - idx;
+  return (stopsFromOrigin * avgSegmentMins) / 60;
+}
+
+/**
+ * Same as estimateLine, but offsets by the given station's position and
+ * direction along the line - estimateLine alone reports the terminal's next
+ * departure time, which is only correct if you're standing at the terminal.
+ */
+export function estimateLineAtStation(line: string, stationId: string, headingId: string, now = new Date()) {
+  const path = LINE_PATHS[line];
+  if (!path || path.indexOf(stationId) === -1 || path.indexOf(headingId) === -1) {
+    return estimateLine(line, now);
+  }
+
+  const offsetHours = stationOffsetHours(line, stationId, headingId);
+  const rules = rulesForLine(line, now);
+  const hourNow = hourOf(now);
+  const termHourNow = hourNow - offsetHours;
+  const stationFirst = rules[0].start + offsetHours;
+  const stationLast = rules[rules.length - 1].end + offsetHours;
+
+  if (hourNow < stationFirst) return { line, status: "before-first-train", minsUntilFirst: Math.round((stationFirst - hourNow) * 60) };
+  if (hourNow >= stationLast) return { line, status: "after-last-train" };
+
+  const activeRule = rules.find((r: any) => termHourNow >= r.start && termHourNow < r.end);
+  if (activeRule && activeRule.every == null) {
+    return { line, status: "bus-only", resumesInMins: Math.round((activeRule.end + offsetHours - hourNow) * 60) };
+  }
+
+  const nextDepTerm = simulateNextDeparture(rules, termHourNow);
+  const nextArrival = nextDepTerm + offsetHours;
+  return { line, status: "running", waitMins: Math.max(0, Math.round((nextArrival - hourNow) * 60)), currentFrequencyMins: activeRule ? activeRule.every : null };
+}
+
+/** Direction/station-aware counterpart to upcomingDepartures. */
+export function upcomingDeparturesAtStation(line: string, stationId: string, headingId: string, now: Date, count = 200) {
+  const path = LINE_PATHS[line];
+  if (!path || path.indexOf(stationId) === -1 || path.indexOf(headingId) === -1) {
+    return upcomingDepartures(line, now, count);
+  }
+
+  const offsetHours = stationOffsetHours(line, stationId, headingId);
+  const rules = rulesForLine(line, now);
+  const hourNow = hourOf(now);
+  const lastEnd = rules[rules.length - 1].end;
+  const deps = [];
+  let cursor = hourNow - offsetHours;
+  for (let i = 0; i < count; i++) {
+    if (cursor >= lastEnd) break;
+    const dep = simulateNextDeparture(rules, cursor);
+    if (dep >= lastEnd) break;
+    const arrivalHour = dep + offsetHours;
+    const activeRule = rules.find((r: any) => dep >= r.start && dep < r.end) || rules[rules.length - 1];
+    deps.push({ hour: arrivalHour, waitMins: Math.max(0, Math.round((arrivalHour - hourNow) * 60)), frequencyMins: activeRule.every });
+    cursor = dep;
+  }
+  return deps;
+}
+
+/**
+ * Direction-aware next-departure preview for a station pair, using the same
+ * leg-building the full planner uses - so a "next train" preview shown before
+ * planning never disagrees with the plan itself.
+ */
+export function nextDepartureFromStation(sourceId: string, destId: string, now = new Date()) {
+  const base = buildLegs(sourceId, destId);
+  if (!base || base.legs.length === 0) return null;
+  const firstLeg = base.legs[0];
+  return estimateLineAtStation(firstLeg.line, sourceId, firstLeg.ids[firstLeg.ids.length - 1], now);
 }
 
 export function upcomingStationDepartures(stationId: string, line: string, now: Date, count = 2) {
@@ -446,7 +530,7 @@ function simulateFromDeparture(legs: any[], now: Date, firstWaitMins: number, fi
       bufferMins = INTERCHANGE_BUFFER_MINS;
       elapsedMins += bufferMins;
       const projectedTime = new Date(now.getTime() + elapsedMins * 60000);
-      const est = estimateLine(leg.line, projectedTime);
+      const est = estimateLineAtStation(leg.line, leg.ids[0], leg.ids[leg.ids.length - 1], projectedTime);
       status = est.status;
       if (est.status === "running") {
         waitMins = est.waitMins!;
@@ -631,10 +715,15 @@ export function planJourney(sourceInput: string | PlaceNode, destInput: string |
   if (!base) return null;
   let { source, dest, legs, merged, totalStops } = base;
 
-  // We keep source and dest as the actual stations for the metro logic, 
+  // We keep source and dest as the actual stations for the metro logic,
   // but we will augment the final result to return the places if they exist.
 
-  const firstEst = estimateLine(source.line, now);
+  // Use the first *surviving* leg's line/direction, not the station's stored
+  // primary line - at an interchange origin the real first ride can be on
+  // the secondLine, and estimateLine alone ignores station position anyway.
+  const firstLeg = legs[0];
+  const firstLegHeading = firstLeg.ids[firstLeg.ids.length - 1];
+  const firstEst = estimateLineAtStation(firstLeg.line, sourceId, firstLegHeading, now);
   const ticketInfo = getTicketOptions(source, dest);
   const crossesPhase = source.phase !== dest.phase;
   const usesViolet = legs.some((l: any) => l.line === "violet");
@@ -649,13 +738,13 @@ export function planJourney(sourceInput: string | PlaceNode, destInput: string |
       initialWaitMins: null,
       totalMins: null,
       feasible: false,
-      strandedAtLine: LINE_META[source.line].name,
+      strandedAtLine: LINE_META[firstLeg.line].name,
       fare: fareForStops(totalStops),
       ticketInfo,
       usesViolet,
       crossesPhase,
       numTransfers: legs.length - 1,
-      warnings: [`${LINE_META[source.line].name} has finished service for the day \u2014 no trains from ${source.name} right now.`],
+      warnings: [`${LINE_META[firstLeg.line].name} has finished service for the day \u2014 no trains from ${source.name} right now.`],
       options: [],
     };
   }
@@ -667,15 +756,15 @@ export function planJourney(sourceInput: string | PlaceNode, destInput: string |
     firstFrequencyMins = firstEst.currentFrequencyMins ?? null;
   } else if (firstEst.status === "before-first-train") {
     firstWaitMins = firstEst.minsUntilFirst!;
-    leadWarnings.push(`${LINE_META[source.line].name} hasn't started service yet \u2014 first train in ${formatDuration(firstEst.minsUntilFirst)}.`);
+    leadWarnings.push(`${LINE_META[firstLeg.line].name} hasn't started service yet \u2014 first train in ${formatDuration(firstEst.minsUntilFirst)}.`);
   } else if (firstEst.status === "bus-only") {
     firstWaitMins = firstEst.resumesInMins!;
-    leadWarnings.push(`${LINE_META[source.line].name} is bus-only right now \u2014 trains resume in ${formatDuration(firstEst.resumesInMins)}.`);
+    leadWarnings.push(`${LINE_META[firstLeg.line].name} is bus-only right now \u2014 trains resume in ${formatDuration(firstEst.resumesInMins)}.`);
   }
 
   const sim = simulateFromDeparture(legs, now, firstWaitMins, firstFrequencyMins);
 
-  const departures = upcomingDepartures(source.line, now, 200);
+  const departures = upcomingDeparturesAtStation(firstLeg.line, sourceId, firstLegHeading, now, 200);
   const options = departures.map((d) => {
     const optSim = simulateFromDeparture(legs, now, d.waitMins, d.frequencyMins ?? null);
     return {

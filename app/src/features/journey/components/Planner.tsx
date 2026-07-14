@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { ArrowUpDown, LocateFixed, ArrowRight, MapPin } from "lucide-react";
 import { StationInput } from "./StationInput";
-import { STATIONS, estimateLine, formatDuration, walkMinsForKm } from "../engine/journeyEngine";
+import { STATIONS, estimateLine, nextDepartureFromStation, formatDuration, walkMinsForKm } from "../engine/journeyEngine";
 import type { PlaceNode } from "../engine/journeyEngine";
 import { useNow } from "../hooks/useNow";
 import { GeocodingService } from "../../../services/GeocodingService";
@@ -139,8 +139,14 @@ export function Planner({ onPlan, nearest, locStatus }: PlannerProps) {
   const now = useNow();
   const sourceStatus = useMemo(() => {
     if (!source || source.isPlace) return null;
+    // Once a destination station is picked, prefer the direction-aware
+    // estimate the planner itself will use, so this preview can't disagree
+    // with the results screen.
+    if (destination && !destination.isPlace && destination.id !== source.id) {
+      return nextDepartureFromStation(source.id, destination.id, now);
+    }
     return estimateLine(source.line, now);
-  }, [source, now]);
+  }, [source, destination, now]);
 
   return (
     <div className="p-5 max-w-[var(--layout-max-width)] mx-auto pt-10 flex flex-col min-h-[calc(100vh-80px)]" onClick={() => setActiveField(null)}>
