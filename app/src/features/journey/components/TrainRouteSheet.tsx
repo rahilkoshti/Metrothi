@@ -5,6 +5,8 @@ import {
   STATION_BY_ID,
   LINE_META,
   LINE_PATHS,
+  hourOf,
+  istDayStartMs,
 } from "../engine/journeyEngine";
 import type { DayScheduleDirection, DayTrain } from "../engine/journeyEngine";
 import { LineBadge } from "../../../components/LineBadge";
@@ -35,7 +37,7 @@ export function computeTrainRoute(
   if (stationIdx === -1) return [];
 
   const avgSegmentMins = LINE_META[line].avgSegmentMins;
-  const hourNow = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+  const hourNow = hourOf(now);
 
   // Determine direction: if originName matches path[0], we go forward
   const goForward = dir.originName === (STATION_BY_ID[path[0]]?.name ?? path[0]);
@@ -58,10 +60,8 @@ export function computeTrainRoute(
     const isOrigin = j === 0;
     const isDestination = j === orderedPath.length - 1;
 
-    const base = new Date(now);
-    base.setHours(0, 0, 0, 0);
-    const clockTime = new Date(base.getTime() + arrivalHour * 3600000)
-      .toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const clockTime = new Date(istDayStartMs(now) + arrivalHour * 3600000)
+      .toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" });
 
     return {
       stationId: sid,

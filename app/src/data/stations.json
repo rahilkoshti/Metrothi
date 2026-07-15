@@ -5,9 +5,12 @@
     "totalStations": 54,
     "lines": ["blue", "red", "yellow", "violet"],
     "interchanges": ["old-high-court", "motera-stadium", "gnlu"],
+    "schemaNotes": [
+      "`order` is a station's position within its primary `line`. Interchange stations also carry `secondLineOrder`, their position within `secondLine` (fractional where they sit mid-route, e.g. old-high-court=6.5 on red between gandhigram=6 and usmanpura=7). The engine derives each line's full path by merging `line`+order with `secondLine`+secondLineOrder — this is the only place route topology lives; do not hand-maintain a second copy."
+    ],
     "knownDataIssues": [
-      "Vastral (order 3, blue) returned coordinates nearly identical to Vastral Gam (order 1) — likely a search mismatch. Needs manual verification against the official route map.",
-      "Mahatma Mandir coordinates are the Convention Centre landmark (station entrance is adjacent, exact pin not confirmed).",
+      "Vastral (order 3, blue) returned coordinates nearly identical to Vastral Gam (order 1) — likely a search mismatch. Needs manual verification against the official route map. Checked OSM (2026-07-15): no station node named Vastral exists there either, so no independent fix was available — coordinate and needsVerification flag left as-is.",
+      "Mahatma Mandir coordinates are the Convention Centre landmark (station entrance is adjacent, exact pin not confirmed). OSM's own station node (2026-07-15) sits ~153m from the traced blue-line track, consistent with this being an approximate/landmark pin rather than the exact station entrance.",
       "Sabarmati Railway Station is not yet operational — left with null coordinates."
     ]
   },
@@ -22,7 +25,7 @@
     { "id": "kalupur", "name": "Kalupur Railway Station", "line": "blue", "order": 8, "phase": 1, "terminal": false, "interchange": false, "connectsTo": "Ahmedabad Junction (Indian Railways)", "lat": 23.024764, "lng": 72.602913 },
     { "id": "gheekanta", "name": "Gheekanta", "line": "blue", "order": 9, "phase": 1, "terminal": false, "interchange": false, "lat": 23.028778, "lng": 72.587319 },
     { "id": "shahpur", "name": "Shahpur", "line": "blue", "order": 10, "phase": 1, "terminal": false, "interchange": false, "lat": 23.039267, "lng": 72.58294 },
-    { "id": "old-high-court", "name": "Old High Court", "line": "blue", "secondLine": "red", "order": 11, "phase": 1, "terminal": false, "interchange": true, "lat": 23.037559, "lng": 72.567011 },
+    { "id": "old-high-court", "name": "Old High Court", "line": "blue", "secondLine": "red", "secondLineOrder": 6.5, "order": 11, "phase": 1, "terminal": false, "interchange": true, "lat": 23.037559, "lng": 72.567011 },
     { "id": "sp-stadium", "name": "SP Stadium", "line": "blue", "order": 12, "phase": 1, "terminal": false, "interchange": false, "lat": 23.03987, "lng": 72.561661 },
     { "id": "commerce-six-road", "name": "Commerce Six Road", "line": "blue", "order": 13, "phase": 1, "terminal": false, "interchange": false, "lat": 23.040721, "lng": 72.553022 },
     { "id": "gujarat-university", "name": "Gujarat University", "line": "blue", "order": 14, "phase": 1, "terminal": false, "interchange": false, "lat": 23.044902, "lng": 72.543374 },
@@ -44,7 +47,7 @@
     { "id": "sabarmati-railway-station", "name": "Sabarmati Railway Station", "line": "red", "order": 11, "phase": 1, "terminal": false, "interchange": false, "operational": false, "notes": "Under construction, not yet operational", "lat": null, "lng": null },
     { "id": "aec", "name": "AEC", "line": "red", "order": 12, "phase": 1, "terminal": false, "interchange": false, "lat": 23.075115, "lng": 72.59329 },
     { "id": "sabarmati", "name": "Sabarmati", "line": "red", "order": 13, "phase": 1, "terminal": false, "interchange": false, "lat": 23.08601, "lng": 72.592165 },
-    { "id": "motera-stadium", "name": "Motera Stadium", "line": "red", "secondLine": "yellow", "order": 14, "phase": 1, "terminal": false, "interchange": true, "lat": 23.096754, "lng": 72.596685 },
+    { "id": "motera-stadium", "name": "Motera Stadium", "line": "red", "secondLine": "yellow", "secondLineOrder": 0, "order": 14, "phase": 1, "terminal": false, "interchange": true, "lat": 23.096754, "lng": 72.596685 },
 
     { "id": "koteshwar-road", "name": "Koteshwar Road", "line": "yellow", "order": 1, "phase": 2, "terminal": false, "interchange": false, "lat": 23.105942, "lng": 72.603488 },
     { "id": "vishwakarma-college", "name": "Vishwakarma College", "line": "yellow", "order": 2, "phase": 2, "terminal": false, "interchange": false, "lat": 23.115791, "lng": 72.61045 },
@@ -53,7 +56,7 @@
     { "id": "koba-circle", "name": "Koba Circle", "line": "yellow", "order": 5, "phase": 2, "terminal": false, "interchange": false, "lat": 23.132524, "lng": 72.631386 },
     { "id": "juna-koba", "name": "Juna Koba", "line": "yellow", "order": 6, "phase": 2, "terminal": false, "interchange": false, "lat": 23.134457, "lng": 72.633922 },
     { "id": "koba-gam", "name": "Koba Gam", "line": "yellow", "order": 7, "phase": 2, "terminal": false, "interchange": false, "lat": 23.146562, "lng": 72.643437 },
-    { "id": "gnlu", "name": "GNLU", "line": "yellow", "secondLine": "violet", "order": 8, "phase": 2, "terminal": false, "interchange": true, "lat": 23.154518, "lng": 72.647547 },
+    { "id": "gnlu", "name": "GNLU", "line": "yellow", "secondLine": "violet", "secondLineOrder": 0, "order": 8, "phase": 2, "terminal": false, "interchange": true, "lat": 23.154518, "lng": 72.647547 },
     { "id": "raysan", "name": "Raysan", "line": "yellow", "order": 9, "phase": 2, "terminal": false, "interchange": false, "lat": 23.166081, "lng": 72.648359 },
     { "id": "randesan", "name": "Randesan", "line": "yellow", "order": 10, "phase": 2, "terminal": false, "interchange": false, "lat": 23.17913, "lng": 72.647311 },
     { "id": "dholakuva-circle", "name": "Dholakuva Circle", "line": "yellow", "order": 11, "phase": 2, "terminal": false, "interchange": false, "lat": 23.186098, "lng": 72.64347 },

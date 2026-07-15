@@ -1,5 +1,7 @@
 // Metrothi Journey Engine (Ported from prototype)
 
+import stationsData from "../../../data/stations.json";
+
 export interface PlaceNode {
   isPlace: true;
   id: string;
@@ -8,72 +10,46 @@ export interface PlaceNode {
   lng: number;
 }
 
-export const STATIONS = [
-  { id: "vastral-gam", name: "Vastral Gam", line: "blue", phase: 1, lat: 22.997249, lng: 72.667317 },
-  { id: "nirant-cross-road", name: "Nirant Cross Road", line: "blue", phase: 1, lat: 22.999813, lng: 72.658914 },
-  { id: "vastral", name: "Vastral", line: "blue", phase: 1, lat: 22.997276, lng: 72.667467 },
-  { id: "rabari-colony", name: "Rabari Colony", line: "blue", phase: 1, lat: 23.005521, lng: 72.635473 },
-  { id: "amraivadi", name: "Amraiwadi", line: "blue", phase: 1, lat: 23.007592, lng: 72.628584 },
-  { id: "apparel-park", name: "Apparel Park", line: "blue", phase: 1, lat: 23.010873, lng: 72.617559 },
-  { id: "kankaria-east", name: "Kankaria East", line: "blue", phase: 1, lat: 23.014738, lng: 72.606947 },
-  { id: "kalupur", name: "Kalupur Railway Station", line: "blue", phase: 1, lat: 23.024764, lng: 72.602913 },
-  { id: "gheekanta", name: "Gheekanta", line: "blue", phase: 1, lat: 23.028778, lng: 72.587319 },
-  { id: "shahpur", name: "Shahpur", line: "blue", phase: 1, lat: 23.039267, lng: 72.58294 },
-  { id: "old-high-court", name: "Old High Court", line: "blue", secondLine: "red", phase: 1, interchange: true, lat: 23.037559, lng: 72.567011 },
-  { id: "sp-stadium", name: "SP Stadium", line: "blue", phase: 1, lat: 23.03987, lng: 72.561661 },
-  { id: "commerce-six-road", name: "Commerce Six Road", line: "blue", phase: 1, lat: 23.040721, lng: 72.553022 },
-  { id: "gujarat-university", name: "Gujarat University", line: "blue", phase: 1, lat: 23.044902, lng: 72.543374 },
-  { id: "gurukul-road", name: "Gurukul Road", line: "blue", phase: 1, lat: 23.046007, lng: 72.53505 },
-  { id: "doordarshan-kendra", name: "Doordarshan Kendra", line: "blue", phase: 1, lat: 23.048086, lng: 72.524867 },
-  { id: "thaltej", name: "Thaltej", line: "blue", phase: 1, lat: 23.049759, lng: 72.51673 },
-  { id: "thaltej-gam", name: "Thaltej Gam", line: "blue", phase: 1, lat: 23.050401, lng: 72.507783 },
-  { id: "apmc", name: "APMC", line: "red", phase: 1, lat: 22.997257, lng: 72.537486 },
-  { id: "jivraj-park", name: "Jivraj Park", line: "red", phase: 1, lat: 23.005498, lng: 72.533514 },
-  { id: "rajivnagar", name: "Rajiv Nagar", line: "red", phase: 1, lat: 23.010064, lng: 72.537192 },
-  { id: "shreyas", name: "Shreyas", line: "red", phase: 1, lat: 23.013408, lng: 72.548604 },
-  { id: "paldi", name: "Paldi", line: "red", phase: 1, lat: 23.018985, lng: 72.564127 },
-  { id: "gandhigram", name: "Gandhigram", line: "red", phase: 1, lat: 23.027229, lng: 72.568981 },
-  { id: "usmanpura", name: "Usmanpura", line: "red", phase: 1, lat: 23.045265, lng: 72.565087 },
-  { id: "vijaynagar", name: "Vijay Nagar", line: "red", phase: 1, lat: 23.05531, lng: 72.563125 },
-  { id: "vadaj", name: "Vadaj", line: "red", phase: 1, lat: 23.067737, lng: 72.565812 },
-  { id: "ranip", name: "Ranip", line: "red", phase: 1, lat: 23.067846, lng: 72.572956 },
-  { id: "sabarmati-railway-station", name: "Sabarmati Railway Station", line: "red", phase: 1, operational: false, lat: null, lng: null },
-  { id: "aec", name: "AEC", line: "red", phase: 1, lat: 23.075115, lng: 72.59329 },
-  { id: "sabarmati", name: "Sabarmati", line: "red", phase: 1, lat: 23.08601, lng: 72.592165 },
-  { id: "motera-stadium", name: "Motera Stadium", line: "red", secondLine: "yellow", phase: 1, interchange: true, lat: 23.096754, lng: 72.596685 },
-  { id: "koteshwar-road", name: "Koteshwar Road", line: "yellow", phase: 2, lat: 23.105942, lng: 72.603488 },
-  { id: "vishwakarma-college", name: "Vishwakarma College", line: "yellow", phase: 2, lat: 23.115791, lng: 72.61045 },
-  { id: "tapovan-circle", name: "Tapovan Circle", line: "yellow", phase: 2, lat: 23.120128, lng: 72.61582 },
-  { id: "narmada-canal", name: "Narmada Canal", line: "yellow", phase: 2, lat: 23.125251, lng: 72.622128 },
-  { id: "koba-circle", name: "Koba Circle", line: "yellow", phase: 2, lat: 23.132524, lng: 72.631386 },
-  { id: "juna-koba", name: "Juna Koba", line: "yellow", phase: 2, lat: 23.134457, lng: 72.633922 },
-  { id: "koba-gam", name: "Koba Gam", line: "yellow", phase: 2, lat: 23.146562, lng: 72.643437 },
-  { id: "gnlu", name: "GNLU", line: "yellow", secondLine: "violet", phase: 2, interchange: true, lat: 23.154518, lng: 72.647547 },
-  { id: "raysan", name: "Raysan", line: "yellow", phase: 2, lat: 23.166081, lng: 72.648359 },
-  { id: "randesan", name: "Randesan", line: "yellow", phase: 2, lat: 23.17913, lng: 72.647311 },
-  { id: "dholakuva-circle", name: "Dholakuva Circle", line: "yellow", phase: 2, lat: 23.186098, lng: 72.64347 },
-  { id: "infocity", name: "Infocity", line: "yellow", phase: 2, lat: 23.192596, lng: 72.639704 },
-  { id: "sector-1", name: "Sector-1 (Gandhinagar)", line: "yellow", phase: 2, lat: 23.205378, lng: 72.643482 },
-  { id: "sector-10a", name: "Sector-10A (Gandhinagar)", line: "yellow", phase: 2, lat: 23.210883, lng: 72.651156 },
-  { id: "sachivalaya", name: "Sachivalaya", line: "yellow", phase: 2, lat: 23.215095, lng: 72.65909 },
-  { id: "akshardham", name: "Akshardham", line: "yellow", phase: 2, lat: 23.223749, lng: 72.664279 },
-  { id: "juna-sachivalaya", name: "Juna Sachivalaya", line: "yellow", phase: 2, lat: 23.228989, lng: 72.659406 },
-  { id: "sector-16", name: "Sector-16 (Gandhinagar)", line: "yellow", phase: 2, lat: 23.233952, lng: 72.650136 },
-  { id: "sector-24", name: "Sector-24 (Gandhinagar)", line: "yellow", phase: 2, lat: 23.238573, lng: 72.641494 },
-  { id: "mahatma-mandir", name: "Mahatma Mandir", line: "yellow", phase: 2, lat: 23.231685, lng: 72.633469 },
-  { id: "pdeu", name: "PDEU", line: "violet", phase: 2, lat: 23.154955, lng: 72.66135 },
-  { id: "gift-city", name: "GIFT City", line: "violet", phase: 2, lat: 23.153258, lng: 72.685533 },
-];
+interface StationRecord {
+  id: string;
+  name: string;
+  line: string;
+  secondLine?: string;
+  secondLineOrder?: number;
+  order: number;
+  phase: number;
+  terminal?: boolean;
+  interchange?: boolean;
+  operational?: boolean;
+  needsVerification?: boolean;
+  lat: number | null;
+  lng: number | null;
+}
+
+export const STATIONS: StationRecord[] = (stationsData as { stations: StationRecord[] }).stations;
 
 export const STATION_BY_ID: Record<string, any> = Object.fromEntries(STATIONS.map((s) => [s.id, s]));
 
-export const LINE_PATHS: Record<string, string[]> = {
-  blue: ["vastral-gam","nirant-cross-road","vastral","rabari-colony","amraivadi","apparel-park","kankaria-east","kalupur","gheekanta","shahpur","old-high-court","sp-stadium","commerce-six-road","gujarat-university","gurukul-road","doordarshan-kendra","thaltej","thaltej-gam"],
-  red: ["apmc","jivraj-park","rajivnagar","shreyas","paldi","gandhigram","old-high-court","usmanpura","vijaynagar","vadaj","ranip","sabarmati-railway-station","aec","sabarmati","motera-stadium"],
-  yellow: ["motera-stadium","koteshwar-road","vishwakarma-college","tapovan-circle","narmada-canal","koba-circle","juna-koba","koba-gam","gnlu","raysan","randesan","dholakuva-circle","infocity","sector-1","sector-10a","sachivalaya","akshardham","juna-sachivalaya","sector-16","sector-24","mahatma-mandir"],
-  violet: ["gnlu","pdeu","gift-city"],
-};
 const LINE_ORDER = ["blue", "red", "yellow", "violet"];
+
+// A line's path is every station with `line === lineId` (positioned by `order`)
+// merged with every station with `secondLine === lineId` (positioned by
+// `secondLineOrder`, which lets an interchange sit mid-route rather than only
+// at an end - e.g. old-high-court is a genuine stop in the middle of red).
+// This is the only place route topology is derived; stations.json is the
+// single source of truth for it.
+function buildLinePath(lineId: string): string[] {
+  const entries: { id: string; pos: number }[] = [];
+  for (const s of STATIONS) {
+    if (s.line === lineId) entries.push({ id: s.id, pos: s.order });
+    else if (s.secondLine === lineId) entries.push({ id: s.id, pos: s.secondLineOrder ?? 0 });
+  }
+  return entries.sort((a, b) => a.pos - b.pos).map((e) => e.id);
+}
+
+export const LINE_PATHS: Record<string, string[]> = Object.fromEntries(
+  LINE_ORDER.map((lineId) => [lineId, buildLinePath(lineId)])
+);
 const INTERCHANGE_BETWEEN: Record<string, string> = { "blue|red": "old-high-court", "red|yellow": "motera-stadium", "yellow|violet": "gnlu" };
 
 function interchangeBetween(a: string, b: string) {
@@ -221,8 +197,23 @@ const FREQ_RULES: Record<string, any> = {
   violet: { all: VIOLET_ALL },
 };
 
+// The metro runs on IST regardless of the device's timezone (a visitor's
+// phone still set to home time would otherwise get wrong schedules). India
+// has no DST, so a fixed +5:30 offset from UTC is exact - shift the instant
+// into "IST-as-UTC" and read it back with the UTC getters.
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+function toIST(now: Date): Date {
+  return new Date(now.getTime() + IST_OFFSET_MS);
+}
+
+/** UTC epoch ms of 00:00:00 IST on the IST calendar day containing `now`. */
+export function istDayStartMs(now: Date): number {
+  const shifted = now.getTime() + IST_OFFSET_MS;
+  return Math.floor(shifted / 86400000) * 86400000 - IST_OFFSET_MS;
+}
+
 function dayType(now: Date) {
-  const d = now.getDay();
+  const d = toIST(now).getUTCDay();
   if (d === 0) return "sunday";
   if (d === 6) return "saturday";
   return "weekday";
@@ -231,8 +222,9 @@ function rulesForLine(line: string, now: Date) {
   const r = FREQ_RULES[line];
   return r.all || r[dayType(now)];
 }
-function hourOf(now: Date) {
-  return now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+export function hourOf(now: Date) {
+  const ist = toIST(now);
+  return ist.getUTCHours() + ist.getUTCMinutes() / 60 + ist.getUTCSeconds() / 3600;
 }
 function simulateNextDeparture(rules: any[], hourNow: number) {
   let t = rules[0].start, guard = 0;
@@ -449,12 +441,8 @@ export function fullDayStationSchedule(stationId: string, line: string, now: Dat
       if (arrivalHour >= lastEnd) break;
 
       const waitMins = Math.round((arrivalHour - hourNow) * 60);
-      const clockTime = (() => {
-        const base = new Date(now);
-        base.setHours(0, 0, 0, 0);
-        const ms = base.getTime() + arrivalHour * 3600000;
-        return new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      })();
+      const clockTime = new Date(istDayStartMs(now) + arrivalHour * 3600000)
+        .toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
 
       trains.push({
         id: `${line}-${originId}-${cursor.toFixed(4)}`,
@@ -508,7 +496,7 @@ export function formatDuration(mins: number | null | undefined) {
 
 export function clockTimeAfter(now: Date, offsetMins: number) {
   const d = new Date(now.getTime() + offsetMins * 60000);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" });
 }
 
 function simulateFromDeparture(legs: any[], now: Date, firstWaitMins: number, firstFrequencyMins: number | null) {

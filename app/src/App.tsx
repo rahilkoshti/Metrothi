@@ -36,8 +36,8 @@ function MainApp() {
     if (!coords) return null;
     let best = null, bestDist = Infinity;
     for (const s of STATIONS) {
-      if (s.lat == null) continue;
-      const d = haversineKm(coords, s);
+      if (s.lat == null || s.lng == null) continue;
+      const d = haversineKm(coords, { lat: s.lat, lng: s.lng });
       if (d < bestDist) { bestDist = d; best = s; }
     }
     return best ? { ...best, distanceKm: bestDist } : null;
