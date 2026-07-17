@@ -45,13 +45,23 @@ function MainApp() {
 
   const nearestOrFallback = nearest || (locStatus === "denied" ? { ...STATION_BY_ID["old-high-court"], distanceKm: null } : null);
 
-  function handlePlan(source: any, dest: any) {
+  function handlePlan(source: any, dest: any, config?: any) {
     // If the object passed has an 'id' and 'isPlace' is false/undefined, we could pass it or pass its ID.
     // We updated journeyEngine to accept the full object if it's a PlaceNode, or the string ID if it's a station.
     const srcArg = source.isPlace ? source : (source.id || source);
     const destArg = dest.isPlace ? dest : (dest.id || dest);
     
-    const r = planJourney(srcArg, destArg);
+    try {
+      const arr = JSON.parse(localStorage.getItem("metrothi-recent-trips") || "[]");
+      const key = `${source.id || source.name}->${dest.id || dest.name}`;
+      const next = [
+        { key, source, dest, savedAt: Date.now() },
+        ...arr.filter((j: any) => j.key !== key)
+      ].slice(0, 5);
+      localStorage.setItem("metrothi-recent-trips", JSON.stringify(next));
+    } catch { /* ignore */ }
+
+    const r = planJourney(srcArg, destArg, config);
     setResult(r);
     setActiveJourney(false);
     setIsJourneyMinimized(false);
@@ -90,7 +100,7 @@ function MainApp() {
               <>
                 <div className="animate-in fade-in duration-300">
                   <Routes>
-                    <Route path="/" element={<Dashboard nearest={nearestOrFallback} locStatus={locStatus} onPlanFromHere={handlePlanFromHere} />} />
+                    <Route path="/" element={<Dashboard nearest={nearestOrFallback} locStatus={locStatus} onPlanFromHere={handlePlanFromHere} onPlan={handlePlan} />} />
                     <Route path="/go" element={<Planner onPlan={handlePlan} nearest={nearestOrFallback} locStatus={locStatus} />} />
                     <Route path="/map" element={<MapScreen coords={coords} nearest={nearestOrFallback} />} />
                     <Route path="/stations" element={<StationsDirectory />} />
@@ -102,13 +112,13 @@ function MainApp() {
               </>
             )
           ) : (
-            <ResultsScreen result={result} onBack={handleBack} onStartJourney={(idx) => { setActiveJourney(true); setActiveJourneyOptionIdx(idx); setIsJourneyMinimized(false); }} />
+            <ResultsScreen result={result} onBack={handleBack} onStartJourney={(idx, currentResult) => { setResult(currentResult); setActiveJourney(true); setActiveJourneyOptionIdx(idx); setIsJourneyMinimized(false); }} />
           )
         ) : (
           <div className="animate-in fade-in duration-300">
             <Routes>
               <Route path="/" element={
-                <Dashboard nearest={nearestOrFallback} locStatus={locStatus} onPlanFromHere={handlePlanFromHere} />
+                <Dashboard nearest={nearestOrFallback} locStatus={locStatus} onPlanFromHere={handlePlanFromHere} onPlan={handlePlan} />
               } />
               <Route path="/go" element={
                 <Planner onPlan={handlePlan} nearest={nearestOrFallback} locStatus={locStatus} />
@@ -124,7 +134,7 @@ function MainApp() {
 
       {showTabBar && (
         <nav
-          className="fixed bottom-0 w-full border-t z-50 pb-safe transition-colors duration-300"
+          className="fixed bottom-0 w-full border-t z-50 pb-[env(safe-area-inset-bottom)] transition-colors duration-300"
           style={{ 
             background: 'var(--c-blur)', 
             borderColor: 'var(--c-border)', 
@@ -148,11 +158,11 @@ function MainApp() {
                     size={22}
                     strokeWidth={isActive ? 2.5 : 1.8}
                     className="transition-all duration-200"
-                    color={isActive ? '#FACC15' : 'var(--c-text-4)'}
+                    color={isActive ? 'var(--c-accent)' : 'var(--c-text-4)'}
                   />
                   <span
-                    className="text-[10px] leading-none font-semibold tracking-wide transition-all duration-200"
-                    style={{ color: isActive ? '#FACC15' : 'var(--c-text-4)' }}
+                    className="text-[11px] leading-none font-semibold tracking-wide transition-all duration-200"
+                    style={{ color: isActive ? 'var(--c-accent)' : 'var(--c-text-4)' }}
                   >
                     {item.label}
                   </span>

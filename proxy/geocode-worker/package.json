@@ -1,0 +1,13 @@
+{
+  "name": "metrothi-geocode-worker",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "wrangler dev --config wrangler.toml",
+    "deploy": "wrangler deploy --config wrangler.toml",
+    "secret": "wrangler secret --config wrangler.toml"
+  },
+  "devDependencies": {
+    "wrangler": "^4.111.0"
+  }
+}

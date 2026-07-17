@@ -49,7 +49,7 @@ export function StationBottomSheet({
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="absolute bottom-0 left-0 right-0 z-[1001] bg-white dark:bg-neutral-900 rounded-t-3xl shadow-2xl pb-safe"
+            className="absolute bottom-0 left-0 right-0 z-[1001] bg-white dark:bg-neutral-900 rounded-t-3xl shadow-2xl pb-[env(safe-area-inset-bottom)]"
             style={{ 
               boxShadow: '0 -10px 40px rgba(0,0,0,0.1)',
               paddingBottom: 'max(env(safe-area-inset-bottom), 24px)'
@@ -71,7 +71,7 @@ export function StationBottomSheet({
                     <LineBadge line={station.line} size="md" />
                     {station.secondLine && <LineBadge line={station.secondLine} size="md" />}
                     {station.interchange && (
-                      <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-2 py-1 rounded-md">
+                      <span className="text-[11px] font-bold uppercase tracking-widest text-neutral-500 bg-neutral-100 dark:bg-neutral-800 px-2 py-1 rounded-md">
                         Interchange
                       </span>
                     )}

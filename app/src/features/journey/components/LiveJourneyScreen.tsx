@@ -1,13 +1,150 @@
-import { useState, useEffect } from "react";
-import { MapPin, Train, Flag, XCircle, ChevronDown } from "lucide-react";
-import { LINE_META, fullDayStationSchedule, LINE_PATHS } from "../engine/journeyEngine";
-import { useJourneySession } from "../hooks/useJourneySession";
+import { useState, useMemo, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  X, Bookmark, Share2, Clock, ChevronDown, Footprints,
+  ArrowLeftRight, Flag, FastForward, Check, Train,
+} from "lucide-react";
+import { fullDayStationSchedule, LINE_PATHS, clockTimeAfter } from "../engine/journeyEngine";
+import { useJourneySession, type JourneyState } from "../hooks/useJourneySession";
 import { useNow } from "../hooks/useNow";
-import { LINE_NAMES } from "../constants";
+import { LINE_COLORS } from "../constants";
 import { TrainRouteSheet } from "./TrainRouteSheet";
 import { LineBadge } from "../../../components/LineBadge";
 
-import { LINE_DOT_BG, LINE_TRACK_BG } from "../constants";
+// ─── Layout constants ────────────────────────────────────────────────────────
+/** Width of the thick colored track bar (px). */
+const RAIL_W = 14;
+/** Vertical offset of a station dot's center from its row top (px). */
+const DOT_Y = 12;
+
+// Current-station text needs to be readable on both themes — raw line yellow
+// (#EAB308) fails on the light background, so it gets a darker stand-in.
+const CURRENT_TEXT: Record<string, string> = {
+  blue: "#3B82F6", red: "#EF4444", yellow: "#CA8A04", violet: "#A855F7",
+};
+
+const fmtMins = (m: number) => `${m} min${m === 1 ? "" : "s"}`;
+
+const STATE_LABEL: Record<JourneyState, string> = {
+  NOT_STARTED: "Starting",
+  WALKING_TO_STATION: "Walking",
+  WAITING_FOR_TRAIN: "Waiting",
+  ON_TRAIN: "On train",
+  APPROACHING_TRANSFER: "Transfer soon",
+  TRANSFERRING: "Transferring",
+  APPROACHING_DESTINATION: "Arriving",
+  FINAL_WALK: "Arrived",
+  COMPLETED: "Completed",
+};
+
+const STATE_PILL: Record<JourneyState, { bg: string; fg: string }> = {
+  NOT_STARTED: { bg: "#3B82F6", fg: "#fff" },
+  WALKING_TO_STATION: { bg: "#3B82F6", fg: "#fff" },
+  WAITING_FOR_TRAIN: { bg: "#EAB308", fg: "#111" },
+  ON_TRAIN: { bg: "#22C55E", fg: "#052e14" },
+  APPROACHING_TRANSFER: { bg: "#EAB308", fg: "#111" },
+  TRANSFERRING: { bg: "#EAB308", fg: "#111" },
+  APPROACHING_DESTINATION: { bg: "#22C55E", fg: "#052e14" },
+  FINAL_WALK: { bg: "#22C55E", fg: "#052e14" },
+  COMPLETED: { bg: "#22C55E", fg: "#052e14" },
+};
+
+// ─── Small building blocks ───────────────────────────────────────────────────
+
+function ActionPill({
+  onClick, active, danger, children,
+}: {
+  onClick?: () => void; active?: boolean; danger?: boolean; children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-semibold shrink-0 transition-all active:scale-95"
+      style={{
+        background: danger ? "rgba(239,68,68,0.12)" : active ? "var(--c-text)" : "var(--c-card)",
+        color: danger ? "#EF4444" : active ? "var(--c-bg)" : "var(--c-text)",
+        border: `1px solid ${danger ? "rgba(239,68,68,0.25)" : "var(--c-border)"}`,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * One cell of the thick colored track. Each row draws its own slice of the
+ * bar so the bar stays continuous no matter how rows expand or collapse.
+ */
+function RailCell({
+  color, roundTop, roundBottom, passed, dot = true, dotSize = 6, glowFrac,
+}: {
+  color: string; roundTop?: boolean; roundBottom?: boolean; passed?: boolean;
+  dot?: boolean; dotSize?: number; glowFrac?: number | null;
+}) {
+  const r = RAIL_W / 2;
+  return (
+    <div className="relative shrink-0 self-stretch" style={{ width: RAIL_W }}>
+      <div
+        className="absolute inset-x-0 overflow-hidden"
+        style={{
+          top: roundTop ? DOT_Y - r + 1 : 0,
+          ...(roundBottom ? { height: DOT_Y + r - 1 - (roundTop ? DOT_Y - r + 1 : 0) } : { bottom: 0 }),
+          borderRadius: `${roundTop ? r : 0}px ${roundTop ? r : 0}px ${roundBottom ? r : 0}px ${roundBottom ? r : 0}px`,
+        }}
+      >
+        <div className="absolute inset-0" style={{ background: color }} />
+        {passed && <div className="absolute inset-0 transition-opacity duration-500" style={{ background: "var(--c-bg)", opacity: 0.55 }} />}
+      </div>
+      {dot && (
+        <div
+          className="absolute left-1/2 -translate-x-1/2 rounded-full z-10"
+          style={{ top: DOT_Y - dotSize / 2, width: dotSize, height: dotSize, background: "rgba(255,255,255,0.92)" }}
+        />
+      )}
+      {glowFrac != null && (
+        <motion.div
+          className="absolute left-1/2 z-20 pointer-events-none"
+          initial={false}
+          animate={{ top: `calc(${DOT_Y}px + ${glowFrac * 100}%)` }}
+          transition={{ duration: 1, ease: "linear" }}
+        >
+          <div className="journey-glow-halo" />
+          <div className="journey-glow-core" />
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+/** Dotted connector between legs, with a circular icon node on the rail. */
+function ConnectorRow({
+  icon, passed, highlight, children,
+}: {
+  icon: React.ReactNode; passed?: boolean; highlight?: boolean; children: React.ReactNode;
+}) {
+  return (
+    <div className={`flex gap-3.5 transition-opacity duration-500 ${passed ? "opacity-40" : ""}`}>
+      <div className="w-10 shrink-0" />
+      <div className="relative shrink-0 self-stretch flex justify-center" style={{ width: RAIL_W }}>
+        <div className="h-full border-l-2 border-dotted" style={{ borderColor: "var(--c-border-2)" }} />
+        <div
+          className="absolute top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center z-10"
+          style={{
+            left: (RAIL_W - 28) / 2,
+            background: highlight ? "#EAB308" : "var(--c-text)",
+            color: highlight ? "#111" : "var(--c-bg)",
+            boxShadow: highlight ? "0 0 16px rgba(234,179,8,0.5)" : "none",
+          }}
+        >
+          {icon}
+        </div>
+      </div>
+      <div className="py-5 flex-1 min-w-0 flex flex-col justify-center">{children}</div>
+    </div>
+  );
+}
+
+// ─── Main screen ─────────────────────────────────────────────────────────────
 
 interface LiveJourneyScreenProps {
   result: any;
@@ -17,287 +154,421 @@ interface LiveJourneyScreenProps {
 }
 
 export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, onMinimize }: LiveJourneyScreenProps) {
-  const { currentState, currentStopIndex, setSimulatedCoords, fastForward, elapsedMins, stopTimeline } = useJourneySession(result);
-  const { source, dest, stops, legs } = result;
+  const { currentState, currentStopIndex, fastForward, elapsedMins, stopTimeline } =
+    useJourneySession(result);
+  useNow(1000); // re-render every second so countdowns and the glow head stay live
 
+  const { dest, stops, legs, sourceStation, destStation, sourcePlace, destPlace } = result;
   const activeOption = result.options?.[activeOptionIdx ?? 0] || result;
-  
-  const [showDebug, setShowDebug] = useState(false);
-  const [isAutoPlaying, setIsAutoPlaying] = useState(false);
+
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [expandedLegs, setExpandedLegs] = useState<Record<number, boolean>>({});
   const [showScheduleLegIdx, setShowScheduleLegIdx] = useState<number | null>(null);
+  const [justShared, setJustShared] = useState(false);
 
-  const now = useNow();
+  // Auto-play: the Simulate toggle fast-forwards the session clock 30x.
+  useAutoPlay(isSimulating, fastForward);
 
-  useEffect(() => {
-    if (!isAutoPlaying) return;
-    const interval = setInterval(() => {
-      fastForward(0.5); // fast forward 30 seconds every 1 real second
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isAutoPlaying, fastForward]);
+  // Wall-clock anchor for displayed times: "now minus simulated elapsed", so
+  // stop clocks always equal now + minutes-remaining. Survives remounts
+  // (minimize/maximize) and fastForward, unlike anchoring on startedAt —
+  // which fastForward shifts backwards.
+  const startDate = new Date(Date.now() - elapsedMins * 60000);
 
-  const getStatusMessage = () => {
-    switch (currentState) {
-      case 'NOT_STARTED': return 'Starting Journey...';
-      case 'WALKING_TO_STATION': return `Walk to ${source.name}`;
-      case 'WAITING_FOR_TRAIN': return `Board your train from ${source.name}`;
-      case 'ON_TRAIN': return 'On Train';
-      case 'APPROACHING_TRANSFER': return 'Approaching Transfer';
-      case 'TRANSFERRING': return 'Transfer to next line';
-      case 'APPROACHING_DESTINATION': return `Approaching ${dest.name}`;
-      case 'FINAL_WALK': return `Arrived at ${dest.name}`;
-      case 'COMPLETED': return 'Journey Completed';
-      default: return '';
+  // Global stop index of each leg's first station (leg k spans o[k] .. o[k+1]).
+  const legOffsets = useMemo(() => {
+    const o: number[] = [0];
+    (legs || []).forEach((leg: any) => o.push(o[o.length - 1] + leg.ids.length - 1));
+    return o;
+  }, [legs]);
+
+  const cs = currentStopIndex;
+  let activeLegIdx = 0;
+  for (let k = 0; k < (legs?.length || 0); k++) if (legOffsets[k] <= cs) activeLegIdx = k;
+
+  const isLegExpanded = (k: number) => expandedLegs[k] ?? k === activeLegIdx;
+
+  // Where the glow head (train position) sits: a specific visible row of a
+  // leg, or the collapsed "Ride N stops" row when its segment is hidden.
+  const glow = useMemo(() => {
+    if (!legs?.length || currentState === "COMPLETED" || currentState === "FINAL_WALK") return null;
+    if (cs === 0) return { leg: 0, row: 0, frac: 0 }; // pulsing at the boarding dot
+    const gs = cs - 1;
+    let k = 0;
+    for (let i = 0; i < legs.length; i++) if (legOffsets[i] <= gs) k = i;
+    const t0 = stopTimeline[gs] ?? 0;
+    const t1 = stopTimeline[cs] ?? t0 + 1;
+    const segFrac = Math.min(1, Math.max(0, (elapsedMins - t0) / Math.max(0.01, t1 - t0)));
+    const len = legs[k].ids.length;
+    const hasButton = len - 2 >= 3;
+    const collapsed = hasButton && !isLegExpanded(k);
+    
+    if (collapsed) {
+      const rideStart = stopTimeline[legOffsets[k]] ?? 0;
+      const rideEnd = stopTimeline[legOffsets[k] + len - 1] ?? rideStart + 1;
+      const pct = Math.min(1, Math.max(0, (elapsedMins - rideStart) / Math.max(0.01, rideEnd - rideStart)));
+      if (pct < 0.5) return { leg: k, row: 0, frac: pct * 2 };
+      return { leg: k, row: -1, frac: (pct - 0.5) * 2 };
     }
-  };
-
-  const getStatusIcon = () => {
-    switch (currentState) {
-      case 'WALKING_TO_STATION':
-      case 'FINAL_WALK':
-      case 'TRANSFERRING':
-        return <MapPin size={24} className="text-yellow-400" />;
-      case 'WAITING_FOR_TRAIN':
-      case 'ON_TRAIN':
-      case 'APPROACHING_TRANSFER':
-      case 'APPROACHING_DESTINATION':
-        return <Train size={24} className="text-yellow-400" />;
-      case 'COMPLETED':
-        return <Flag size={24} className="text-green-500" />;
-      default:
-        return <MapPin size={24} className="text-yellow-400" />;
+    
+    const row = gs - legOffsets[k];
+    if (hasButton && row === 0) {
+      if (segFrac < 0.5) return { leg: k, row: 0, frac: segFrac * 2 };
+      return { leg: k, row: -1, frac: (segFrac - 0.5) * 2 };
     }
-  };
+    
+    return { leg: k, row, frac: segFrac };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [legs, legOffsets, cs, elapsedMins, currentState, expandedLegs, activeLegIdx, stopTimeline]);
 
-  const currentLine = stops[currentStopIndex]?.viaLine || stops[currentStopIndex]?.line;
-  const currentLegIdx = legs?.findIndex((l: any) => l.line === currentLine) ?? -1;
-  
-  const showRouteButton = (
-    currentLegIdx >= 0 && 
-    (currentState === 'ON_TRAIN' || currentState === 'WAITING_FOR_TRAIN' || currentState === 'APPROACHING_TRANSFER' || currentState === 'APPROACHING_DESTINATION')
-  );
+  // ── Save / Share ────────────────────────────────────────────────────────────
+  const srcSt = sourceStation || result.source;
+  const dstSt = destStation || result.dest;
+  const saveKey = `${srcSt?.id}->${dstSt?.id}`;
+  const [isSaved, setIsSaved] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("metrothi-saved-journeys") || "[]")
+        .some((j: any) => j.key === saveKey);
+    } catch { return false; }
+  });
 
-  return (
-    <div className="p-5 max-w-[var(--layout-max-width)] mx-auto pb-24 animate-in fade-in duration-300">
-      
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onMinimize}
-            className="w-10 h-10 rounded-full flex items-center justify-center transition-colors active:scale-95"
-            style={{ background: 'var(--c-card)' }}
-            aria-label="Minimize journey"
-          >
-            <ChevronDown size={20} strokeWidth={2.5} style={{ color: 'var(--c-text)' }} />
-          </button>
-          
-          <button
-            onClick={onEnd}
-            className="flex items-center gap-2 text-sm font-semibold transition-colors bg-red-500/10 text-red-500 px-3 py-2 rounded-xl active:scale-95"
-          >
-            <XCircle size={16} strokeWidth={2.5} />
-            End
-          </button>
-        </div>
-        
-        <button onClick={() => setShowDebug(!showDebug)} className="text-[10px] text-neutral-500 opacity-50">
-          Debug
-        </button>
-      </div>
+  function toggleSave() {
+    try {
+      const arr = JSON.parse(localStorage.getItem("metrothi-saved-journeys") || "[]");
+      const next = isSaved
+        ? arr.filter((j: any) => j.key !== saveKey)
+        : [...arr, { key: saveKey, sourceId: srcSt?.id, destId: dstSt?.id, sourceName: srcSt?.name, destName: dstSt?.name, savedAt: Date.now() }];
+      localStorage.setItem("metrothi-saved-journeys", JSON.stringify(next));
+      setIsSaved(!isSaved);
+    } catch { /* storage unavailable */ }
+  }
 
-      {/* Live Details Panel */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <div className="rounded-2xl p-4 shadow-sm" style={{ background: 'var(--c-card)' }}>
-          <div className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--c-text-4)' }}>ETA to Dest</div>
-          <div className="text-2xl font-bold mt-1" style={{ color: 'var(--c-text)' }}>{activeOption.arriveClockTime || '...'}</div>
-          <div className="text-[10px] font-semibold mt-1" style={{ color: 'var(--c-text-3)' }}>{Math.max(0, Math.ceil(activeOption.totalMins - elapsedMins))} mins left</div>
-        </div>
-        <div className="rounded-2xl p-4 shadow-sm flex flex-col justify-between" style={{ background: 'var(--c-card)' }}>
-          <div>
-            <div className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--c-text-4)' }}>Fare est.</div>
-            <div className="text-xl font-bold mt-1" style={{ color: 'var(--c-text)' }}>₹{result.fare}</div>
+  async function share() {
+    const text = `Metrothi: ${result.source.name} → ${dest.name} · departs ${activeOption.departClockTime || "now"} · arrives ${activeOption.arriveClockTime || "—"} · ₹${result.fare} · ${result.totalStops} stops`;
+    try {
+      if (navigator.share) await navigator.share({ title: "Metrothi journey", text });
+      else {
+        await navigator.clipboard.writeText(text);
+        setJustShared(true);
+        setTimeout(() => setJustShared(false), 1500);
+      }
+    } catch { /* user cancelled */ }
+  }
+
+  const totalMinsLeft = Math.max(0, Math.ceil((activeOption.totalMins ?? 0) - elapsedMins));
+  const pill = STATE_PILL[currentState];
+
+  if (!legs?.length || !stops?.length) return null;
+
+  // ── Row renderers ───────────────────────────────────────────────────────────
+
+  const renderLeg = (leg: any, k: number) => {
+    const color = LINE_COLORS[leg.line];
+    const len = leg.ids.length;
+    const off = legOffsets[k];
+    const isActive = k === activeLegIdx;
+    const interCount = len - 2;
+    const collapsible = interCount >= 3;
+    const showList = !collapsible || isLegExpanded(k);
+    const isLastLeg = k === legs.length - 1;
+
+    const gi = (li: number) => off + li;
+    const tAt = (li: number) => stopTimeline[gi(li)] ?? 0;
+    const minsLeftAt = (li: number) => Math.max(0, Math.ceil(tAt(li) - elapsedMins));
+    const clockAt = (li: number) => (startDate ? clockTimeAfter(startDate, tAt(li)) : "");
+    const isPassed = (li: number) => gi(li) < cs;
+    const isCurrent = (li: number) => gi(li) === cs;
+    // Departure clock: timeline[o+1] already includes buffer + connection wait.
+    const departClock = startDate
+      ? clockTimeAfter(startDate, k === 0 ? (stopTimeline[0] ?? 0) : (stopTimeline[off + 1] ?? 0))
+      : "";
+    const glowHere = glow?.leg === k ? glow : null;
+
+    const stationName = (li: number) => stops[gi(li)]?.name || "";
+
+    const nameStyle = (li: number, base: string) =>
+      isCurrent(li)
+        ? { color: CURRENT_TEXT[leg.line], fontWeight: 700 }
+        : { color: isPassed(li) ? "var(--c-text-4)" : base };
+
+    const intermediateRow = (li: number) => (
+      <div key={li} className="flex gap-3.5">
+        <RailCell color={color} passed={isPassed(li)} glowFrac={glowHere?.row === li ? glowHere.frac : null} />
+        <div className={`flex-1 min-w-0 pb-5 flex items-start justify-between gap-3 transition-opacity duration-500 ${isPassed(li) ? "opacity-50" : ""}`}>
+          <div className="min-w-0">
+            <div className="text-[15px] font-medium leading-snug truncate transition-colors duration-500" style={nameStyle(li, "var(--c-text-2)")}>
+              {stationName(li)}
+            </div>
+            {isActive && !isPassed(li) && (
+              <div className="text-[11px] font-medium mt-0.5 transition-colors duration-300" style={{ color: isCurrent(li) ? CURRENT_TEXT[leg.line] : "var(--c-text-4)" }}>
+                {minsLeftAt(li)} min{minsLeftAt(li) === 1 ? "" : "s"} left
+              </div>
+            )}
           </div>
-          {currentLine && (
-            <div className="mt-2 flex items-center gap-1.5">
-               <LineBadge line={currentLine} size="sm" />
-               <span className="text-[11px] font-bold" style={{ color: 'var(--c-text-2)' }}>{LINE_NAMES[currentLine as keyof typeof LINE_NAMES]}</span>
+          {!isActive && (
+            <div className="flex items-center gap-1 shrink-0 mt-0.5 text-[11px] font-semibold tabular-nums" style={{ color: "var(--c-text-4)" }}>
+              <Clock size={10} /> {minsLeftAt(li)}m
             </div>
           )}
         </div>
       </div>
+    );
 
-      {/* Live Status Banner */}
-      <div className="rounded-2xl p-4 mb-8 flex items-center justify-between gap-4 shadow-lg transition-all" style={{ background: 'var(--c-card)', border: '1px solid rgba(250,204,21,0.3)' }}>
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full flex items-center justify-center bg-yellow-400/10 shrink-0">
-            {getStatusIcon()}
-          </div>
-          <div>
-            <div className="text-[10px] font-bold uppercase tracking-widest text-yellow-500 mb-1">Live Status</div>
-            <div className="text-[17px] leading-tight font-bold" style={{ color: 'var(--c-text)' }}>{getStatusMessage()}</div>
+    return (
+      <div key={k} className="flex gap-3.5">
+        {/* Line badge column — sticks below the header while its leg scrolls */}
+        <div className="w-10 shrink-0">
+          <div className="sticky z-10" style={{ top: "calc(env(safe-area-inset-top, 0px) + 148px)" }}>
+            <LineBadge line={leg.line} size="lg" />
           </div>
         </div>
-        
-        {showRouteButton && (
-          <button 
-            onClick={() => setShowScheduleLegIdx(currentLegIdx)}
-            className="shrink-0 px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest bg-yellow-400/10 text-yellow-500 active:scale-95 transition-transform"
-          >
-            Route
-          </button>
+
+        <div className="flex-1 min-w-0 flex flex-col">
+          {/* Boarding station */}
+          <div className="flex gap-3.5">
+            <RailCell color={color} roundTop passed={isPassed(1)} dotSize={7} glowFrac={glowHere?.row === 0 ? glowHere.frac : null} />
+            <div className={`flex-1 min-w-0 pb-4 transition-opacity duration-500 ${isPassed(0) && !isCurrent(0) ? "opacity-50" : ""}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="text-[17px] font-bold leading-snug" style={nameStyle(0, "var(--c-text)")}>
+                  {stationName(0)}
+                </div>
+                <div className="text-[12px] font-semibold tabular-nums shrink-0 mt-1" style={{ color: "var(--c-text-3)" }}>
+                  {departClock}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <span
+                  className="inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full text-[12px] font-semibold"
+                  style={{ background: "var(--c-card)", border: "1px solid var(--c-border)", color: "var(--c-text-2)" }}
+                >
+                  <LineBadge line={leg.line} size="xs" /> {leg.headingName}
+                </span>
+                <button
+                  onClick={() => setShowScheduleLegIdx(k)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-semibold active:scale-95 transition-transform"
+                  style={{ background: "var(--c-card)", border: "1px solid var(--c-border)", color: "var(--c-text-2)" }}
+                >
+                  <Train size={12} /> {departClock} <ChevronDown size={12} />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Collapsed summary of intermediate stops */}
+          {collapsible && (
+            <button className="flex gap-3.5 text-left w-full group" onClick={() => setExpandedLegs(e => ({ ...e, [k]: !isLegExpanded(k) }))}>
+              <RailCell color={color} passed={cs >= gi(len - 1)} glowFrac={glowHere?.row === -1 ? glowHere.frac : null} dot={!showList} />
+              <div className="flex-1 min-w-0 pb-4 flex items-center justify-between gap-3">
+                <span className="inline-flex items-center gap-2 text-[15px] font-semibold" style={{ color: "var(--c-text)" }}>
+                  <motion.span animate={{ rotate: showList ? 180 : 0 }} transition={{ duration: 0.25 }} className="flex">
+                    <ChevronDown size={16} style={{ color: "var(--c-text-3)" }} />
+                  </motion.span>
+                  Ride {len - 1} stops
+                </span>
+                <span className="flex items-center gap-1 text-[11px] font-semibold shrink-0" style={{ color: "var(--c-text-4)" }}>
+                  <Clock size={10} /> {leg.travelMins}min
+                </span>
+              </div>
+            </button>
+          )}
+
+          {/* Intermediate stations */}
+          <AnimatePresence initial={false}>
+            {showList && interCount > 0 && (
+              <motion.div
+                key="stops"
+                initial={collapsible ? { height: 0, opacity: 0 } : false}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.35, ease: [0.25, 0.8, 0.25, 1] }}
+                className="overflow-hidden flex flex-col"
+              >
+                {Array.from({ length: interCount }, (_, i) => intermediateRow(i + 1))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Alighting station */}
+          <div className="flex gap-3.5">
+            <RailCell color={color} roundBottom dotSize={7} glowFrac={glowHere?.row === len - 1 ? glowHere.frac : null} />
+            <div className={`flex-1 min-w-0 pb-2 transition-opacity duration-500 ${isPassed(len - 1) ? "opacity-50" : ""}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="text-[17px] font-bold leading-snug" style={nameStyle(len - 1, "var(--c-text)")}>
+                  {stationName(len - 1)}
+                </div>
+                <div className="text-[12px] font-semibold tabular-nums shrink-0 mt-1" style={{ color: "var(--c-text-3)" }}>
+                  {clockAt(len - 1)}
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 mt-1 text-[11px] font-medium" style={{ color: "var(--c-text-4)" }}>
+                {isLastLeg ? <><Flag size={11} /> Final stop</> : <><ArrowLeftRight size={11} /> Change here</>}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const walkPassed = !["NOT_STARTED", "WALKING_TO_STATION", "WAITING_FOR_TRAIN"].includes(currentState);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 28 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: "spring", damping: 26, stiffness: 240 }}
+      className="relative min-h-full"
+    >
+      {/* ── Sticky header: title + action pills ── */}
+      <div
+        className="sticky top-0 z-30"
+        style={{ background: "var(--c-blur)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", paddingTop: "env(safe-area-inset-top, 0px)" }}
+      >
+        <div className="max-w-[var(--layout-max-width)] mx-auto px-5 pt-4 pb-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-[26px] font-bold leading-tight truncate" style={{ color: "var(--c-text)" }}>
+                {dest.name}
+              </h1>
+              <div className="text-[12px] font-medium mt-0.5 flex items-center gap-1.5" style={{ color: "var(--c-text-3)" }}>
+                from {result.source.name} · ₹{result.fare}
+                <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border" style={{ borderColor: "var(--c-border-2)", color: "var(--c-text-4)" }}>
+                  Simulated
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={onMinimize}
+              aria-label="Minimize journey"
+              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-transform"
+              style={{ background: "var(--c-card)", border: "1px solid var(--c-border)" }}
+            >
+              <X size={18} strokeWidth={2.5} style={{ color: "var(--c-text)" }} />
+            </button>
+          </div>
+
+          <div className="flex gap-2 mt-3 overflow-x-auto no-scrollbar -mx-5 px-5">
+            <ActionPill danger onClick={onEnd}>
+              <span className="w-3.5 h-3.5 rounded-full border-2 border-current flex items-center justify-center">
+                <span className="w-1.5 h-1.5 rounded-[2px] bg-current" />
+              </span>
+              End
+            </ActionPill>
+            <ActionPill onClick={toggleSave} active={isSaved}>
+              <Bookmark size={14} fill={isSaved ? "currentColor" : "none"} /> {isSaved ? "Saved" : "Save"}
+            </ActionPill>
+            <ActionPill onClick={share}>
+              {justShared ? <Check size={14} /> : <Share2 size={14} />} {justShared ? "Copied" : "Share"}
+            </ActionPill>
+            <ActionPill onClick={() => setIsSimulating(s => !s)}>
+              Simulate
+              <span className="w-8 h-[18px] rounded-full relative transition-colors" style={{ background: isSimulating ? "#22C55E" : "var(--c-border-2)" }}>
+                <span
+                  className="absolute top-[2px] w-3.5 h-3.5 rounded-full bg-white shadow transition-all"
+                  style={{ left: isSimulating ? 18 : 2 }}
+                />
+              </span>
+            </ActionPill>
+            <ActionPill onClick={() => fastForward(5)}>
+              <FastForward size={14} /> +5 min
+            </ActionPill>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Timeline ── */}
+      <div className="max-w-[var(--layout-max-width)] mx-auto px-5 pt-5 pb-36">
+        {/* Walk to the source station */}
+        <ConnectorRow icon={<Footprints size={14} />} passed={walkPassed}>
+          <div className="text-[14px] font-semibold leading-snug" style={{ color: "var(--c-text)" }}>
+            Walk{sourcePlace && result.sourceWalkMins ? ` ${fmtMins(result.sourceWalkMins)}` : ""} to {srcSt?.name}
+            {result.initialWaitMins != null && `, then wait up to ${fmtMins(Math.round(result.initialWaitMins))}`}
+          </div>
+        </ConnectorRow>
+
+        {legs.map((leg: any, k: number) => (
+          <div key={k}>
+            {renderLeg(leg, k)}
+            {k < legs.length - 1 && (
+              <ConnectorRow
+                icon={<ArrowLeftRight size={13} />}
+                passed={cs > legOffsets[k + 1]}
+                highlight={currentState === "TRANSFERRING" && cs === legOffsets[k + 1]}
+              >
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[14px] font-semibold" style={{ color: "var(--c-text)" }}>Change to</span>
+                  <span
+                    className="inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full text-[12px] font-semibold"
+                    style={{ background: "var(--c-card)", border: "1px solid var(--c-border)", color: "var(--c-text-2)" }}
+                  >
+                    <LineBadge line={legs[k + 1].line} size="xs" /> {stops[legOffsets[k + 1]]?.name}
+                  </span>
+                </div>
+                <div className="text-[11px] font-medium mt-1" style={{ color: "var(--c-text-4)" }}>
+                  ~{legs[k + 1].bufferMins || 3} min walk
+                  {legs[k + 1].waitMins != null && ` · wait up to ${fmtMins(legs[k + 1].waitMins)}`}
+                </div>
+              </ConnectorRow>
+            )}
+          </div>
+        ))}
+
+        {/* Walk from the destination station to the final place */}
+        {destPlace && (
+          <ConnectorRow icon={<Footprints size={14} />} passed={currentState === "COMPLETED"}>
+            <div className="text-[14px] font-semibold leading-snug" style={{ color: "var(--c-text)" }}>
+              Walk{result.destWalkMins ? ` ${fmtMins(result.destWalkMins)}` : ""} to {destPlace.name}
+            </div>
+          </ConnectorRow>
         )}
       </div>
 
-      {/* Route timeline */}
-      <div className="rounded-2xl p-5 mb-8" style={{ background: 'var(--c-card)' }}>
-        <h3 className="text-[9px] font-bold uppercase tracking-widest mb-6" style={{ color: 'var(--c-text-3)' }}>Journey Progress</h3>
-        <div className="relative">
-          {stops.map((st: any, i: number) => {
-            const isFirst = i === 0;
-            const isLast = i === stops.length - 1;
-            const isEndpoint = isFirst || isLast;
-            const isInterchange = st.interchange && !isEndpoint;
-            const lineKey = st.viaLine as string;
-
-            const isCompleted = i < currentStopIndex;
-            const isCurrent = i === currentStopIndex;
-            
-            // Determine styles based on progress
-            const dotOpacity = isCompleted ? 'opacity-30' : isCurrent ? 'opacity-100 ring-4 ring-yellow-400/20' : 'opacity-100';
-            const trackOpacity = i < currentStopIndex ? 'opacity-30' : 'opacity-100';
-            const textStyle = isCompleted ? 'text-neutral-600 line-through' : isCurrent ? 'text-yellow-400 font-bold' : isEndpoint ? 'text-white font-bold' : 'text-neutral-300 font-medium';
-
-            return (
-              <div key={i} className="flex items-start gap-4 transition-all duration-500">
-                {/* Track column */}
-                <div className="flex flex-col items-center" style={{ width: 20, minWidth: 20 }}>
-                  {/* Dot */}
-                  <div
-                    className={`rounded-full shrink-0 z-10 transition-all duration-500 ${dotOpacity} ${
-                      isEndpoint
-                        ? `w-4 h-4 ${LINE_DOT_BG[lineKey]}`
-                        : isInterchange
-                        ? "w-3.5 h-3.5 bg-white border-2 border-neutral-900"
-                        : `w-2 h-2 ${LINE_DOT_BG[lineKey]}`
-                    }`}
-                    style={{ marginTop: isEndpoint ? 2 : isInterchange ? 3 : 5 }}
-                  />
-                  {/* Track line */}
-                  {!isLast && (
-                    <div
-                      className={`w-0.5 flex-1 min-h-[32px] transition-all duration-500 ${LINE_TRACK_BG[lineKey]} ${trackOpacity}`}
-                    />
-                  )}
-                </div>
-
-                {/* Label column */}
-                <div className="pb-5 pt-0 flex-1 min-w-0">
-                  <div className={`leading-tight text-[15px] transition-all duration-500 ${textStyle}`}>
-                    {st.name}
-                  </div>
-                  {isInterchange && !isCompleted && (
-                    <div className="mt-1.5 inline-flex items-center gap-1.5">
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-neutral-600">Change to</span>
-                      <LineBadge line={stops[i + 1]?.viaLine || lineKey} />
-                      <span className="text-[10px] font-semibold text-neutral-500">
-                        {LINE_META[stops[i + 1]?.viaLine]?.name.split('(')[0].trim()}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Debug Panel */}
-      {showDebug && (
-        <div className="p-4 rounded-xl border border-dashed border-neutral-700 mt-8 space-y-4" style={{ background: 'rgba(0,0,0,0.2)' }}>
-          {/* State Inspector */}
-          <div>
-            <div className="text-[10px] font-bold text-neutral-500 uppercase mb-2">State Inspector</div>
-            <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-black/40 p-3 rounded-lg text-neutral-300">
-              <div>State: <span className="text-yellow-400">{currentState}</span></div>
-              <div>Stop Index: <span className="text-white">{currentStopIndex}</span></div>
-              <div>Elapsed: <span className="text-white">{elapsedMins.toFixed(1)}m</span></div>
-              <div>Next Stop Tgt: <span className="text-white">{stopTimeline[currentStopIndex + 1]?.toFixed(1) || 'N/A'}m</span></div>
-            </div>
+      {/* ── Floating status pills ── */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className="fixed bottom-0 left-0 right-0 z-40 pointer-events-none"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" }}
+      >
+        <div className="max-w-[var(--layout-max-width)] mx-auto px-5 flex items-center justify-between">
+          <div
+            className="pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-full text-[13px] font-bold shadow-lg"
+            style={{ background: "var(--c-card)", border: "1px solid var(--c-border)", color: "var(--c-text)" }}
+          >
+            <Clock size={14} style={{ color: "var(--c-text-3)" }} />
+            {currentState === "COMPLETED" ? "Done" : `${totalMinsLeft} min${totalMinsLeft === 1 ? "" : "s"} left`}
           </div>
-
-          {/* Time Travel */}
-          <div>
-            <div className="text-[10px] font-bold text-neutral-500 uppercase mb-2">Time Travel</div>
-            <div className="flex gap-2">
-              <button onClick={() => fastForward(1)} className="flex-1 py-2 bg-blue-900/40 text-blue-400 rounded-lg text-xs font-bold hover:bg-blue-900/60 transition">+1 Min</button>
-              <button onClick={() => fastForward(5)} className="flex-1 py-2 bg-blue-900/40 text-blue-400 rounded-lg text-xs font-bold hover:bg-blue-900/60 transition">+5 Min</button>
-              <button 
-                onClick={() => setIsAutoPlaying(!isAutoPlaying)} 
-                className={`flex-1 py-2 rounded-lg text-xs font-bold transition ${isAutoPlaying ? 'bg-red-900/40 text-red-400' : 'bg-green-900/40 text-green-400'}`}
-              >
-                {isAutoPlaying ? 'Stop Auto-Play' : '▶ Auto-Play (30x)'}
-              </button>
-            </div>
-          </div>
-
-          {/* Teleport */}
-          <div>
-            <div className="text-[10px] font-bold text-neutral-500 uppercase mb-2">Teleport GPS</div>
-            <div className="flex flex-wrap gap-2">
-              {stops.map((st: any, idx: number) => (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    if (st.lat && st.lng) {
-                       setSimulatedCoords({ lat: st.lat, lng: st.lng });
-                    } else {
-                       alert('No coordinates for this station');
-                    }
-                  }}
-                  className="px-3 py-1.5 bg-neutral-800 rounded-lg text-[10px] font-semibold hover:bg-neutral-700 transition"
-                >
-                  {idx}: {st.name}
-                </button>
-              ))}
-            </div>
-            <button 
-               onClick={() => setSimulatedCoords(null)}
-               className="w-full mt-2 py-2 bg-red-900/30 text-red-400 rounded-lg text-xs font-semibold"
-            >
-               Reset GPS Simulation
-            </button>
+          <div
+            className="pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-full text-[13px] font-bold shadow-lg transition-colors duration-500"
+            style={{ background: pill.bg, color: pill.fg }}
+          >
+            <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: pill.fg }} />
+            {STATE_LABEL[currentState]}
           </div>
         </div>
-      )}
+      </motion.div>
 
+      {/* ── Per-leg schedule sheet ── */}
       {showScheduleLegIdx !== null && (() => {
         const legIdx = showScheduleLegIdx;
         const leg = legs[legIdx];
-        const legDetail = activeOption.legs?.[legIdx] || activeOption.legDetails?.[legIdx];
-        
-        // Extract the stops for this leg
-        const legStops = stops.filter((s: any) => s.viaLine === leg.line);
-        if (legStops.length === 0) return null;
-        
-        const legOriginId = legStops[0].id;
-        const legDestId = legStops[legStops.length - 1].id;
-        
-        const schedule = fullDayStationSchedule(legOriginId, leg.line, now);
-        
+        const legOriginId = leg.ids[0];
+        const legDestId = leg.ids[leg.ids.length - 1];
+
+        const schedule = fullDayStationSchedule(legOriginId, leg.line, new Date());
         const path = LINE_PATHS[leg.line];
         const isForward = path.indexOf(legOriginId) < path.indexOf(legDestId);
         const terminusId = isForward ? path[path.length - 1] : path[0];
-        
         const dir = schedule.find((d: any) => d.destinationId === terminusId);
         if (!dir) return null;
-        
-        const departTime = legDetail?.departClockTime;
+
+        const departTime = activeOption.legs?.[legIdx]?.departClockTime;
         let train = dir.trains.find((t: any) => t.clockTime === departTime);
         if (!train) {
           train = dir.trains.find((t: any) => t.isNext && !t.departed) || dir.trains.find((t: any) => !t.departed) || dir.trains[0];
         }
-        
+
         return (
           <TrainRouteSheet
             stationId={legOriginId}
@@ -309,7 +580,15 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, onMinimize }
           />
         );
       })()}
-
-    </div>
+    </motion.div>
   );
+}
+
+// ─── Auto-play hook (Simulate toggle → 30x fast-forward) ────────────────────
+function useAutoPlay(enabled: boolean, fastForward: (m: number) => void) {
+  useEffect(() => {
+    if (!enabled) return;
+    const interval = setInterval(() => fastForward(0.5), 1000);
+    return () => clearInterval(interval);
+  }, [enabled, fastForward]);
 }

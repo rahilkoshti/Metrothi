@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, X, AlertTriangle, ArrowRight } from "lucide-react";
+import { Search, X, AlertTriangle, ArrowRight, MapPin, Star, History } from "lucide-react";
 import { STATIONS, estimateLine, upcomingStationDepartures, formatDuration, walkMinsForKm, clockTimeAfter } from "../engine/journeyEngine";
+import type { PlaceNode } from "../engine/journeyEngine";
 import { useNow } from "../hooks/useNow";
+import { GeocodingService } from "../../../services/GeocodingService";
 
 import { LineBadge } from "../../../components/LineBadge";
 import { LINE_BADGE_BG, LINE_NAMES } from "../constants";
@@ -12,6 +14,37 @@ function greeting() {
   if (h < 12) return "Good morning";
   if (h < 17) return "Good afternoon";
   return "Good evening";
+}
+
+function fuzzySearch(query: string, items: any[], keyFn: (item: any) => string) {
+  const q = query.toLowerCase().replace(/\s+/g, "");
+  if (!q) return items.slice(0, 6);
+  
+  const scored = items.map(item => {
+    const target = keyFn(item).toLowerCase();
+    const targetNoSpace = target.replace(/\s+/g, "");
+    let score = -1;
+    if (target === query.toLowerCase()) score = 100;
+    else if (target.startsWith(query.toLowerCase())) score = 80;
+    else if (target.includes(query.toLowerCase())) score = 50;
+    else {
+      let qIdx = 0;
+      for (let i = 0; i < targetNoSpace.length && qIdx < q.length; i++) {
+        if (targetNoSpace[i] === q[qIdx]) {
+          qIdx++;
+          if (qIdx === q.length) break;
+        }
+      }
+      if (qIdx === q.length) score = 10;
+    }
+    return { item, score };
+  });
+
+  return scored
+    .filter(s => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(s => s.item)
+    .slice(0, 6);
 }
 
 function NearbyCard({ nearest, locStatus, onPlanFromHere, onOpenStation, onOpenTrain }: {
@@ -55,11 +88,11 @@ function NearbyCard({ nearest, locStatus, onPlanFromHere, onOpenStation, onOpenT
       <div className="absolute top-0 left-0 w-1 h-full rounded-l-2xl z-20" style={{ background: LINE_BADGE_BG[nearest.line] }} />
 
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: 'var(--c-text-3)' }}>
+        <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'var(--c-text-3)' }}>
           {locStatus === "denied" ? "Default station" : "Nearest station"}
         </span>
         {nearest.distanceKm != null && (
-          <span className="text-[10px] font-semibold" style={{ color: 'var(--c-text-4)' }}>
+          <span className="text-[11px] font-semibold" style={{ color: 'var(--c-text-4)' }}>
             · {Math.round(nearest.distanceKm * 1000)}m · {formatDuration(walkMinsForKm(nearest.distanceKm))} walk
           </span>
         )}
@@ -90,7 +123,7 @@ function NearbyCard({ nearest, locStatus, onPlanFromHere, onOpenStation, onOpenT
         {status?.status === "bus-only" && (
           <div className="p-3 rounded-xl border" style={{ background: 'var(--c-card-alt)', borderColor: 'var(--c-border-2)' }}>
             <div className="text-xl font-bold text-purple-400 leading-none">{formatDuration(status.resumesInMins!)}</div>
-            <div className="text-[10px] font-semibold mt-1 uppercase tracking-wide" style={{ color: 'var(--c-text-3)' }}>Bus only - trains resume soon</div>
+            <div className="text-[11px] font-semibold mt-1 uppercase tracking-wide" style={{ color: 'var(--c-text-3)' }}>Bus only - trains resume soon</div>
           </div>
         )}
 
@@ -107,7 +140,7 @@ function NearbyCard({ nearest, locStatus, onPlanFromHere, onOpenStation, onOpenT
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onOpenTrain(nearest.line, dir.destination); } }}
               >
                 <div className="flex flex-col">
-                  <span className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: 'var(--c-text-3)' }}>Route</span>
+                  <span className="text-[11px] font-bold uppercase tracking-widest mb-0.5" style={{ color: 'var(--c-text-3)' }}>Route</span>
                   <span className="text-sm font-bold" style={{ color: 'var(--c-text)' }}>
                     {nearest.name} <span className="opacity-50 mx-0.5">→</span> {dir.destination}
                   </span>
@@ -163,7 +196,7 @@ function NearbyCard({ nearest, locStatus, onPlanFromHere, onOpenStation, onOpenT
       <button
         onClick={(e) => { e.stopPropagation(); onPlanFromHere(); }}
         className="w-full py-3 rounded-xl text-[14px] font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98] mt-2"
-        style={{ background: '#FACC15', color: '#000' }}
+        style={{ background: 'var(--c-accent)', color: '#000' }}
       >
         Plan trip from here <ArrowRight size={16} strokeWidth={2.5} />
       </button>
@@ -204,30 +237,60 @@ interface DashboardProps {
   nearest: any;
   locStatus: string;
   onPlanFromHere: () => void;
+  onPlan: (source: any, dest: any) => void;
 }
 
-export function Dashboard({ nearest, locStatus, onPlanFromHere }: DashboardProps) {
+export function Dashboard({ nearest, locStatus, onPlanFromHere, onPlan }: DashboardProps) {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
+  const [places, setPlaces] = useState<PlaceNode[]>([]);
   const [isFocused, setIsFocused] = useState(false);
 
+  // Local storage state for Recents and Favorites
+  const [recentTrips, setRecentTrips] = useState<any[]>([]);
+  const [savedJourneys, setSavedJourneys] = useState<any[]>([]);
+  
   useEffect(() => {
-    if (!query.trim()) { setResults([]); return; }
-    const q = query.toLowerCase();
-    setResults(STATIONS.filter((s: any) => s.name.toLowerCase().includes(q)).slice(0, 6));
+    try {
+      setRecentTrips(JSON.parse(localStorage.getItem("metrothi-recent-trips") || "[]"));
+    } catch { /* ignore */ }
+    try {
+      setSavedJourneys(JSON.parse(localStorage.getItem("metrothi-saved-journeys") || "[]"));
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    if (!query.trim()) { setResults([]); setPlaces([]); return; }
+    setResults(fuzzySearch(query, STATIONS.filter((s: any) => s.operational !== false), (s: any) => s.name));
+    
+    if (query.trim().length >= 3) {
+      const timer = setTimeout(async () => {
+        try {
+          const res = await GeocodingService.searchPlaces(query);
+          setPlaces(res);
+        } catch (e) {
+          setPlaces([]);
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    } else {
+      setPlaces([]);
+    }
   }, [query]);
 
-  function handlePickStation(station: any) {
-    setQuery(""); setResults([]); setIsFocused(false);
-    navigate(`/stations/${station.id}`);
+  const combinedResults = useMemo(() => [...results, ...places], [results, places]);
+
+  function handlePickDestination(item: any) {
+    setQuery(""); setResults([]); setPlaces([]); setIsFocused(false);
+    navigate(`/go`, { state: { prefillDest: item } });
   }
 
   return (
     <div className="p-5 max-w-[var(--layout-max-width)] mx-auto pt-10 pb-8">
       <div className="mb-7">
-        <div className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--c-text-3)' }}>{greeting()}</div>
-        <h1 className="text-4xl font-bold tracking-tight leading-none" style={{ color: 'var(--c-text)' }}>Find a station</h1>
+        <div className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--c-text-3)' }}>{greeting()}</div>
+        <h1 className="text-4xl font-bold tracking-tight leading-none" style={{ color: 'var(--c-text)' }}>Where to?</h1>
       </div>
 
       <div className="relative mb-7 z-20">
@@ -235,45 +298,50 @@ export function Dashboard({ nearest, locStatus, onPlanFromHere }: DashboardProps
           className={`flex items-center gap-3 rounded-2xl p-4 transition-all duration-200 ${isFocused ? 'ring-1 ring-yellow-400' : ''}`}
           style={{ background: 'var(--c-card)' }}
         >
-          <Search size={18} style={{ color: isFocused ? '#FACC15' : 'var(--c-text-3)' }} />
+          <Search size={18} style={{ color: isFocused ? 'var(--c-accent)' : 'var(--c-text-3)' }} />
           <input
             value={query}
             onFocus={() => setIsFocused(true)}
             onBlur={() => setTimeout(() => setIsFocused(false), 200)}
             onChange={(e) => setQuery(e.target.value)}
-            aria-label="Search stations"
-            placeholder="Search all stations…"
+            aria-label="Search destination"
+            placeholder="Search stations and places…"
             className="border-none outline-none w-full text-[16px] font-medium bg-transparent"
             style={{ color: 'var(--c-text)' }}
           />
           {query && (
-            <button onClick={() => { setQuery(""); setResults([]); }} className="p-1 rounded-full transition-colors shrink-0" style={{ color: 'var(--c-text-3)' }}>
+            <button onClick={() => { setQuery(""); setResults([]); setPlaces([]); }} className="p-1 rounded-full transition-colors shrink-0" style={{ color: 'var(--c-text-3)' }}>
               <X size={16} />
             </button>
           )}
         </div>
 
-        {results.length > 0 && isFocused && (
+        {combinedResults.length > 0 && isFocused && (
           <div
-            className="absolute left-0 right-0 top-full mt-2 rounded-2xl overflow-hidden shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200"
+            className="absolute left-0 right-0 top-full mt-2 rounded-2xl overflow-hidden shadow-2xl z-50 animate-in fade-in slide-in-from-top-2 duration-200 max-h-[300px] overflow-y-auto"
             style={{ background: 'var(--c-card)', border: '1px solid var(--c-border-2)' }}
           >
-            {results.map((s, idx) => (
+            {combinedResults.map((s, idx) => (
               <button
                 key={s.id}
-                onClick={() => handlePickStation(s)}
-                className="flex items-center justify-between w-full p-4 text-left transition-colors"
-                style={{ borderBottom: idx !== results.length - 1 ? '1px solid var(--c-border)' : 'none' }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = 'var(--c-card-alt)')}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = 'transparent')}
+                onClick={() => handlePickDestination(s)}
+                className="flex items-center gap-4 w-full p-4 text-left transition-colors hover:bg-[var(--c-card-alt)] focus-visible:bg-[var(--c-card-alt)] focus-visible:outline-none"
+                style={{ borderBottom: idx !== combinedResults.length - 1 ? '1px solid var(--c-border)' : 'none' }}
               >
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[15px] font-semibold" style={{ color: 'var(--c-text)' }}>{s.name}</span>
+                {s.isPlace ? (
+                  <div className="w-6 flex justify-center"><MapPin size={18} style={{ color: 'var(--c-text-3)' }} /></div>
+                ) : (
+                  <div className="w-6 flex justify-center"><LineBadge line={s.line} size="xs" /></div>
+                )}
+                <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+                  <span className="text-[15px] font-semibold truncate" style={{ color: 'var(--c-text)' }}>{s.name}</span>
+                  {s.isPlace && (
+                    <span className="text-[12px] truncate" style={{ color: 'var(--c-text-3)' }}>{s.address}</span>
+                  )}
                   {s.operational === false && (
-                    <span className="text-[10px] font-semibold text-yellow-600 uppercase tracking-wide">Opening Soon</span>
+                    <span className="text-[11px] font-semibold text-yellow-600 uppercase tracking-wide">Opening Soon</span>
                   )}
                 </div>
-                <LineBadge line={s.line} size="xs" />
               </button>
             ))}
           </div>
@@ -290,12 +358,54 @@ export function Dashboard({ nearest, locStatus, onPlanFromHere }: DashboardProps
       <ServiceStatusStrip />
 
       <div className="grid grid-cols-2 gap-3 mt-6">
-        {["Your commute", "Recent trips"].map((label) => (
-          <div key={label} className="rounded-xl p-4 opacity-40" style={{ background: 'var(--c-card)', border: '1px dashed var(--c-border-2)' }}>
-            <div className="text-[9px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--c-text-3)' }}>{label}</div>
-            <div className="text-xs" style={{ color: 'var(--c-text-4)' }}>Phase 4</div>
+        <div className="rounded-xl p-4 flex flex-col gap-2" style={{ background: 'var(--c-card)' }}>
+          <div className="flex items-center gap-2 mb-2">
+            <Star size={14} style={{ color: 'var(--c-accent)' }} />
+            <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: 'var(--c-text-3)' }}>Your commute</div>
           </div>
-        ))}
+          {savedJourneys.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {savedJourneys.map(j => (
+                <button
+                  key={j.key}
+                  onClick={() => onPlan(STATIONS.find(s => s.id === j.sourceId) || j.sourceId, STATIONS.find(s => s.id === j.destId) || j.destId)}
+                  className="flex items-center gap-2 text-left hover:opacity-70 transition-opacity"
+                >
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[13px] font-bold truncate" style={{ color: 'var(--c-text)' }}>{j.destName || j.destId}</span>
+                    <span className="text-[11px] truncate" style={{ color: 'var(--c-text-3)' }}>from {j.sourceName || j.sourceId}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="text-[12px] opacity-50" style={{ color: 'var(--c-text)' }}>No saved trips yet. Save a trip to see it here.</div>
+          )}
+        </div>
+        <div className="rounded-xl p-4 flex flex-col gap-2" style={{ background: 'var(--c-card)' }}>
+          <div className="flex items-center gap-2 mb-2">
+            <History size={14} style={{ color: 'var(--c-text-3)' }} />
+            <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: 'var(--c-text-3)' }}>Recent trips</div>
+          </div>
+          {recentTrips.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {recentTrips.slice(0, 3).map(j => (
+                <button
+                  key={j.key}
+                  onClick={() => onPlan(j.source, j.dest)}
+                  className="flex items-center gap-2 text-left hover:opacity-70 transition-opacity"
+                >
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[13px] font-bold truncate" style={{ color: 'var(--c-text)' }}>{j.dest.name}</span>
+                    <span className="text-[11px] truncate" style={{ color: 'var(--c-text-3)' }}>from {j.source.name}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="text-[12px] opacity-50" style={{ color: 'var(--c-text)' }}>Your recent trips will appear here.</div>
+          )}
+        </div>
       </div>
     </div>
   );

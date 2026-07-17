@@ -10,7 +10,7 @@ export interface PlaceNode {
   lng: number;
 }
 
-interface StationRecord {
+export interface StationRecord {
   id: string;
   name: string;
   line: string;
@@ -22,13 +22,130 @@ interface StationRecord {
   interchange?: boolean;
   operational?: boolean;
   needsVerification?: boolean;
+  connectsTo?: string;
+  notes?: string;
   lat: number | null;
   lng: number | null;
 }
 
+/** One window of a line's timetable: trains every `every` minutes between
+ *  `start` and `end` (decimal IST hours). `every: null` = bus-only window. */
+export interface FrequencyRule {
+  start: number;
+  end: number;
+  every: number | null;
+}
+
+/** Timetable rules keyed by day type; `all` applies every day. */
+interface DayRules {
+  all?: FrequencyRule[];
+  weekday?: FrequencyRule[];
+  saturday?: FrequencyRule[];
+  sunday?: FrequencyRule[];
+}
+
+/** A line's full timetable, optionally split per origin terminal. */
+interface LineFrequencyConfig extends DayRules {
+  directions?: Record<string, DayRules>;
+}
+
+export interface LineMeta {
+  name: string;
+  avgSegmentMins: number;
+  avgFrequencyMins: number;
+  /** Decimal-hour window during which no trains run (violet's bus bridge). */
+  noTrainWindow?: [number, number];
+}
+
+export type LineEstimate =
+  | { line: string; status: "before-first-train"; minsUntilFirst: number }
+  | { line: string; status: "after-last-train" }
+  | { line: string; status: "bus-only"; resumesInMins: number }
+  | { line: string; status: "running"; waitMins: number; currentFrequencyMins: number | null };
+
+/** One ride on a single line, from ids[0] to ids[ids.length - 1]. */
+export interface Leg {
+  line: string;
+  ids: string[];
+  /** Terminal the train is signed towards (for platform signage). */
+  headingId: string;
+  headingName: string;
+}
+
+/** A leg augmented with simulated timing for a concrete departure. */
+export interface LegDetail extends Leg {
+  waitMins: number | null;
+  travelMins: number | null;
+  currentFrequencyMins: number | null;
+  status: LineEstimate["status"];
+  bufferMins: number;
+}
+
+export interface TicketInfo {
+  tokenValid: boolean;
+  cscValid: boolean;
+  ncmcValid: boolean;
+  note: string;
+}
+
+export type JourneyStop = StationRecord & { viaLine: string };
+
+export interface Departure {
+  hour: number;
+  waitMins: number;
+  frequencyMins: number | null;
+}
+
+/** One concrete departure choice within a plan. */
+export interface JourneyOption {
+  departInMins: number;
+  departClockTime: string;
+  arriveClockTime: string | null;
+  totalMins: number | null;
+  legs: LegDetail[];
+  warnings: string[];
+  feasible: boolean;
+  strandedAtLine: string | null;
+  departTimeMs: number;
+  leaveTimeMs: number;
+  arriveTimeMs: number | null;
+  leaveClockTime: string;
+  leaveInMins: number;
+}
+
+export interface PlanResult {
+  /** Place if the user searched from a place, otherwise the source station. */
+  source: StationRecord | PlaceNode;
+  dest: StationRecord | PlaceNode;
+  sourceStation: StationRecord;
+  destStation: StationRecord;
+  sourcePlace: PlaceNode | null;
+  destPlace: PlaceNode | null;
+  sourceWalkMins: number;
+  destWalkMins: number;
+  legs: LegDetail[];
+  stops: JourneyStop[];
+  totalStops: number;
+  travelMins: number | null;
+  initialWaitMins: number | null;
+  totalMins: number | null;
+  feasible: boolean;
+  strandedAtLine: string | null;
+  fare: number;
+  ticketInfo: TicketInfo;
+  usesViolet: boolean;
+  crossesPhase: boolean;
+  numTransfers: number;
+  warnings: string[];
+  options: JourneyOption[];
+  queryTime: Date;
+  arriveBy: boolean;
+  isLeaveNow: boolean;
+}
+
 export const STATIONS: StationRecord[] = (stationsData as { stations: StationRecord[] }).stations;
 
-export const STATION_BY_ID: Record<string, any> = Object.fromEntries(STATIONS.map((s) => [s.id, s]));
+export const STATION_BY_ID: Record<string, StationRecord> = Object.fromEntries(STATIONS.map((s) => [s.id, s]));
 
 const LINE_ORDER = ["blue", "red", "yellow", "violet"];
 
@@ -56,12 +173,73 @@ function interchangeBetween(a: string, b: string) {
   return INTERCHANGE_BETWEEN[`${a}|${b}`] || INTERCHANGE_BETWEEN[`${b}|${a}`];
 }
 
-export const LINE_META: Record<string, any> = {
+export const LINE_META: Record<string, LineMeta> = {
   blue: { name: "Line 1 (Vastral Gam \u2013 Thaltej Gam)", avgSegmentMins: 45 / 17, avgFrequencyMins: 10 },
   red: { name: "Line 2 (APMC \u2013 Motera Stadium)", avgSegmentMins: 35 / 13, avgFrequencyMins: 12 },
   yellow: { name: "Line 3 (Motera Stadium \u2013 Mahatma Mandir)", avgSegmentMins: 43 / 19, avgFrequencyMins: 24 },
   violet: { name: "Line 4 (GNLU \u2013 GIFT City)", avgSegmentMins: 6 / 2, avgFrequencyMins: 53, noTrainWindow: [10.3, 16.1] },
 };
+
+// Distance-weighted cumulative run times (minutes) from a line's first
+// station to each station on its path. The end-to-end total stays pinned to
+// the published run time (segments × avgSegmentMins) so full-line totals are
+// unchanged; within the line, each segment's share is proportional to the
+// straight-line distance between its stations instead of an even split.
+// (tracks.json's stationKm values are non-monotonic per its own report, so
+// station coordinates are the reliable distance source for now.)
+function buildCumulativeMins(lineId: string): number[] {
+  const path = LINE_PATHS[lineId];
+  const totalMins = (path.length - 1) * LINE_META[lineId].avgSegmentMins;
+
+  // Segment distances. Stations with unknown coords (e.g. the unopened
+  // Sabarmati Railway Station) are bridged by splitting the distance between
+  // the surrounding known stations evenly across the spanned segments.
+  const dists: number[] = new Array(path.length - 1).fill(0);
+  let prevKnown = -1;
+  for (let i = 0; i < path.length; i++) {
+    const s = STATION_BY_ID[path[i]];
+    if (!s || s.lat == null || s.lng == null) continue;
+    if (prevKnown !== -1) {
+      const prev = STATION_BY_ID[path[prevKnown]];
+      const d = haversineKm(
+        { lat: prev.lat!, lng: prev.lng! },
+        { lat: s.lat, lng: s.lng }
+      );
+      const span = i - prevKnown;
+      for (let k = prevKnown; k < i; k++) dists[k] = d / span;
+    }
+    prevKnown = i;
+  }
+
+  const totalDist = dists.reduce((a, b) => a + b, 0);
+  const cum: number[] = [0];
+  if (totalDist <= 0) {
+    // No usable coordinates — fall back to uniform segments.
+    for (let i = 1; i < path.length; i++) cum.push(i * LINE_META[lineId].avgSegmentMins);
+    return cum;
+  }
+  let acc = 0;
+  for (const d of dists) {
+    acc += totalMins * (d / totalDist);
+    cum.push(acc);
+  }
+  cum[cum.length - 1] = totalMins; // pin exactly, avoiding float drift
+  return cum;
+}
+
+export const LINE_CUM_MINS: Record<string, number[]> = Object.fromEntries(
+  LINE_ORDER.map((lineId) => [lineId, buildCumulativeMins(lineId)])
+);
+
+/** Distance-weighted run time in minutes between two stations on a line. */
+export function travelMinsBetween(line: string, fromId: string, toId: string): number {
+  const path = LINE_PATHS[line];
+  const cum = LINE_CUM_MINS[line];
+  const i = path.indexOf(fromId);
+  const j = path.indexOf(toId);
+  if (i === -1 || j === -1) return 0;
+  return Math.abs(cum[j] - cum[i]);
+}
 
 const FARE_SLABS = [
   { max: 2, fare: 5 },
@@ -81,7 +259,7 @@ export function walkMinsForKm(km: number) {
   return Math.max(1, Math.round((km / WALK_SPEED_KMH) * 60));
 }
 
-function getTicketOptions(source: any, dest: any) {
+function getTicketOptions(source: StationRecord, dest: StationRecord): TicketInfo {
   const crossesPhase = source.phase !== dest.phase;
   if (crossesPhase) {
     return {
@@ -110,7 +288,7 @@ export function haversineKm(a: { lat: number, lng: number }, b: { lat: number, l
 }
 
 function findNearestStation(loc: { lat: number, lng: number }) {
-  let best = null, bestDist = Infinity;
+  let best: StationRecord | null = null, bestDist = Infinity;
   for (const s of STATIONS) {
     if (s.lat == null || s.operational === false) continue;
     const d = haversineKm(loc, s as { lat: number, lng: number });
@@ -131,9 +309,9 @@ function buildLegs(sourceId: string, destId: string) {
   const dest = STATION_BY_ID[destId];
   if (!source || !dest || sourceId === destId) return null;
 
-  let legs: any[] = [];
+  let rawLegs: { line: string; ids: string[] }[] = [];
   if (source.line === dest.line) {
-    legs = [{ line: source.line, ids: sliceLine(source.line, sourceId, destId) }];
+    rawLegs = [{ line: source.line, ids: sliceLine(source.line, sourceId, destId) }];
   } else {
     const li = LINE_ORDER.indexOf(source.line);
     const lj = LINE_ORDER.indexOf(dest.line);
@@ -143,7 +321,7 @@ function buildLegs(sourceId: string, destId: string) {
       const line = chain[k];
       const isLast = k === chain.length - 1;
       const legEnd = isLast ? destId : interchangeBetween(line, chain[k + 1]);
-      legs.push({ line, ids: sliceLine(line, cursor, legEnd) });
+      rawLegs.push({ line, ids: sliceLine(line, cursor, legEnd) });
       cursor = legEnd;
     }
   }
@@ -153,12 +331,21 @@ function buildLegs(sourceId: string, destId: string) {
   // one stop on yellow still records source.line "red" for chain-building).
   // That produces a leg that starts and ends on the same station with no
   // real travel - drop it so it doesn't count as a transfer or a wait.
-  legs = legs.filter((leg) => leg.ids.length > 1);
+  const legs: Leg[] = rawLegs.filter((leg) => leg.ids.length > 1).map(leg => {
+    const path = LINE_PATHS[leg.line];
+    const fromId = leg.ids[0];
+    const toId = leg.ids[leg.ids.length - 1];
+    const i = path.indexOf(fromId);
+    const j = path.indexOf(toId);
+    const headingId = i <= j ? path[path.length - 1] : path[0];
+    const headingName = STATION_BY_ID[headingId]?.name || "";
+    return { ...leg, headingId, headingName };
+  });
 
-  const merged: any[] = [];
+  const merged: { id: string; line: string }[] = [];
   legs.forEach((leg, idx) => {
     const ids = idx === 0 ? leg.ids : leg.ids.slice(1);
-    ids.forEach((id: string) => merged.push({ id, line: leg.line }));
+    ids.forEach((id) => merged.push({ id, line: leg.line }));
   });
 
   return { source, dest, legs, merged, totalStops: merged.length - 1 };
@@ -184,16 +371,34 @@ const BLUE_SUNDAY = [
   { start: 22, end: 23, every: 20 },
 ];
 const RED_ALL = [{ start: 6.267, end: 22, every: 12 }, { start: 22, end: 23.17, every: 20 }];
+const RED_APMC = [{ start: 6.333, end: 22, every: 12 }, { start: 22, end: 23.167, every: 20 }];
+const RED_MOTERA = [{ start: 6.267, end: 22, every: 12 }, { start: 22, end: 23.000, every: 20 }];
+
 const YELLOW_ALL = [{ start: 6.667, end: 8, every: 40 }, { start: 8, end: 21.33, every: 24 }];
+const YELLOW_MOTERA = [{ start: 6.917, end: 8, every: 40 }, { start: 8, end: 21.333, every: 24 }];
+const YELLOW_MAHATMA = [{ start: 6.667, end: 8, every: 40 }, { start: 8, end: 21.000, every: 24 }];
+
 const VIOLET_ALL = [
   { start: 7.6, end: 10.3, every: 49 },
   { start: 10.3, end: 16.1, every: null },
   { start: 16.1, end: 19.22, every: 57 },
 ];
-const FREQ_RULES: Record<string, any> = {
+const FREQ_RULES: Record<string, LineFrequencyConfig> = {
   blue: { weekday: BLUE_WEEKDAY, saturday: BLUE_SATURDAY, sunday: BLUE_SUNDAY },
-  red: { all: RED_ALL },
-  yellow: { all: YELLOW_ALL },
+  red: { 
+    directions: {
+      "apmc": { all: RED_APMC },
+      "motera-stadium": { all: RED_MOTERA }
+    },
+    all: RED_ALL 
+  },
+  yellow: { 
+    directions: {
+      "motera-stadium": { all: YELLOW_MOTERA },
+      "mahatma-mandir": { all: YELLOW_MAHATMA }
+    },
+    all: YELLOW_ALL 
+  },
   violet: { all: VIOLET_ALL },
 };
 
@@ -218,48 +423,103 @@ function dayType(now: Date) {
   if (d === 6) return "saturday";
   return "weekday";
 }
-function rulesForLine(line: string, now: Date) {
+function rulesForLine(line: string, now: Date, originId?: string): FrequencyRule[] {
   const r = FREQ_RULES[line];
-  return r.all || r[dayType(now)];
+  if (originId && r.directions && r.directions[originId]) {
+    const dirR = r.directions[originId];
+    return dirR.all || dirR[dayType(now)]!;
+  }
+  return r.all || r[dayType(now)]!;
 }
 export function hourOf(now: Date) {
   const ist = toIST(now);
   return ist.getUTCHours() + ist.getUTCMinutes() / 60 + ist.getUTCSeconds() / 3600;
 }
-function simulateNextDeparture(rules: any[], hourNow: number) {
-  let t = rules[0].start, guard = 0;
-  while (t <= hourNow && guard < 3000) {
-    const rule = rules.find((r) => t >= r.start && t < r.end) || rules[rules.length - 1];
-    if (rule.every == null) { t = rule.end; continue; }
-    t += rule.every / 60;
+const DEPARTURE_GRID_CACHE: Record<string, number[]> = {};
+
+function getDepartureGrid(line: string, now: Date, originId?: string): number[] {
+  const dt = dayType(now);
+  const cacheKey = `${line}-${originId || 'any'}-${dt}`;
+  if (DEPARTURE_GRID_CACHE[cacheKey]) return DEPARTURE_GRID_CACHE[cacheKey];
+
+  const rules = rulesForLine(line, now, originId);
+  const grid: number[] = [];
+  const lastEnd = rules[rules.length - 1].end;
+  
+  let cursor = rules[0].start;
+  let guard = 0;
+  while (cursor <= lastEnd + 2 && guard < 5000) {
+    const activeRule = rules.find((r) => cursor >= r.start && cursor < r.end) || rules[rules.length - 1];
+    if (activeRule.every == null) {
+      cursor = activeRule.end;
+      continue;
+    }
+    grid.push(cursor);
+    if (cursor >= lastEnd) break;
+    cursor += activeRule.every / 60;
     guard++;
   }
-  return t;
+  
+  DEPARTURE_GRID_CACHE[cacheKey] = grid;
+  return grid;
 }
-export function estimateLine(line: string, now = new Date()) {
+
+function simulateNextDeparture(line: string, now: Date, hourNow: number, originId?: string) {
+  const grid = getDepartureGrid(line, now, originId);
+  
+  let left = 0;
+  let right = grid.length - 1;
+  let result = grid[grid.length - 1];
+  
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    if (grid[mid] > hourNow) {
+      result = grid[mid];
+      right = mid - 1;
+    } else {
+      left = mid + 1;
+    }
+  }
+  
+  if (result <= hourNow) {
+    const rules = rulesForLine(line, now, originId);
+    let t = result;
+    let guard = 0;
+    while (t <= hourNow && guard < 3000) {
+      const rule = rules.find((r) => t >= r.start && t < r.end) || rules[rules.length - 1];
+      if (rule.every == null) { t = rule.end; continue; }
+      t += rule.every / 60;
+      guard++;
+    }
+    return t;
+  }
+  
+  return result;
+}
+export function estimateLine(line: string, now = new Date()): LineEstimate {
   const rules = rulesForLine(line, now);
   const hourNow = hourOf(now);
   const firstStart = rules[0].start, lastEnd = rules[rules.length - 1].end;
   if (hourNow < firstStart) return { line, status: "before-first-train", minsUntilFirst: Math.round((firstStart - hourNow) * 60) };
   if (hourNow >= lastEnd) return { line, status: "after-last-train" };
-  const activeRule = rules.find((r: any) => hourNow >= r.start && hourNow < r.end);
+  const activeRule = rules.find((r) => hourNow >= r.start && hourNow < r.end);
   if (activeRule && activeRule.every == null) return { line, status: "bus-only", resumesInMins: Math.round((activeRule.end - hourNow) * 60) };
-  const nextDep = simulateNextDeparture(rules, hourNow);
+  const nextDep = simulateNextDeparture(line, now, hourNow);
   return { line, status: "running", waitMins: Math.max(0, Math.round((nextDep - hourNow) * 60)), currentFrequencyMins: activeRule ? activeRule.every : null };
 }
 
-export function upcomingDepartures(line: string, now: Date, count = 200) {
+export function upcomingDepartures(line: string, now: Date, count = 200): Departure[] {
   const rules = rulesForLine(line, now);
   const hourNow = hourOf(now);
   const lastEnd = rules[rules.length - 1].end;
   if (hourNow >= lastEnd) return [];
-  const deps = [];
+  const deps: Departure[] = [];
   let cursor = hourNow;
   for (let i = 0; i < count; i++) {
     if (cursor >= lastEnd) break;
-    const dep = simulateNextDeparture(rules, cursor);
+    const dep = simulateNextDeparture(line, now, cursor);
     if (dep >= lastEnd) break;
-    const activeRule = rules.find((r: any) => dep >= r.start && dep < r.end) || rules[rules.length - 1];
+    const activeRule = rules.find((r) => dep >= r.start && dep < r.end) || rules[rules.length - 1];
     deps.push({ hour: dep, waitMins: Math.max(0, Math.round((dep - hourNow) * 60)), frequencyMins: activeRule.every });
     cursor = dep;
   }
@@ -268,11 +528,11 @@ export function upcomingDepartures(line: string, now: Date, count = 200) {
 
 function stationOffsetHours(line: string, stationId: string, headingId: string) {
   const path = LINE_PATHS[line];
+  const cum = LINE_CUM_MINS[line];
   const idx = path.indexOf(stationId);
   const headIdx = path.indexOf(headingId);
-  const avgSegmentMins = LINE_META[line].avgSegmentMins;
-  const stopsFromOrigin = headIdx > idx ? idx : path.length - 1 - idx;
-  return (stopsFromOrigin * avgSegmentMins) / 60;
+  const minsFromOrigin = headIdx > idx ? cum[idx] : cum[cum.length - 1] - cum[idx];
+  return minsFromOrigin / 60;
 }
 
 /**
@@ -280,14 +540,18 @@ function stationOffsetHours(line: string, stationId: string, headingId: string) 
  * direction along the line - estimateLine alone reports the terminal's next
  * departure time, which is only correct if you're standing at the terminal.
  */
-export function estimateLineAtStation(line: string, stationId: string, headingId: string, now = new Date()) {
+export function estimateLineAtStation(line: string, stationId: string, headingId: string, now = new Date()): LineEstimate {
   const path = LINE_PATHS[line];
   if (!path || path.indexOf(stationId) === -1 || path.indexOf(headingId) === -1) {
     return estimateLine(line, now);
   }
 
+  const idx = path.indexOf(stationId);
+  const headIdx = path.indexOf(headingId);
+  const originId = headIdx > idx ? path[0] : path[path.length - 1];
+
   const offsetHours = stationOffsetHours(line, stationId, headingId);
-  const rules = rulesForLine(line, now);
+  const rules = rulesForLine(line, now, originId);
   const hourNow = hourOf(now);
   const termHourNow = hourNow - offsetHours;
   const stationFirst = rules[0].start + offsetHours;
@@ -296,35 +560,39 @@ export function estimateLineAtStation(line: string, stationId: string, headingId
   if (hourNow < stationFirst) return { line, status: "before-first-train", minsUntilFirst: Math.round((stationFirst - hourNow) * 60) };
   if (hourNow >= stationLast) return { line, status: "after-last-train" };
 
-  const activeRule = rules.find((r: any) => termHourNow >= r.start && termHourNow < r.end);
+  const activeRule = rules.find((r) => termHourNow >= r.start && termHourNow < r.end);
   if (activeRule && activeRule.every == null) {
     return { line, status: "bus-only", resumesInMins: Math.round((activeRule.end + offsetHours - hourNow) * 60) };
   }
 
-  const nextDepTerm = simulateNextDeparture(rules, termHourNow);
+  const nextDepTerm = simulateNextDeparture(line, now, termHourNow, originId);
   const nextArrival = nextDepTerm + offsetHours;
   return { line, status: "running", waitMins: Math.max(0, Math.round((nextArrival - hourNow) * 60)), currentFrequencyMins: activeRule ? activeRule.every : null };
 }
 
 /** Direction/station-aware counterpart to upcomingDepartures. */
-export function upcomingDeparturesAtStation(line: string, stationId: string, headingId: string, now: Date, count = 200) {
+export function upcomingDeparturesAtStation(line: string, stationId: string, headingId: string, now: Date, count = 200): Departure[] {
   const path = LINE_PATHS[line];
   if (!path || path.indexOf(stationId) === -1 || path.indexOf(headingId) === -1) {
     return upcomingDepartures(line, now, count);
   }
 
+  const idx = path.indexOf(stationId);
+  const headIdx = path.indexOf(headingId);
+  const originId = headIdx > idx ? path[0] : path[path.length - 1];
+
   const offsetHours = stationOffsetHours(line, stationId, headingId);
-  const rules = rulesForLine(line, now);
+  const rules = rulesForLine(line, now, originId);
   const hourNow = hourOf(now);
   const lastEnd = rules[rules.length - 1].end;
-  const deps = [];
+  const deps: Departure[] = [];
   let cursor = hourNow - offsetHours;
   for (let i = 0; i < count; i++) {
     if (cursor >= lastEnd) break;
-    const dep = simulateNextDeparture(rules, cursor);
+    const dep = simulateNextDeparture(line, now, cursor, originId);
     if (dep >= lastEnd) break;
     const arrivalHour = dep + offsetHours;
-    const activeRule = rules.find((r: any) => dep >= r.start && dep < r.end) || rules[rules.length - 1];
+    const activeRule = rules.find((r) => dep >= r.start && dep < r.end) || rules[rules.length - 1];
     deps.push({ hour: arrivalHour, waitMins: Math.max(0, Math.round((arrivalHour - hourNow) * 60)), frequencyMins: activeRule.every });
     cursor = dep;
   }
@@ -336,7 +604,7 @@ export function upcomingDeparturesAtStation(line: string, stationId: string, hea
  * leg-building the full planner uses - so a "next train" preview shown before
  * planning never disagrees with the plan itself.
  */
-export function nextDepartureFromStation(sourceId: string, destId: string, now = new Date()) {
+export function nextDepartureFromStation(sourceId: string, destId: string, now = new Date()): LineEstimate | null {
   const base = buildLegs(sourceId, destId);
   if (!base || base.legs.length === 0) return null;
   const firstLeg = base.legs[0];
@@ -350,20 +618,20 @@ export function upcomingStationDepartures(stationId: string, line: string, now: 
   if (idx === -1) return [];
 
   const total = path.length - 1;
-  const avgSegmentMins = LINE_META[line].avgSegmentMins;
-  const rules = rulesForLine(line, now);
+  const cum = LINE_CUM_MINS[line];
   const hourNow = hourOf(now);
-  const lastEnd = rules[rules.length - 1].end;
 
   const directions: { destination: string, departures: { hour: number, waitMins: number }[] }[] = [];
 
-  function getDeparturesForOffset(offsetHours: number, destId: string) {
+  function getDeparturesForOffset(offsetHours: number, destId: string, originId: string) {
+    const rules = rulesForLine(line, now, originId);
+    const lastEnd = rules[rules.length - 1].end;
     const termTime = hourNow - offsetHours;
-    const deps = [];
+    const deps: { hour: number, waitMins: number }[] = [];
     let cursor = termTime;
     for (let i = 0; i < count; i++) {
       if (cursor >= lastEnd) break;
-      const dep = simulateNextDeparture(rules, cursor);
+      const dep = simulateNextDeparture(line, now, cursor, originId);
       if (dep >= lastEnd) break;
       
       const arrivalHour = dep + offsetHours;
@@ -386,10 +654,10 @@ export function upcomingStationDepartures(stationId: string, line: string, now: 
   }
 
   if (idx < total) {
-    getDeparturesForOffset((idx * avgSegmentMins) / 60, path[total]);
+    getDeparturesForOffset(cum[idx] / 60, path[total], path[0]);
   }
   if (idx > 0) {
-    getDeparturesForOffset(((total - idx) * avgSegmentMins) / 60, path[0]);
+    getDeparturesForOffset((cum[total] - cum[idx]) / 60, path[0], path[total]);
   }
 
   return directions;
@@ -420,22 +688,18 @@ export function fullDayStationSchedule(stationId: string, line: string, now: Dat
   if (idx === -1) return [];
 
   const total = path.length - 1;
-  const avgSegmentMins = LINE_META[line].avgSegmentMins;
-  const rules = rulesForLine(line, now);
+  const cum = LINE_CUM_MINS[line];
   const hourNow = hourOf(now);
-  const firstStart = rules[0].start;
-  const lastEnd = rules[rules.length - 1].end;
 
   function buildDirection(offsetHours: number, originId: string, destId: string): DayScheduleDirection {
+    const rules = rulesForLine(line, now, originId);
+    const lastEnd = rules[rules.length - 1].end;
     const trains: DayTrain[] = [];
 
     // Walk from first possible terminal departure (going back far enough)
-    let cursor = firstStart;
-    let guard = 0;
-    while (cursor < lastEnd && guard < 500) {
-      guard++;
-      const rule = rules.find((r: any) => cursor >= r.start && cursor < r.end) || rules[rules.length - 1];
-      if ((rule as any).every == null) { cursor = (rule as any).end; continue; }
+    const grid = getDepartureGrid(line, now, originId);
+    for (const cursor of grid) {
+      if (cursor >= lastEnd) break;
 
       const arrivalHour = cursor + offsetHours;
       if (arrivalHour >= lastEnd) break;
@@ -452,8 +716,6 @@ export function fullDayStationSchedule(stationId: string, line: string, now: Dat
         departed: waitMins < 0,
         isNext: false,
       });
-
-      cursor += (rule as any).every / 60;
     }
 
     // Mark the next train
@@ -474,11 +736,11 @@ export function fullDayStationSchedule(stationId: string, line: string, now: Dat
 
   // Direction A: towards terminal B (end of path)
   if (idx < total) {
-    result.push(buildDirection((idx * avgSegmentMins) / 60, path[0], path[total]));
+    result.push(buildDirection(cum[idx] / 60, path[0], path[total]));
   }
   // Direction B: towards terminal A (start of path)
   if (idx > 0) {
-    result.push(buildDirection(((total - idx) * avgSegmentMins) / 60, path[total], path[0]));
+    result.push(buildDirection((cum[total] - cum[idx]) / 60, path[total], path[0]));
   }
 
   return result;
@@ -499,16 +761,24 @@ export function clockTimeAfter(now: Date, offsetMins: number) {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" });
 }
 
-function simulateFromDeparture(legs: any[], now: Date, firstWaitMins: number, firstFrequencyMins: number | null) {
+interface SimResult {
+  legs: LegDetail[];
+  totalMins: number | null;
+  warnings: string[];
+  feasible: boolean;
+  strandedAtLine: string | null;
+}
+
+function simulateFromDeparture(legs: Leg[], now: Date, firstWaitMins: number, firstFrequencyMins: number | null): SimResult {
   let elapsedMins = firstWaitMins;
   const warnings: string[] = [];
-  const legDetails: any[] = [];
+  const legDetails: LegDetail[] = [];
   let feasible = true;
-  let strandedAtLine = null;
+  let strandedAtLine: string | null = null;
 
   for (let idx = 0; idx < legs.length; idx++) {
     const leg = legs[idx];
-    let waitMins = 0, currentFrequencyMins = null, status, bufferMins = 0;
+    let waitMins = 0, currentFrequencyMins: number | null = null, status: LineEstimate["status"], bufferMins = 0;
 
     if (idx === 0) {
       waitMins = firstWaitMins;
@@ -521,27 +791,27 @@ function simulateFromDeparture(legs: any[], now: Date, firstWaitMins: number, fi
       const est = estimateLineAtStation(leg.line, leg.ids[0], leg.ids[leg.ids.length - 1], projectedTime);
       status = est.status;
       if (est.status === "running") {
-        waitMins = est.waitMins!;
+        waitMins = est.waitMins;
         currentFrequencyMins = est.currentFrequencyMins ?? null;
       } else if (est.status === "before-first-train") {
-        waitMins = est.minsUntilFirst!;
+        waitMins = est.minsUntilFirst;
         warnings.push(`${LINE_META[leg.line].name} hasn't started service yet \u2014 first train in ${formatDuration(est.minsUntilFirst)}.`);
       } else if (est.status === "bus-only") {
-        waitMins = est.resumesInMins!;
+        waitMins = est.resumesInMins;
         warnings.push(`${LINE_META[leg.line].name} is bus-only right now \u2014 trains resume in ${formatDuration(est.resumesInMins)}.`);
       } else {
         feasible = false;
         strandedAtLine = LINE_META[leg.line].name;
-        legDetails.push({ line: leg.line, waitMins: null, travelMins: null, currentFrequencyMins: null, status, bufferMins });
+        legDetails.push({ ...leg, waitMins: null, travelMins: null, currentFrequencyMins: null, status, bufferMins });
         warnings.push(`${LINE_META[leg.line].name} has finished service for the day \u2014 you'd be stuck at the transfer.`);
         break;
       }
       elapsedMins += waitMins;
     }
 
-    const travelMins = (leg.ids.length - 1) * LINE_META[leg.line].avgSegmentMins;
+    const travelMins = travelMinsBetween(leg.line, leg.ids[0], leg.ids[leg.ids.length - 1]);
     elapsedMins += travelMins;
-    legDetails.push({ line: leg.line, waitMins: Math.round(waitMins), travelMins: Math.round(travelMins), currentFrequencyMins, status, bufferMins });
+    legDetails.push({ ...leg, waitMins: Math.round(waitMins), travelMins: Math.round(travelMins), currentFrequencyMins, status, bufferMins });
   }
 
   return { legs: legDetails, totalMins: feasible ? Math.round(elapsedMins) : null, warnings, feasible, strandedAtLine };
@@ -583,7 +853,6 @@ export function getActiveTrains(now: Date = new Date()): ActiveTrain[] {
 
   for (const lineId of Object.keys(LINE_PATHS)) {
     const path = LINE_PATHS[lineId];
-    const meta = LINE_META[lineId];
     const rules = rulesForLine(lineId, now);
     const firstStart = rules[0].start;
     const lastEnd = rules[rules.length - 1].end;
@@ -591,58 +860,61 @@ export function getActiveTrains(now: Date = new Date()): ActiveTrain[] {
     if (hourNow < firstStart || hourNow >= lastEnd) continue;
 
     // Skip if we're currently inside a bus-only (null-frequency) window
-    const currentWindowRule = rules.find((r: any) => hourNow >= r.start && hourNow < r.end);
-    if (currentWindowRule && (currentWindowRule as any).every == null) continue;
+    const currentWindowRule = rules.find((r) => hourNow >= r.start && hourNow < r.end);
+    if (currentWindowRule && currentWindowRule.every == null) continue;
 
-    // Collect valid stations along this line (skip ones with null coords)
-    const validPath: { id: string; lat: number; lng: number }[] = [];
-    for (const stationId of path) {
-      const s = STATION_BY_ID[stationId];
+    // Collect valid stations along this line (skip ones with null coords),
+    // each carrying its distance-weighted run-time offset from the terminal.
+    const cum = LINE_CUM_MINS[lineId];
+    const validPath: { id: string; lat: number; lng: number; mins: number }[] = [];
+    for (let i = 0; i < path.length; i++) {
+      const s = STATION_BY_ID[path[i]];
       if (s && s.lat !== null && s.lng !== null && s.operational !== false) {
-        validPath.push({ id: stationId, lat: s.lat, lng: s.lng });
+        validPath.push({ id: path[i], lat: s.lat, lng: s.lng, mins: cum[i] });
       }
     }
     if (validPath.length < 2) continue;
 
-    const avgSegmentMins = meta.avgSegmentMins;
-    const totalTravelMins = (validPath.length - 1) * avgSegmentMins;
+    const totalTravelMins = cum[cum.length - 1];
     const totalTravelHours = totalTravelMins / 60;
 
-    // Simulate trains in BOTH directions
+    // Simulate trains in BOTH directions; the reversed direction's offsets
+    // are measured from the opposite terminal.
+    const backwardPath = [...validPath].reverse().map((p) => ({ ...p, mins: totalTravelMins - p.mins }));
     const directions = [
-      { orderedPath: validPath, destId: validPath[validPath.length - 1].id },
-      { orderedPath: [...validPath].reverse(), destId: validPath[0].id },
+      { orderedPath: validPath, destId: validPath[validPath.length - 1].id, terminalOriginId: path[0] },
+      { orderedPath: backwardPath, destId: validPath[0].id, terminalOriginId: path[path.length - 1] },
     ];
 
-    for (const { orderedPath, destId } of directions) {
+    for (const { orderedPath, destId, terminalOriginId } of directions) {
       const originId = orderedPath[0].id;
       const destinationName = STATION_BY_ID[destId]?.name ?? destId;
 
-      // Walk through all possible departure times from origin
-      let cursor = firstStart;
-      let guard = 0;
-      while (cursor < lastEnd && guard < 500) {
-        guard++;
-        const rule = rules.find((r: any) => cursor >= r.start && cursor < r.end) || rules[rules.length - 1];
-        if ((rule as any).every == null) {
-          cursor = (rule as any).end;
-          continue;
-        }
+      const rules = rulesForLine(lineId, now, terminalOriginId);
+      const lastEnd = rules[rules.length - 1].end;
 
-        const departureHour = cursor;
+      // Walk through all possible departure times from origin
+      const grid = getDepartureGrid(lineId, now, terminalOriginId);
+      for (const departureHour of grid) {
+        if (departureHour >= lastEnd) break;
+
         const arrivalHour = departureHour + totalTravelHours;
 
         // This train is currently in transit if it has departed and not yet arrived
         if (departureHour <= hourNow && hourNow < arrivalHour) {
-          const elapsedHours = hourNow - departureHour;
-          const elapsedMins = elapsedHours * 60;
+          const elapsedMins = (hourNow - departureHour) * 60;
 
-          // Which segment are we on?
-          const segmentIndex = Math.min(
-            Math.floor(elapsedMins / avgSegmentMins),
-            orderedPath.length - 2
-          );
-          const segmentProgress = (elapsedMins % avgSegmentMins) / avgSegmentMins;
+          // Which segment are we on? Segments span unequal time shares now,
+          // so walk the cumulative offsets instead of dividing evenly.
+          let segmentIndex = orderedPath.length - 2;
+          for (let k = 0; k < orderedPath.length - 1; k++) {
+            if (elapsedMins < orderedPath[k + 1].mins) { segmentIndex = k; break; }
+          }
+          const segStartMins = orderedPath[segmentIndex].mins;
+          const segMins = orderedPath[segmentIndex + 1].mins - segStartMins;
+          const segmentProgress = segMins > 0
+            ? Math.min(1, Math.max(0, (elapsedMins - segStartMins) / segMins))
+            : 0;
 
           const fromStation = orderedPath[segmentIndex];
           const toStation = orderedPath[segmentIndex + 1];
@@ -664,8 +936,6 @@ export function getActiveTrains(now: Date = new Date()): ActiveTrain[] {
             segmentProgress,
           });
         }
-
-        cursor += (rule as any).every / 60;
       }
     }
   }
@@ -673,7 +943,18 @@ export function getActiveTrains(now: Date = new Date()): ActiveTrain[] {
   return trains;
 }
 
-export function planJourney(sourceInput: string | PlaceNode, destInput: string | PlaceNode, { now = new Date() } = {}) {
+export interface PlanConfig {
+  queryTime?: Date;
+  actualNow?: Date;
+  arriveBy?: boolean;
+}
+
+export function planJourney(sourceInput: string | PlaceNode, destInput: string | PlaceNode, config: PlanConfig = {}): PlanResult | null {
+  const queryTime = config.queryTime || new Date();
+  const actualNow = config.actualNow || new Date();
+  const arriveBy = config.arriveBy || false;
+  const searchTime = arriveBy ? new Date(queryTime.getTime() - 120 * 60000) : queryTime;
+
   let sourcePlace: PlaceNode | null = null;
   let destPlace: PlaceNode | null = null;
   let sourceWalkMins = 0;
@@ -701,26 +982,28 @@ export function planJourney(sourceInput: string | PlaceNode, destInput: string |
 
   const base = buildLegs(sourceId, destId);
   if (!base) return null;
-  let { source, dest, legs, merged, totalStops } = base;
+  const { source, dest, legs, merged, totalStops } = base;
+  const stops: JourneyStop[] = merged.map((m) => ({ ...STATION_BY_ID[m.id], viaLine: m.line }));
 
-  // We keep source and dest as the actual stations for the metro logic,
-  // but we will augment the final result to return the places if they exist.
-
-  // Use the first *surviving* leg's line/direction, not the station's stored
-  // primary line - at an interchange origin the real first ride can be on
-  // the secondLine, and estimateLine alone ignores station position anyway.
   const firstLeg = legs[0];
   const firstLegHeading = firstLeg.ids[firstLeg.ids.length - 1];
-  const firstEst = estimateLineAtStation(firstLeg.line, sourceId, firstLegHeading, now);
+  const firstEst = estimateLineAtStation(firstLeg.line, sourceId, firstLegHeading, searchTime);
   const ticketInfo = getTicketOptions(source, dest);
   const crossesPhase = source.phase !== dest.phase;
-  const usesViolet = legs.some((l: any) => l.line === "violet");
+  const usesViolet = legs.some((l) => l.line === "violet");
 
   if (firstEst.status === "after-last-train") {
     return {
-      source, dest,
+      source: sourcePlace || source,
+      dest: destPlace || dest,
+      sourceStation: source,
+      destStation: dest,
+      sourcePlace,
+      destPlace,
+      sourceWalkMins,
+      destWalkMins,
       legs: [],
-      stops: merged.map((m: any) => ({ ...STATION_BY_ID[m.id], viaLine: m.line })),
+      stops,
       totalStops,
       travelMins: null,
       initialWaitMins: null,
@@ -734,38 +1017,60 @@ export function planJourney(sourceInput: string | PlaceNode, destInput: string |
       numTransfers: legs.length - 1,
       warnings: [`${LINE_META[firstLeg.line].name} has finished service for the day \u2014 no trains from ${source.name} right now.`],
       options: [],
+      queryTime, arriveBy, isLeaveNow: !config.queryTime
     };
   }
 
-  let firstWaitMins = 0, firstFrequencyMins = null;
+  let firstWaitMins = 0, firstFrequencyMins: number | null = null;
   const leadWarnings: string[] = [];
   if (firstEst.status === "running") {
-    firstWaitMins = firstEst.waitMins!;
+    firstWaitMins = firstEst.waitMins;
     firstFrequencyMins = firstEst.currentFrequencyMins ?? null;
   } else if (firstEst.status === "before-first-train") {
-    firstWaitMins = firstEst.minsUntilFirst!;
+    firstWaitMins = firstEst.minsUntilFirst;
     leadWarnings.push(`${LINE_META[firstLeg.line].name} hasn't started service yet \u2014 first train in ${formatDuration(firstEst.minsUntilFirst)}.`);
   } else if (firstEst.status === "bus-only") {
-    firstWaitMins = firstEst.resumesInMins!;
+    firstWaitMins = firstEst.resumesInMins;
     leadWarnings.push(`${LINE_META[firstLeg.line].name} is bus-only right now \u2014 trains resume in ${formatDuration(firstEst.resumesInMins)}.`);
   }
 
-  const sim = simulateFromDeparture(legs, now, firstWaitMins, firstFrequencyMins);
+  const sim = simulateFromDeparture(legs, searchTime, firstWaitMins, firstFrequencyMins);
 
-  const departures = upcomingDeparturesAtStation(firstLeg.line, sourceId, firstLegHeading, now, 200);
-  const options = departures.map((d) => {
-    const optSim = simulateFromDeparture(legs, now, d.waitMins, d.frequencyMins ?? null);
+  const departures = upcomingDeparturesAtStation(firstLeg.line, sourceId, firstLegHeading, searchTime, 200);
+  let options: JourneyOption[] = departures.map((d) => {
+    const optSim = simulateFromDeparture(legs, searchTime, d.waitMins, d.frequencyMins ?? null);
+    
+    const departTimeMs = searchTime.getTime() + d.waitMins * 60000;
+    const leaveTimeMs = departTimeMs - (sourceWalkMins * 60000);
+    const arriveTimeMs = optSim.feasible ? departTimeMs + optSim.totalMins! * 60000 : null;
+
     return {
       departInMins: d.waitMins,
-      departClockTime: clockTimeAfter(now, d.waitMins),
-      arriveClockTime: optSim.feasible ? clockTimeAfter(now, optSim.totalMins!) : null,
+      departClockTime: clockTimeAfter(searchTime, d.waitMins),
+      arriveClockTime: optSim.feasible ? clockTimeAfter(searchTime, optSim.totalMins!) : null,
       totalMins: optSim.totalMins,
       legs: optSim.legs,
       warnings: optSim.warnings,
       feasible: optSim.feasible,
       strandedAtLine: optSim.strandedAtLine,
+      departTimeMs,
+      leaveTimeMs,
+      arriveTimeMs,
+      leaveClockTime: clockTimeAfter(new Date(leaveTimeMs), 0),
+      leaveInMins: Math.round((leaveTimeMs - actualNow.getTime()) / 60000),
     };
   });
+
+  if (arriveBy) {
+    options = options.filter(o => o.feasible && o.arriveTimeMs! <= queryTime.getTime());
+    options = options.slice(-5).reverse();
+  }
+
+  // Prefer the first concrete departure option; fall back to the "leave now"
+  // simulation when no options survive (e.g. arrive-by filtered them all out).
+  const chosen: JourneyOption | null = options[0] ?? null;
+  const chosenLegs = chosen ? chosen.legs : sim.legs;
+  const chosenTotalMins = chosen ? chosen.totalMins : sim.totalMins;
 
   return {
     source: sourcePlace || source,
@@ -776,20 +1081,22 @@ export function planJourney(sourceInput: string | PlaceNode, destInput: string |
     destPlace,
     sourceWalkMins,
     destWalkMins,
-    legs: sim.legs,
-    stops: merged.map((m: any) => ({ ...STATION_BY_ID[m.id], viaLine: m.line })),
+    legs: chosenLegs,
+    stops,
     totalStops,
-    travelMins: Math.round(sim.legs.reduce((s, l) => s + (l.travelMins || 0), 0)),
-    initialWaitMins: firstWaitMins,
-    totalMins: sim.totalMins != null ? sim.totalMins + sourceWalkMins + destWalkMins : null,
-    feasible: sim.feasible,
-    strandedAtLine: sim.strandedAtLine,
+    travelMins: Math.round(chosenLegs.reduce((s, l) => s + (l.travelMins || 0), 0)),
+    initialWaitMins: chosen ? chosen.departInMins : firstWaitMins,
+    totalMins: chosenTotalMins != null ? chosenTotalMins + sourceWalkMins + destWalkMins : null,
+    feasible: chosen ? chosen.feasible : sim.feasible,
+    strandedAtLine: chosen ? chosen.strandedAtLine : sim.strandedAtLine,
     fare: fareForStops(totalStops),
     ticketInfo,
     usesViolet,
     crossesPhase,
     numTransfers: legs.length - 1,
-    warnings: [...leadWarnings, ...sim.warnings],
+    warnings: [...leadWarnings, ...(chosen ? chosen.warnings : sim.warnings)],
     options,
+    queryTime, arriveBy, isLeaveNow: !config.queryTime
   };
 }
+

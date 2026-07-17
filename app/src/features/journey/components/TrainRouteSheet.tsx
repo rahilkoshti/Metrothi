@@ -131,7 +131,7 @@ export function TrainRouteSheet({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <LineBadge line={line} size="xs" />
-                <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--c-text-4)" }}>
+                <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--c-text-4)" }}>
                   {LINE_NAMES[line as keyof typeof LINE_NAMES]}
                 </span>
               </div>
@@ -223,7 +223,7 @@ export function TrainRouteSheet({
                       {stop.name}
                     </div>
                     {stop.isCurrent && (
-                      <div className="text-[10px] font-bold uppercase tracking-widest mt-0.5" style={{ color }}>
+                      <div className="text-[11px] font-bold uppercase tracking-widest mt-0.5" style={{ color }}>
                         You are here
                       </div>
                     )}
@@ -277,7 +277,7 @@ export function TrainRouteSheet({
               I want to catch this train
               <ArrowRight size={18} strokeWidth={2.5} />
             </button>
-            <p className="text-center text-[10px] font-semibold mt-2" style={{ color: "var(--c-text-4)" }}>
+            <p className="text-center text-[11px] font-semibold mt-2" style={{ color: "var(--c-text-4)" }}>
               Departs {dir.originName} at {route[0]?.clockTime} · arrives {dir.destinationName} at {route[route.length - 1]?.clockTime}
             </p>
           </div>

@@ -36,13 +36,13 @@ function Row({
   const Tag = tappable ? "button" : "div";
   return (
     <Tag
-      className="w-full flex items-center gap-4 px-5 py-4 text-left transition-colors"
+      className={`w-full flex items-center gap-4 px-5 py-4 text-left transition-colors ${tappable ? 'hover:bg-[var(--c-card-alt)] focus-visible:bg-[var(--c-card-alt)] focus-visible:outline-none' : ''}`}
       style={{
         background: 'transparent',
         ...(tappable ? { cursor: 'pointer' } : {}),
       }}
-      onMouseEnter={tappable ? (e) => ((e.currentTarget as HTMLElement).style.background = 'var(--c-card-alt)') : undefined}
-      onMouseLeave={tappable ? (e) => ((e.currentTarget as HTMLElement).style.background = 'transparent') : undefined}
+      
+      
     >
       {Icon && (
         <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--c-card-alt)' }}>
@@ -88,7 +88,7 @@ function ThemeToggle() {
         style={{
           width: 44,
           height: 26,
-          background: isDark ? '#FACC15' : 'var(--c-border-2)',
+          background: isDark ? 'var(--c-accent)' : 'var(--c-border-2)',
         }}
       >
         {/* Knob */}
@@ -103,7 +103,7 @@ function ThemeToggle() {
           }}
         />
       </div>
-      <Moon size={14} style={{ color: isDark ? '#FACC15' : 'var(--c-text-4)' }} />
+      <Moon size={14} style={{ color: isDark ? 'var(--c-accent)' : 'var(--c-text-4)' }} />
     </button>
   );
 }
@@ -118,7 +118,7 @@ export function YouScreen() {
 
       {/* ── Header / Avatar ──────────────────────────────────────────────── */}
       <div className="px-5 pt-12 pb-6">
-        <div className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--c-text-3)' }}>
+        <div className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--c-text-3)' }}>
           {theme === 'dark' ? '🌙 Dark mode' : '☀️ Light mode'}
         </div>
         <h1 className="text-4xl font-bold tracking-tight" style={{ color: 'var(--c-text)' }}>You</h1>
@@ -226,7 +226,7 @@ export function YouScreen() {
         <div className="text-[11px] font-semibold" style={{ color: 'var(--c-text-4)' }}>
           Metrothi · v0.1.0-prototype
         </div>
-        <div className="text-[10px] mt-1" style={{ color: 'var(--c-text-4)' }}>
+        <div className="text-[11px] mt-1" style={{ color: 'var(--c-text-4)' }}>
           Phase 1 — all features simulated, no auth
         </div>
       </div>

@@ -113,14 +113,14 @@ function DirectionSchedule({
                     {/* Route label */}
                     <div className="flex items-center gap-1 mb-0.5">
                       <span
-                        className="text-[10px] font-bold"
+                        className="text-[11px] font-bold"
                         style={{ color: isDep ? "var(--c-text-4)" : "var(--c-text-3)" }}
                       >
                         {dir.originName}
                       </span>
                       <ArrowRight size={9} style={{ color: "var(--c-text-4)" }} />
                       <span
-                        className="text-[10px] font-bold"
+                        className="text-[11px] font-bold"
                         style={{ color: isDep ? "var(--c-text-4)" : "var(--c-text-3)" }}
                       >
                         {dir.destinationName}
@@ -166,7 +166,7 @@ function DirectionSchedule({
                       >
                         {train.waitMins === 0 ? "Due" : formatDuration(train.waitMins)}
                       </div>
-                      <div className="text-[10px] font-semibold mt-0.5 uppercase" style={{ color: "var(--c-text-4)" }}>
+                      <div className="text-[11px] font-semibold mt-0.5 uppercase" style={{ color: "var(--c-text-4)" }}>
                         from now
                       </div>
                     </div>
@@ -181,7 +181,7 @@ function DirectionSchedule({
           })}
 
           <div className="px-4 py-5 text-center">
-            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--c-text-4)" }}>
+            <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--c-text-4)" }}>
               End of service
             </span>
           </div>
@@ -262,7 +262,7 @@ function LineScheduleCard({ stationId, line, autoOpenDirDest }: { stationId: str
           <div className="font-bold text-sm" style={{ color: "var(--c-text)" }}>
             {LINE_NAMES[line]}
           </div>
-          <div className="text-[10px] font-semibold" style={{ color: "var(--c-text-4)" }}>
+          <div className="text-[11px] font-semibold" style={{ color: "var(--c-text-4)" }}>
             Every ~{LINE_META[line].avgFrequencyMins} min
           </div>
         </div>
@@ -323,7 +323,19 @@ export function StationDetail() {
 
   const location = useLocation();
 
-  if (!id || !STATION_BY_ID[id]) {
+  const station = id ? STATION_BY_ID[id] : undefined;
+
+  // Hooks must run unconditionally, so this sits above the not-found return.
+  const posOnLine = useMemo(() => {
+    if (!id || !station) return null;
+    const path = LINE_PATHS[station.line];
+    if (!path) return null;
+    const idx = path.indexOf(id);
+    if (idx === -1) return null;
+    return { idx, total: path.length - 1 };
+  }, [id, station]);
+
+  if (!id || !station) {
     return (
       <div className="p-8 text-center pt-24">
         <h2 className="text-xl font-bold" style={{ color: "var(--c-text)" }}>
@@ -338,18 +350,9 @@ export function StationDetail() {
 
   const deepLinkState = (location.state as { openLine?: string; openDirDest?: string } | null) ?? {};
 
-  const station = STATION_BY_ID[id];
   const lines = [station.line, ...(station.secondLine ? [station.secondLine] : [])];
 
   const handlePlanFromHere = () => navigate("/go", { state: { prefillSource: station.id } });
-
-  const posOnLine = useMemo(() => {
-    const path = LINE_PATHS[station.line];
-    if (!path) return null;
-    const idx = path.indexOf(id);
-    if (idx === -1) return null;
-    return { idx, total: path.length - 1 };
-  }, [id, station.line]);
 
   const primaryColor = LINE_COLORS[station.line];
 
@@ -449,7 +452,7 @@ export function StationDetail() {
         <div className="absolute bottom-16 left-5 flex items-center gap-2">
           <LineBadge line={station.line} size="xs" />
           <span
-            className="text-[10px] font-bold uppercase tracking-widest"
+            className="text-[11px] font-bold uppercase tracking-widest"
             style={{ color: primaryColor, opacity: 0.85 }}
           >
             {LINE_NAMES[station.line]}
@@ -483,21 +486,21 @@ export function StationDetail() {
               </h1>
               <div className="flex flex-wrap gap-2 mt-3">
                 <span
-                  className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded"
+                  className="text-[11px] font-bold uppercase tracking-widest px-2 py-1 rounded"
                   style={{ color: "var(--c-text-3)", border: "1px solid var(--c-border-2)" }}
                 >
                   Phase {station.phase}
                 </span>
                 {station.interchange && (
                   <span
-                    className="text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded"
+                    className="text-[11px] font-bold uppercase tracking-widest px-2 py-1 rounded"
                     style={{ color: "var(--c-text)", border: "1px solid var(--c-border-2)" }}
                   >
                     Interchange
                   </span>
                 )}
                 {station.operational === false && (
-                  <span className="text-[10px] font-bold uppercase tracking-widest text-yellow-600 border border-yellow-900/40 px-2 py-1 rounded">
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-yellow-600 border border-yellow-900/40 px-2 py-1 rounded">
                     Opening Soon
                   </span>
                 )}
@@ -523,7 +526,7 @@ export function StationDetail() {
           <button
             onClick={handlePlanFromHere}
             className="w-full py-3.5 rounded-2xl text-[15px] font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-            style={{ background: "#FACC15", color: "#000" }}
+            style={{ background: "var(--c-accent)", color: "#000" }}
           >
             Plan Trip From Here <ArrowRight size={16} strokeWidth={2.5} />
           </button>
@@ -534,7 +537,7 @@ export function StationDetail() {
           <div className="flex items-center gap-2 mb-3">
             <Clock size={13} style={{ color: "var(--c-text-4)" }} />
             <span
-              className="text-[10px] font-bold uppercase tracking-widest"
+              className="text-[11px] font-bold uppercase tracking-widest"
               style={{ color: "var(--c-text-4)" }}
             >
               Today&apos;s Schedule · tap any train for full route

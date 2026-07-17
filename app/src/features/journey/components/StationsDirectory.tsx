@@ -25,7 +25,7 @@ export function StationsDirectory() {
   return (
     <div className="p-5 max-w-[var(--layout-max-width)] mx-auto pt-10 pb-24">
       <div className="mb-7">
-        <div className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--c-text-3)' }}>Network</div>
+        <div className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--c-text-3)' }}>Network</div>
         <h1 className="text-4xl font-bold tracking-tight leading-none" style={{ color: 'var(--c-text)' }}>Stations</h1>
       </div>
 
@@ -67,8 +67,8 @@ export function StationsDirectory() {
                     to={`/stations/${s.id}`}
                     className="flex items-center px-4 py-3.5 transition-colors group"
                     style={{ borderBottom: idx !== stns.length - 1 ? '1px solid var(--c-border)' : 'none' }}
-                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = 'var(--c-card-alt)')}
-                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = 'transparent')}
+                    
+                    
                   >
                     <div
                       className="w-2.5 h-2.5 rounded-full shrink-0 mr-4"
@@ -79,7 +79,7 @@ export function StationsDirectory() {
                         {s.name}
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] font-medium" style={{ color: 'var(--c-text-3)' }}>Ph.{s.phase}</span>
+                        <span className="text-[11px] font-medium" style={{ color: 'var(--c-text-3)' }}>Ph.{s.phase}</span>
                         {s.interchange && (
                           <span className="text-[9px] font-bold uppercase tracking-widest px-1 rounded" style={{ color: 'var(--c-text-3)', border: '1px solid var(--c-border-2)' }}>
                             Interchange

@@ -1,0 +1,87 @@
+
+═══ BLUE LINE ═══
+  ~~ vastral: skipped as waypoint (TRACE_SKIP)
+  Track: 1144 pts → 356 after simplify
+  Length: 70.67 km
+  vastral-gam                  km=  0.02  offset=4m
+  nirant-cross-road            km=  0.92  offset=6m
+  vastral                      km=  0.01  offset=5m
+  rabari-colony                km=  5.02  offset=7m
+  amraivadi                    km=  5.76  offset=16m
+  apparel-park                 km=  7.26  offset=17m
+  kankaria-east                km=  8.75  offset=1m
+  kalupur                      km= 27.69  offset=18m
+  gheekanta                    km= 17.64  offset=47m
+  shahpur                      km= 18.85  offset=52m
+  old-high-court               km= 32.84  offset=0m
+  sp-stadium                   km= 44.78  offset=3m
+  commerce-six-road            km= 55.18  offset=2m
+  gujarat-university           km= 42.77  offset=2m
+  gurukul-road                 km= 41.90  offset=10m
+  doordarshan-kendra           km= 65.58  offset=1m
+  thaltej                      km= 38.31  offset=4m
+  thaltej-gam                  km= 70.67  offset=0m
+  !! Non-monotonic measure at vastral — inspect the track trace.
+  !! Non-monotonic measure at gheekanta — inspect the track trace.
+  !! Non-monotonic measure at gujarat-university — inspect the track trace.
+  !! Non-monotonic measure at gurukul-road — inspect the track trace.
+  !! Non-monotonic measure at thaltej — inspect the track trace.
+
+═══ RED LINE ═══
+  ~~ sabarmati-railway-station: skipped as waypoint (TRACE_SKIP)
+  !! gandhigram → old-high-court: no rail path in OSM — using straight line. Map this segment in OSM or accept the chord.
+  !! old-high-court → usmanpura: no rail path in OSM — using straight line. Map this segment in OSM or accept the chord.
+  Track: 537 pts → 158 after simplify
+  Length: 58.21 km
+  apmc                         km=  0.00  offset=8m
+  jivraj-park                  km=  1.59  offset=4m
+  rajivnagar                   km=  2.51  offset=27m
+  shreyas                      km=  3.75  offset=1m
+  paldi                        km=  5.46  offset=7m
+  gandhigram                   km=  6.61  offset=9m
+  old-high-court               km=  7.78  offset=5m
+  usmanpura                    km= 29.32  offset=0m
+  vijaynagar                   km= 30.46  offset=56m
+  vadaj                        km= 32.19  offset=5m
+  ranip                        km= 32.92  offset=20m
+  aec                          km= 35.31  offset=2m
+  sabarmati                    km= 56.76  offset=6m
+  motera-stadium               km= 55.40  offset=1m
+  !! Non-monotonic measure at motera-stadium — inspect the track trace.
+
+═══ YELLOW LINE ═══
+  Track: 878 pts → 270 after simplify
+  Length: 104.39 km
+  motera-stadium               km=  0.00  offset=4m
+  koteshwar-road               km=  1.25  offset=1m
+  vishwakarma-college          km=  2.59  offset=5m
+  tapovan-circle               km=  3.32  offset=0m
+  narmada-canal                km= 36.76  offset=5m
+  koba-circle                  km= 11.98  offset=1m
+  juna-koba                    km= 35.18  offset=0m
+  koba-gam                     km=  7.49  offset=12m
+  gnlu                         km= 47.19  offset=4m
+  raysan                       km= 48.50  offset=0m
+  randesan                     km= 49.95  offset=1m
+  dholakuva-circle             km= 51.07  offset=13m
+  infocity                     km= 94.99  offset=3m
+  sector-1                     km= 70.68  offset=0m
+  sector-10a                   km= 71.93  offset=4m
+  sachivalaya                  km= 73.13  offset=26m
+  akshardham                   km= 74.23  offset=3m
+  juna-sachivalaya             km= 75.15  offset=1m
+  sector-16                    km= 76.25  offset=4m
+  sector-24                    km= 77.27  offset=6m
+  mahatma-mandir               km=104.39  offset=153m  !! BAD COORD?
+     → OSM suggests: lat 23.2339412, lng 72.6338714 (node 13457569598, "Mahatma Mandir") — update stations.json and re-run.
+  !! Non-monotonic measure at koba-circle — inspect the track trace.
+  !! Non-monotonic measure at koba-gam — inspect the track trace.
+  !! Non-monotonic measure at sector-1 — inspect the track trace.
+
+═══ VIOLET LINE ═══
+  Track: 77 pts → 28 after simplify
+  Length: 7.39 km
+  gnlu                         km=  0.01  offset=4m
+  pdeu                         km=  4.64  offset=10m
+  gift-city                    km=  7.38  offset=1m
+  Measures monotonic ✓

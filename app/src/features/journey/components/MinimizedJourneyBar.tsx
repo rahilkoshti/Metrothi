@@ -61,7 +61,7 @@ export function MinimizedJourneyBar({ result, onMaximize }: MinimizedJourneyBarP
             {getStatusIcon()}
           </div>
           <div className="text-left">
-            <div className="text-[10px] font-bold uppercase tracking-widest text-yellow-500 mb-0.5">Live Status</div>
+            <div className="text-[11px] font-bold uppercase tracking-widest text-yellow-500 mb-0.5">Live Status</div>
             <div className="text-sm font-bold text-white leading-tight truncate max-w-[180px]">
               {getStatusMessage()}
             </div>
@@ -70,7 +70,7 @@ export function MinimizedJourneyBar({ result, onMaximize }: MinimizedJourneyBarP
         {nextTarget != null && (
           <div className="text-right shrink-0">
             <div className="text-xs font-bold text-white">
-              {Math.ceil(minsRemaining)} <span className="text-[10px] font-semibold text-neutral-400">min</span>
+              {Math.ceil(minsRemaining)} <span className="text-[11px] font-semibold text-neutral-400">min</span>
             </div>
             <div className="text-[9px] font-bold uppercase tracking-widest text-neutral-500 mt-0.5">
               to next stop

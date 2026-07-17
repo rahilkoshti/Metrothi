@@ -11,7 +11,7 @@ export function LineBadge({ line, size = 'sm' }: LineBadgeProps) {
     size === 'lg' ? 'w-10 h-10 text-base' :
     size === 'md' ? 'w-7 h-7 text-xs' :
     size === 'xs' ? 'w-5 h-5 text-[9px]' :
-    'w-6 h-6 text-[10px]';
+    'w-6 h-6 text-[11px]';
 
   return (
     <span

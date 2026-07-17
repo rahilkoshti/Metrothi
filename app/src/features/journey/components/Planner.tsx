@@ -41,7 +41,7 @@ function fuzzySearch(query: string, items: any[], keyFn: (item: any) => string) 
 }
 
 interface PlannerProps {
-  onPlan: (sourceId: string | PlaceNode, destId: string | PlaceNode) => void;
+  onPlan: (sourceId: string | PlaceNode, destId: string | PlaceNode, timeConfig?: { queryTime?: Date, arriveBy?: boolean }) => void;
   nearest: any;
   locStatus: string;
 }
@@ -59,7 +59,15 @@ export function Planner({ onPlan, nearest, locStatus }: PlannerProps) {
   const [activeField, setActiveField] = useState<string | null>(null);
   const [places, setPlaces] = useState<PlaceNode[]>([]);
   const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
+  const [placesError, setPlacesError] = useState<string | null>(null);
   const [focusedIndex, setFocusedIndex] = useState(-1);
+
+  const [timeMode, setTimeMode] = useState<'now' | 'depart' | 'arrive'>('now');
+  const [timeStr, setTimeStr] = useState<string>(() => {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
 
   // Reset focusedIndex when query or active field changes
   useEffect(() => {
@@ -74,8 +82,12 @@ export function Planner({ onPlan, nearest, locStatus }: PlannerProps) {
       setSource(nearest); setSourceQuery(nearest.name);
     }
     if (prefillDestId) {
-      const stn = STATIONS.find(s => s.id === prefillDestId);
-      if (stn) { setDestination(stn); setDestQuery(stn.name); }
+      if (typeof prefillDestId === 'string') {
+        const stn = STATIONS.find(s => s.id === prefillDestId);
+        if (stn) { setDestination(stn); setDestQuery(stn.name); }
+      } else {
+        setDestination(prefillDestId); setDestQuery(prefillDestId.name);
+      }
     }
   }, [nearest, sourceIsAuto, prefillSourceId, prefillDestId]);
 
@@ -88,13 +100,21 @@ export function Planner({ onPlan, nearest, locStatus }: PlannerProps) {
   useEffect(() => {
     if (!activeField || activeQuery.trim().length < 3) {
       setPlaces([]);
+      setPlacesError(null);
       return;
     }
     const timer = setTimeout(async () => {
       setIsSearchingPlaces(true);
-      const res = await GeocodingService.searchPlaces(activeQuery);
-      setPlaces(res);
-      setIsSearchingPlaces(false);
+      setPlacesError(null);
+      try {
+        const res = await GeocodingService.searchPlaces(activeQuery);
+        setPlaces(res);
+      } catch (e) {
+        setPlaces([]);
+        setPlacesError("Search is currently unavailable");
+      } finally {
+        setIsSearchingPlaces(false);
+      }
     }, 500);
     return () => clearTimeout(timer);
   }, [activeQuery, activeField]);
@@ -139,9 +159,6 @@ export function Planner({ onPlan, nearest, locStatus }: PlannerProps) {
   const now = useNow();
   const sourceStatus = useMemo(() => {
     if (!source || source.isPlace) return null;
-    // Once a destination station is picked, prefer the direction-aware
-    // estimate the planner itself will use, so this preview can't disagree
-    // with the results screen.
     if (destination && !destination.isPlace && destination.id !== source.id) {
       return nextDepartureFromStation(source.id, destination.id, now);
     }
@@ -151,7 +168,7 @@ export function Planner({ onPlan, nearest, locStatus }: PlannerProps) {
   return (
     <div className="p-5 max-w-[var(--layout-max-width)] mx-auto pt-10 flex flex-col min-h-[calc(100vh-80px)]" onClick={() => setActiveField(null)}>
       <div className="mb-7">
-        <div className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--c-text-3)' }}>Journey Planner</div>
+        <div className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--c-text-3)' }}>Journey Planner</div>
         <h1 className="text-4xl font-bold tracking-tight leading-none" style={{ color: 'var(--c-text)' }}>Where to?</h1>
       </div>
 
@@ -194,7 +211,7 @@ export function Planner({ onPlan, nearest, locStatus }: PlannerProps) {
             style={{ background: 'var(--c-card)', border: '1px solid var(--c-border-2)' }}
           >
             {results.length > 0 && (
-              <div className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-neutral-500 bg-neutral-50 dark:bg-neutral-800/50">Stations</div>
+              <div className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-neutral-500 bg-neutral-50 dark:bg-neutral-800/50">Stations</div>
             )}
             {results.map((s: any, idx: number) => {
               const isFocused = idx === focusedIndex;
@@ -217,12 +234,16 @@ export function Planner({ onPlan, nearest, locStatus }: PlannerProps) {
             })}
 
             {activeQuery.length >= 3 && (
-              <div className="px-4 py-2 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-neutral-500 bg-neutral-50 dark:bg-neutral-800/50">
+              <div className="px-4 py-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-neutral-500 bg-neutral-50 dark:bg-neutral-800/50">
                 <span>Places</span>
                 {isSearchingPlaces && <span className="animate-pulse text-blue-500">Searching...</span>}
               </div>
             )}
-            {places.map((p, idx) => {
+            {placesError ? (
+              <div className="px-4 py-3 text-[13px] text-red-500 font-medium">
+                {placesError}
+              </div>
+            ) : places.map((p, idx) => {
               const isFocused = (idx + results.length) === focusedIndex;
               return (
                 <button
@@ -292,13 +313,63 @@ export function Planner({ onPlan, nearest, locStatus }: PlannerProps) {
         )}
       </div>
 
-      <div className="mt-auto">
+      <div className="mb-6 relative z-10">
+        <div className="flex items-center gap-1 mb-3 p-1 rounded-xl" style={{ background: 'var(--c-card)' }}>
+          {(['now', 'depart', 'arrive'] as const).map(mode => (
+            <button
+              key={mode}
+              onClick={() => {
+                 setTimeMode(mode);
+                 if (mode !== 'now') {
+                   const d = new Date();
+                   const pad = (n: number) => String(n).padStart(2, '0');
+                   setTimeStr(`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+                 }
+              }}
+              className="flex-1 py-2 text-[11px] font-bold uppercase tracking-widest rounded-lg transition-all duration-200"
+              style={{
+                background: timeMode === mode ? 'var(--c-accent)' : 'transparent',
+                color: timeMode === mode ? 'var(--c-accent-fg)' : 'var(--c-text-3)',
+                boxShadow: timeMode === mode ? '0 2px 10px rgba(0,0,0,0.1)' : 'none'
+              }}
+            >
+              {mode === 'now' ? 'Leave Now' : mode === 'depart' ? 'Depart At' : 'Arrive By'}
+            </button>
+          ))}
+        </div>
+        {timeMode !== 'now' && (
+          <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+            <input 
+              type="datetime-local" 
+              value={timeStr}
+              onChange={e => setTimeStr(e.target.value)}
+              className="w-full border-none rounded-xl px-4 py-3 text-[15px] font-semibold transition-shadow duration-200 focus:outline-none focus:ring-2"
+              style={{ 
+                background: 'var(--c-card)', 
+                color: 'var(--c-text)',
+                outlineColor: 'var(--c-accent)',
+                boxShadow: '0 2px 12px rgba(0,0,0,0.05)'
+              }}
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="mt-auto relative z-10">
         <button
           disabled={!canPlan}
-          onClick={() => canPlan && onPlan(source, destination)}
+          onClick={() => {
+            if (!canPlan) return;
+            const targetTime = timeMode === 'now' ? undefined : new Date(timeStr);
+            const timeConfig = {
+              queryTime: targetTime,
+              arriveBy: timeMode === 'arrive'
+            };
+            onPlan(source, destination, timeConfig);
+          }}
           className="w-full py-4 rounded-2xl text-[16px] font-bold flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98]"
           style={canPlan
-            ? { background: '#FACC15', color: '#000' }
+            ? { background: 'var(--c-accent)', color: '#000' }
             : { background: 'var(--c-card)', color: 'var(--c-text-4)', cursor: 'not-allowed' }
           }
         >

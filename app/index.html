@@ -3,12 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Metrothi</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-    <style>html,body,#root{background:#0f0f0f;}</style>
+    <meta name="theme-color" content="#f4f4f5" />
+    <script>
+      // Set data-theme and the background before first paint, from the same
+      // localStorage key ThemeContext reads - otherwise light-theme users
+      // (the default) see a hardcoded dark flash on every load.
+      (function () {
+        var theme = 'light';
+        try {
+          if (localStorage.getItem('metrothi-theme') === 'dark') theme = 'dark';
+        } catch (e) {}
+        var bg = theme === 'dark' ? '#0f0f0f' : '#f4f4f5';
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.style.background = bg;
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', bg);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

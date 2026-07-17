@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Tailwind v4's dark: variant defaults to prefers-color-scheme. This app's
+   theme is a user toggle (data-theme on <html>, see ThemeContext), not the
+   OS setting, so dark: must follow that instead. */
+@custom-variant dark ([data-theme="dark"] &);
+
 /* ─── Design token layer ─────────────────────────────────────────────────── */
 :root {
   /* Default (Light) */
@@ -10,9 +15,11 @@
   --c-border-2:  #d4d4d8;
   --c-blur:      rgba(244, 244, 245, 0.96);
   --c-text:      #18181b;
-  --c-text-2:    #52525b;
-  --c-text-3:    #71717a;
-  --c-text-4:    #a1a1aa;
+  --c-text-2:    #3f3f46;
+  --c-text-3:    #52525b;
+  --c-text-4:    #71717a;
+  --c-accent:    #f97316;
+  --c-accent-fg: #ffffff;
   --layout-max-width: 768px;
 }
 
@@ -24,14 +31,42 @@
   --c-border-2:  #2a2a2a;
   --c-blur:      rgba(15, 15, 15, 0.96);
   --c-text:      #ffffff;
-  --c-text-2:    #a1a1aa;
-  --c-text-3:    #71717a;
-  --c-text-4:    #52525b;
+  --c-text-2:    #d4d4d8;
+  --c-text-3:    #a1a1aa;
+  --c-text-4:    #71717a;
 }
 
 html, body, #root {
   background: var(--c-bg);
   transition: background 0.25s ease;
+}
+
+/* ─── Live journey screen ────────────────────────────────────────────────── */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Glowing train-position head that glides along the track */
+.journey-glow-halo {
+  position: absolute;
+  width: 28px; height: 28px;
+  margin-left: -14px; margin-top: -14px;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0.35;
+  filter: blur(7px);
+  animation: journey-glow-pulse 1.6s ease-in-out infinite;
+}
+.journey-glow-core {
+  position: absolute;
+  width: 10px; height: 10px;
+  margin-left: -5px; margin-top: -5px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.9);
+}
+@keyframes journey-glow-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50%      { opacity: 0.6;  transform: scale(1.4); }
 }
 
 /* Leaflet Vignelli Tooltip Overrides */
