@@ -1,20 +1,109 @@
 {
   "_meta": {
-    "status": "PLACEHOLDER — real slab data not available (GMRC site computes fares via JS, not published as a static table). Do NOT ship these numbers to real users; logic + real values to be filled in later.",
-    "confirmedRulesOnly": {
-      "minFare": 5,
-      "maxFareApprox": "conflicting sources say 25 or 40 — unconfirmed",
-      "ncmcDiscount": "10% off any fare when paying with NCMC card",
-      "childrenFree": "below ~90cm / 3 feet height, travelling with adult",
-      "touristDailyPass": "₹100 unlimited rides/day (unconfirmed if still active)",
-      "crossPhaseRule": "Token & GMRC Smart Card (CSC) NOT valid between Phase 1 (Ahmedabad) and Phase 2 (Gandhinagar/GIFT City) stations — only NCMC card works across both phases"
-    }
+    "source": "https://www.gujaratmetrorail.com/ahmedabad/route-and-fares/ (admin-ajax action=get_fare)",
+    "method": "Fare is charged on route distance, not station count. Segment distances were read directly from GMRC for all 55 adjacent track segments; slab cuts were located by binary-searching station pairs around each boundary.",
+    "scrapedOn": "2026-07-20",
+    "verification": "A cumulative-distance graph built from these segments reproduced GMRC's station_count on 53/53 sampled pairs and its station_km to within 0.02km (2-decimal rounding). Of 58 pairs lying within 0.12km of a slab cut, 52 matched the slab rule; the 6 that did not are listed in `overrides`.",
+    "caveat": "GMRC's internal chargeable distance differs from its displayed station_km by up to ~0.06km in both directions, so pairs sitting very close to a cut can misclassify. Pairs within 0.12km of a cut were checked exhaustively; pairs outside that window were not. ~231 of 1431 possible pairs were sampled.",
+    "unverified": "Pairs outside the 0.12km at-risk window around each slab cut have not been individually checked (see `caveat`).",
+    "notApplied": "The CSC/NCMC 10% discount is confirmed (GMRC fare-rules page, see app/src/data/metroInfo.json) but is deliberately not applied here - fares in this file are token fares, and the discount is shown as text only."
   },
-  "placeholderSlabs": [
-    { "minStations": 1, "maxStations": 2, "fare": 5 },
-    { "minStations": 3, "maxStations": 5, "fare": 10 },
-    { "minStations": 6, "maxStations": 9, "fare": 15 },
-    { "minStations": 10, "maxStations": 15, "fare": 20 },
-    { "minStations": 16, "maxStations": 99, "fare": 25 }
-  ]
+  "minFare": 5,
+  "slabs": [
+    {
+      "maxKm": 2.5,
+      "fare": 5
+    },
+    {
+      "maxKm": 7.5,
+      "fare": 10
+    },
+    {
+      "maxKm": 12.5,
+      "fare": 15
+    },
+    {
+      "maxKm": 17.5,
+      "fare": 20
+    },
+    {
+      "maxKm": 22.5,
+      "fare": 25
+    },
+    {
+      "maxKm": 30,
+      "fare": 30
+    },
+    {
+      "maxKm": 37.5,
+      "fare": 35
+    },
+    {
+      "maxKm": null,
+      "fare": 40
+    }
+  ],
+  "segments": {
+    "nirant-cross-road|vastral-gam": 0.92,
+    "nirant-cross-road|vastral": 1.24,
+    "rabari-colony|vastral": 1.29,
+    "amraivadi|rabari-colony": 0.73,
+    "amraivadi|apparel-park": 1.16,
+    "apparel-park|kankaria-east": 1.57,
+    "kalupur|kankaria-east": 1.12,
+    "gheekanta|kalupur": 2.41,
+    "gheekanta|shahpur": 1.47,
+    "old-high-court|shahpur": 1.5,
+    "old-high-court|sp-stadium": 0.65,
+    "commerce-six-road|sp-stadium": 0.92,
+    "commerce-six-road|gujarat-university": 1.09,
+    "gujarat-university|gurukul-road": 0.91,
+    "doordarshan-kendra|gurukul-road": 1.12,
+    "doordarshan-kendra|thaltej": 0.87,
+    "thaltej|thaltej-gam": 1.35,
+    "apmc|jivraj-park": 0.94,
+    "jivraj-park|rajivnagar": 0.87,
+    "rajivnagar|shreyas": 1.35,
+    "paldi|shreyas": 1.45,
+    "gandhigram|paldi": 1.33,
+    "usmanpura|vijaynagar": 1.18,
+    "vadaj|vijaynagar": 1.61,
+    "ranip|vadaj": 0.85,
+    "ranip|sabarmati-railway-station": 1.25,
+    "aec|sabarmati-railway-station": 1.01,
+    "aec|sabarmati": 1.29,
+    "motera-stadium|sabarmati": 1.39,
+    "koteshwar-road|vishwakarma-college": 1.42,
+    "tapovan-circle|vishwakarma-college": 0.98,
+    "narmada-canal|tapovan-circle": 0.91,
+    "koba-circle|narmada-canal": 1.15,
+    "juna-koba|koba-circle": 1.01,
+    "juna-koba|koba-gam": 1.01,
+    "gnlu|koba-gam": 1.06,
+    "gnlu|raysan": 1.31,
+    "randesan|raysan": 1.41,
+    "dholakuva-circle|randesan": 1.12,
+    "dholakuva-circle|infocity": 1.13,
+    "infocity|sector-1": 1.2,
+    "sector-1|sector-10a": 1.56,
+    "sachivalaya|sector-10a": 1.19,
+    "akshardham|sachivalaya": 1.13,
+    "akshardham|juna-sachivalaya": 0.9,
+    "juna-sachivalaya|sector-16": 1.09,
+    "sector-16|sector-24": 1.04,
+    "mahatma-mandir|sector-24": 1.2,
+    "gift-city|pdeu": 2.78,
+    "gandhigram|old-high-court": 1.16,
+    "old-high-court|usmanpura": 0.96,
+    "koteshwar-road|motera-stadium": 0.95,
+    "gnlu|pdeu": 1.76
+  },
+  "overrides": {
+    "nirant-cross-road|rabari-colony": 5,
+    "aec|sp-stadium": 10,
+    "commerce-six-road|usmanpura": 5,
+    "gurukul-road|shreyas": 10,
+    "rajivnagar|vijaynagar": 15,
+    "infocity|koteshwar-road": 15
+  }
 }

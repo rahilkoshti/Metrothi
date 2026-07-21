@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
+import { fareForKm, routeKm, fareForRoute } from "./fareEngine";
 import {
   planJourney,
   estimateLine,
   estimateLineAtStation,
-  fareForStops,
   formatDuration,
   walkMinsForKm,
   hourOf,
@@ -320,14 +320,39 @@ describe("getActiveTrains with weighted interpolation", () => {
 // ─── Fares and formatting ─────────────────────────────────────────────────────
 
 describe("fare slabs", () => {
+  // Cuts confirmed against GMRC's own fare endpoint. Boundaries are
+  // inclusive-below: exactly 7.5km falls in the ₹15 slab.
   it.each([
-    [1, 5], [2, 5],
-    [3, 10], [5, 10],
-    [6, 15], [9, 15],
-    [10, 20], [15, 20],
-    [16, 25], [100, 25],
-  ])("%i stops costs ₹%i", (stops, fare) => {
-    expect(fareForStops(stops)).toBe(fare);
+    [0.5, 5], [2.49, 5],
+    [2.5, 10], [7.49, 10],
+    [7.5, 15], [12.49, 15],
+    [12.5, 20], [17.49, 20],
+    [17.5, 25], [22.49, 25],
+    [22.5, 30], [29.99, 30],
+    [30, 35], [37.49, 35],
+    [37.5, 40], [45.72, 40],
+  ])("%skm costs ₹%i", (km, fare) => {
+    expect(fareForKm(km)).toBe(fare);
+  });
+
+  it("sums real segment distances along a route", () => {
+    // Gandhigram -> Old High Court -> Usmanpura: 1.16 + 0.96, per GMRC.
+    expect(routeKm(["gandhigram", "old-high-court", "usmanpura"])).toBe(2.12);
+  });
+
+  it("returns null for a path the network does not have", () => {
+    expect(routeKm(["vastral-gam", "gift-city"])).toBeNull();
+  });
+
+  it("never charges below the ₹5 minimum", () => {
+    expect(fareForRoute(["vastral-gam", "nirant-cross-road"])).toBe(5);
+  });
+
+  it("applies the confirmed GMRC overrides near slab cuts", () => {
+    // 7.44km would slab to ₹10, but GMRC charges ₹15 for this pair.
+    expect(fareForRoute(["rajivnagar", "vijaynagar"])).toBe(15);
+    // 12.50km would slab to ₹20, but GMRC charges ₹15.
+    expect(fareForRoute(["koteshwar-road", "infocity"])).toBe(15);
   });
 });
 

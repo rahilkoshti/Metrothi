@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { LocationService } from '../../../services/LocationService';
-import { haversineKm, walkMinsForKm } from '../engine/journeyEngine';
+import { haversineKm } from '../engine/journeyEngine';
 import type { PlanResult, JourneyStop, LegDetail } from '../engine/journeyEngine';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -83,11 +83,15 @@ function computeStopTimeline(result: PlanResult): number[] {
       elapsed += (leg.bufferMins ?? 3) + (leg.waitMins ?? 0);
     }
 
-    const numSegments = legEndStop - legStartStop;
+    const numSegments = legIdx > 0 ? legEndStop - legStartStop + 1 : legEndStop - legStartStop;
     const segmentMins = numSegments > 0 ? (leg.travelMins ?? 0) / numSegments : 0;
 
-    timeline[legStartStop] = elapsed;
-    for (let s = legStartStop + 1; s <= legEndStop; s++) {
+    if (legIdx === 0) {
+      timeline[legStartStop] = elapsed;
+    }
+
+    const startLoop = legIdx === 0 ? legStartStop + 1 : legStartStop;
+    for (let s = startLoop; s <= legEndStop; s++) {
       elapsed += segmentMins;
       timeline[s] = elapsed;
     }
@@ -103,7 +107,7 @@ interface TransitionContext {
   currentStopIndex: number;
   activeCoords: Coords | null;
   stops: JourneyStop[];
-  startedAt: number;
+  elapsedMins: number;
   stopTimeline: number[];
   initialWalkMins: number;
 }
@@ -126,12 +130,10 @@ function evaluate(ctx: TransitionContext): TransitionResult | null {
     currentStopIndex,
     activeCoords,
     stops,
-    startedAt,
+    elapsedMins,
     stopTimeline,
     initialWalkMins,
   } = ctx;
-
-  const elapsedMins = (Date.now() - startedAt) / 60000;
   const source = stops[0];
 
   switch (currentState) {
@@ -165,7 +167,7 @@ function evaluate(ctx: TransitionContext): TransitionResult | null {
       // Fix 5: require a minimum dwell so the state is not immediately skipped
       // when initialWaitMins === 0 (next train already at platform).
       const expectedDepartMins = stopTimeline[0] ?? 0; // = initialWaitMins
-      const dwellSecs = (Date.now() - startedAt) / 1000 - initialWalkMins * 60;
+      const dwellSecs = (elapsedMins - initialWalkMins) * 60;
       if (elapsedMins >= expectedDepartMins && dwellSecs >= MIN_WAIT_DWELL_SECS) {
         return { nextState: 'ON_TRAIN', nextStopIndex: 1 };
       }
@@ -342,6 +344,7 @@ export function useJourneySession(result: PlanResult | null) {
   const stopIndexRef = useRef(0);
   const coordsRef = useRef<Coords | null>(null);
   const startedAtRef = useRef<number | null>(null);
+  const simulatedOffsetMinsRef = useRef<number>(0);
   const stopTimelineRef = useRef<number[]>([]);
   const initialWalkMinsRef = useRef(DEFAULT_WALK_MINS);
 
@@ -353,6 +356,7 @@ export function useJourneySession(result: PlanResult | null) {
   if (result !== resultIdRef.current) {
     resultIdRef.current = result;
     startedAtRef.current = result ? Date.now() : null;
+    simulatedOffsetMinsRef.current = 0;
     if (!result) {
       stateRef.current = 'NOT_STARTED';
       stopIndexRef.current = 0;
@@ -384,21 +388,16 @@ export function useJourneySession(result: PlanResult | null) {
     stopTimelineRef.current = computeStopTimeline(result);
 
     // Estimate walk time to source station.
-    // If the nearest station distance is known from result.source, use it.
-    // Otherwise fall back to DEFAULT_WALK_MINS.
-    // NOTE: no engine output actually carries `distanceKm` today, so this is
-    // always the fallback — see DISCREPANCIES.md.
-    const distanceKm = (result.source as { distanceKm?: number | null }).distanceKm;
-    const sourceDistKm = distanceKm != null ? distanceKm : null;
-    initialWalkMinsRef.current =
-      sourceDistKm != null ? walkMinsForKm(sourceDistKm) : DEFAULT_WALK_MINS;
+    // The engine provides sourceWalkMins (0 if the user started from a station, >0 if from a place).
+    // We fall back to DEFAULT_WALK_MINS if sourceWalkMins is 0 or missing.
+    initialWalkMinsRef.current = result.sourceWalkMins || DEFAULT_WALK_MINS;
 
     // Start GPS watcher.
     const watchId = LocationService.watchPosition(
       (pos) => setRealCoords(pos),
-      () =>
+      (kind) =>
         console.warn(
-          '[useJourneySession] GPS unavailable — using schedule time as fallback.'
+          `[useJourneySession] GPS ${kind} — using schedule time as fallback.`
         )
     );
 
@@ -416,12 +415,14 @@ export function useJourneySession(result: PlanResult | null) {
     if (!result || startedAtRef.current === null) return;
     setTickCount(c => c + 1);
 
+    const elapsedMins = (Date.now() - startedAtRef.current) / 60000 + simulatedOffsetMinsRef.current;
+
     const ctx: TransitionContext = {
       currentState: stateRef.current,
       currentStopIndex: stopIndexRef.current,
       activeCoords: coordsRef.current,
       stops: result.stops,
-      startedAt: startedAtRef.current,
+      elapsedMins,
       stopTimeline: stopTimelineRef.current,
       initialWalkMins: initialWalkMinsRef.current,
     };
@@ -459,12 +460,12 @@ export function useJourneySession(result: PlanResult | null) {
 
   const fastForward = useCallback((mins: number) => {
     if (startedAtRef.current !== null) {
-      startedAtRef.current -= mins * 60000;
+      simulatedOffsetMinsRef.current += mins;
       tick();
     }
   }, [tick]);
 
-  const elapsedMins = startedAtRef.current ? (Date.now() - startedAtRef.current) / 60000 : 0;
+  const elapsedMins = startedAtRef.current ? (Date.now() - startedAtRef.current) / 60000 + simulatedOffsetMinsRef.current : 0;
 
   return {
     currentState: displayState,

@@ -7,6 +7,8 @@ import { useNow } from "../hooks/useNow";
 import { GeocodingService } from "../../../services/GeocodingService";
 
 import { LineBadge } from "../../../components/LineBadge";
+import { LocationNotice } from "../../../components/LocationNotice";
+import type { LocStatus } from "../../../App";
 import { LINE_BADGE_BG, LINE_NAMES } from "../constants";
 
 function greeting() {
@@ -47,9 +49,10 @@ function fuzzySearch(query: string, items: any[], keyFn: (item: any) => string) 
     .slice(0, 6);
 }
 
-function NearbyCard({ nearest, locStatus, onPlanFromHere, onOpenStation, onOpenTrain }: {
+function NearbyCard({ nearest, locStatus, onRetryLocation, onPlanFromHere, onOpenStation, onOpenTrain }: {
   nearest: any;
-  locStatus: string;
+  locStatus: LocStatus;
+  onRetryLocation: () => void;
   onPlanFromHere: () => void;
   onOpenStation: () => void;
   onOpenTrain: (line: string, destName: string) => void;
@@ -76,6 +79,9 @@ function NearbyCard({ nearest, locStatus, onPlanFromHere, onOpenStation, onOpenT
 
   if (!nearest) return null;
 
+  // "locating" already returned above, so anything but "granted" is a failure.
+  const locFailed = locStatus !== "granted";
+
   return (
     <div
       className="rounded-2xl p-5 mb-6 relative overflow-hidden flex flex-col cursor-pointer active:opacity-80 transition-opacity"
@@ -89,7 +95,7 @@ function NearbyCard({ nearest, locStatus, onPlanFromHere, onOpenStation, onOpenT
 
       <div className="flex items-center gap-2 mb-3">
         <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'var(--c-text-3)' }}>
-          {locStatus === "denied" ? "Default station" : "Nearest station"}
+          {locFailed ? "Default station" : "Nearest station"}
         </span>
         {nearest.distanceKm != null && (
           <span className="text-[11px] font-semibold" style={{ color: 'var(--c-text-4)' }}>
@@ -99,6 +105,10 @@ function NearbyCard({ nearest, locStatus, onPlanFromHere, onOpenStation, onOpenT
       </div>
 
       <div className="flex flex-col gap-4 mb-4">
+        {locFailed && (
+          <LocationNotice status={locStatus} onRetry={onRetryLocation} />
+        )}
+
         <div>
           <h2 className="text-3xl font-bold tracking-tight leading-none mb-2" style={{ color: 'var(--c-text)' }}>
             {nearest.name}
@@ -235,12 +245,13 @@ function ServiceStatusStrip() {
 
 interface DashboardProps {
   nearest: any;
-  locStatus: string;
+  locStatus: LocStatus;
+  onRetryLocation: () => void;
   onPlanFromHere: () => void;
   onPlan: (source: any, dest: any) => void;
 }
 
-export function Dashboard({ nearest, locStatus, onPlanFromHere, onPlan }: DashboardProps) {
+export function Dashboard({ nearest, locStatus, onRetryLocation, onPlanFromHere, onPlan }: DashboardProps) {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<any[]>([]);
@@ -351,6 +362,7 @@ export function Dashboard({ nearest, locStatus, onPlanFromHere, onPlan }: Dashbo
       <NearbyCard
         nearest={nearest}
         locStatus={locStatus}
+        onRetryLocation={onRetryLocation}
         onPlanFromHere={onPlanFromHere}
         onOpenStation={() => nearest && navigate(`/stations/${nearest.id}`)}
         onOpenTrain={(line, destName) => nearest && navigate(`/stations/${nearest.id}`, { state: { openLine: line, openDirDest: destName } })}

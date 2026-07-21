@@ -1,14 +1,15 @@
 
 import { MapPin, Train, Flag } from "lucide-react";
-import { useJourneySession } from "../hooks/useJourneySession";
+import type { useJourneySession } from "../hooks/useJourneySession";
 
 interface MinimizedJourneyBarProps {
   result: any;
   onMaximize: () => void;
+  session: ReturnType<typeof useJourneySession>;
 }
 
-export function MinimizedJourneyBar({ result, onMaximize }: MinimizedJourneyBarProps) {
-  const { currentState, stopTimeline, currentStopIndex, elapsedMins } = useJourneySession(result);
+export function MinimizedJourneyBar({ result, onMaximize, session }: MinimizedJourneyBarProps) {
+  const { currentState, stopTimeline, currentStopIndex, elapsedMins } = session;
 
   const getStatusMessage = () => {
     switch (currentState) {

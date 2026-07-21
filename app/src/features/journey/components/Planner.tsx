@@ -1,13 +1,16 @@
 import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { ArrowUpDown, LocateFixed, ArrowRight, MapPin } from "lucide-react";
+import { ArrowUpDown, ArrowRight, MapPin } from "lucide-react";
 import { StationInput } from "./StationInput";
 import { STATIONS, estimateLine, nextDepartureFromStation, formatDuration, walkMinsForKm } from "../engine/journeyEngine";
 import type { PlaceNode } from "../engine/journeyEngine";
 import { useNow } from "../hooks/useNow";
+import { useOnlineStatus } from "../hooks/useOnlineStatus";
 import { GeocodingService } from "../../../services/GeocodingService";
 
 import { LineBadge } from "../../../components/LineBadge";
+import { LocationNotice } from "../../../components/LocationNotice";
+import type { LocStatus } from "../../../App";
 
 function fuzzySearch(query: string, items: any[], keyFn: (item: any) => string) {
   const q = query.toLowerCase().replace(/\s+/g, "");
@@ -43,10 +46,11 @@ function fuzzySearch(query: string, items: any[], keyFn: (item: any) => string) 
 interface PlannerProps {
   onPlan: (sourceId: string | PlaceNode, destId: string | PlaceNode, timeConfig?: { queryTime?: Date, arriveBy?: boolean }) => void;
   nearest: any;
-  locStatus: string;
+  locStatus: LocStatus;
+  onRetryLocation: () => void;
 }
 
-export function Planner({ onPlan, nearest, locStatus }: PlannerProps) {
+export function Planner({ onPlan, nearest, locStatus, onRetryLocation }: PlannerProps) {
   const location = useLocation();
   const prefillSourceId = location.state?.prefillSource;
   const prefillDestId = location.state?.prefillDest;
@@ -61,6 +65,7 @@ export function Planner({ onPlan, nearest, locStatus }: PlannerProps) {
   const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
   const [placesError, setPlacesError] = useState<string | null>(null);
   const [focusedIndex, setFocusedIndex] = useState(-1);
+  const online = useOnlineStatus();
 
   const [timeMode, setTimeMode] = useState<'now' | 'depart' | 'arrive'>('now');
   const [timeStr, setTimeStr] = useState<string>(() => {
@@ -103,6 +108,15 @@ export function Planner({ onPlan, nearest, locStatus }: PlannerProps) {
       setPlacesError(null);
       return;
     }
+    // Place lookup needs the network; station search above works offline. Skip
+    // the doomed fetch when offline and surface the reason immediately.
+    if (!online) {
+      setPlaces([]);
+      setPlacesError(
+        "You're offline — place search needs a connection. Metro stations still search normally above."
+      );
+      return;
+    }
     const timer = setTimeout(async () => {
       setIsSearchingPlaces(true);
       setPlacesError(null);
@@ -111,13 +125,13 @@ export function Planner({ onPlan, nearest, locStatus }: PlannerProps) {
         setPlaces(res);
       } catch (e) {
         setPlaces([]);
-        setPlacesError("Search is currently unavailable");
+        setPlacesError("Place search is unavailable right now");
       } finally {
         setIsSearchingPlaces(false);
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [activeQuery, activeField]);
+  }, [activeQuery, activeField, online]);
 
   function pickResult(s: any) {
     if (activeField === "source") { setSource(s); setSourceQuery(s.name); setSourceIsAuto(false); }
@@ -205,7 +219,7 @@ export function Planner({ onPlan, nearest, locStatus }: PlannerProps) {
           <ArrowUpDown size={16} strokeWidth={2.5} />
         </button>
 
-        {activeField && (results.length > 0 || places.length > 0) && (
+        {activeField && (results.length > 0 || places.length > 0 || placesError) && (
           <div
             className="absolute left-0 right-0 top-[calc(100%+8px)] rounded-2xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 z-50 max-h-[60vh] overflow-y-auto"
             style={{ background: 'var(--c-card)', border: '1px solid var(--c-border-2)' }}
@@ -272,10 +286,8 @@ export function Planner({ onPlan, nearest, locStatus }: PlannerProps) {
       </div>
 
       <div className="space-y-2.5 mb-6 px-1">
-        {locStatus === "denied" && sourceIsAuto && (
-          <div className="flex items-center gap-2 text-xs font-semibold text-yellow-600 p-3 rounded-xl" style={{ background: 'rgba(250,204,21,0.08)' }}>
-            <LocateFixed size={13} /> Location off — showing default station
-          </div>
+        {sourceIsAuto && (
+          <LocationNotice status={locStatus} onRetry={onRetryLocation} compact />
         )}
         {sourceIsAuto && nearest?.distanceKm != null && (
           <div className="text-xs font-medium flex items-center gap-2 px-1" style={{ color: 'var(--c-text-3)' }}>

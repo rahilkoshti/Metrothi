@@ -1,0 +1,102 @@
+{
+  "_meta": {
+    "source": "Official GMRC pages, scraped 2026-07-20",
+    "pages": {
+      "fareRules": "https://www.gujaratmetrorail.com/ahmedabad/fare-rules/",
+      "smartCard": "https://www.gujaratmetrorail.com/ahmedabad/smart-cards/",
+      "ncmc": "https://www.gujaratmetrorail.com/ahmedabad/national-common-mobility-card-ncmc/",
+      "trainInfo": "https://www.gujaratmetrorail.com/ahmedabad/train-information/"
+    },
+    "rule": "Only facts stated on those pages appear here. Anything GMRC does not state is recorded as null with a `_missing` note rather than filled in from elsewhere.",
+    "notInApp": "Service timings are published by GMRC only as timetable images (effective 18/05/2026) and could not be read as text, so they are NOT recorded here."
+  },
+
+  "discounts": {
+    "smartCardPct": 10,
+    "ncmcPct": 10,
+    "appliedAtExit": true,
+    "quote": "Passengers using CSC for travelling will be given 10% discount on completion of journey. / All the passengers travelling using NCMC are offered 10% discount on completion of journey.",
+    "note": "Display only. These are never applied to a computed fare - fares shown in the app are token fares."
+  },
+
+  "concessions": {
+    "childrenFree": {
+      "maxChildrenPerAdult": 2,
+      "maxHeightFeet": 3,
+      "requiresAdult": true,
+      "quote": "Two Children only under 3-feet height are allowed to travel free if accompanied by one adult."
+    }
+  },
+
+  "fareMedia": [
+    "QR Ticket (paper)",
+    "QR Ticket (mobile app)",
+    "Contactless Smart Token (CST)",
+    "Contactless Smart Card (CSC)",
+    "NCMC"
+  ],
+
+  "fareProducts": ["Single Journey", "Return Journey", "Group Ticket (9+ passengers)"],
+
+  "ticketValidity": {
+    "paperQrMins": 30,
+    "mobileQrMins": 180,
+    "quote": "Paper QR valid within 30 minutes of issuance; mobile QR within 180 minutes."
+  },
+
+  "timeInPaidArea": {
+    "sameStationExitMins": 20,
+    "otherStationExitMins": 240
+  },
+
+  "luggage": {
+    "maxWeightKg": 25,
+    "maxDimensionsCm": { "length": 80, "width": 50, "height": 30 },
+    "quote": "Weight 25 Kg and Dimension of 80 cm x 50 cm x 30 cm"
+  },
+
+  "penalties": [
+    { "reason": "Taking a token out of the system", "amountRs": 200 },
+    { "reason": "Travelling without a ticket", "amountRs": 50, "plus": "maximum fare" },
+    { "reason": "Overstaying in the paid area", "amountRs": 10, "per": "hour per person", "maxRs": 50 },
+    { "reason": "Digital QR entry/exit mismatch", "amountRs": 150 },
+    { "reason": "NCMC entry/exit mismatch", "amountRs": null, "note": "maximum fare from the last four transactions" }
+  ],
+
+  "refunds": {
+    "quote": "Only unused QR-Paper Ticket/Token (not used for the entry) can be refunded within 30 minutes from time of issue.",
+    "windowMins": 30,
+    "nonRefundable": ["Group tickets", "Mobile QR tickets"],
+    "smartCard": "Stored value is not refundable in cash. Security deposit is refunded less a Rs.20 admin charge and any negative balance.",
+    "ncmc": "Refunds and disputes are handled by the issuing bank, not GMRC."
+  },
+
+  "phaseRestriction": {
+    "tokenAndCscPhase1Only": true,
+    "quote": "Travel using tokens/CSC is permitted only within Phase 1 stations, not between Phase 1 and Phase 2.",
+    "note": "Confirmed on GMRC fare-rules. This is what the cross-phase warning in journeyEngine reports."
+  },
+
+  "cards": {
+    "smartCard": {
+      "priceRs": null,
+      "depositRs": null,
+      "storedValueRs": null,
+      "_missing": "GMRC's smart-cards page does not state card price, deposit, or stored value. The '₹100 = ₹50 deposit + ₹50 value' figure circulating on third-party sites is NOT confirmed by GMRC and is deliberately not recorded here.",
+      "refundAdminChargeRs": 20,
+      "minBalanceToEnter": "minimum fare of the system"
+    },
+    "ncmc": {
+      "priceRs": null,
+      "_missing": "GMRC does not state a price; NCMC is issued by banks.",
+      "purchase": "Through card-issuing banks. NCMC issued from any bank is accepted on the GMRC network.",
+      "topUp": "Online, through the issuing bank.",
+      "minBalanceToEnter": "minimum fare of the system"
+    }
+  },
+
+  "unverified": {
+    "touristDayPassRs100": "Seen on third-party sources only. Not found on any GMRC page checked. Do not display.",
+    "serviceTimings": "Third-party sources claim 06:20-22:05. GMRC publishes timings only as images; not confirmed. Do not display."
+  }
+}

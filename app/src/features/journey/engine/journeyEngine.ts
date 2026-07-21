@@ -1,6 +1,7 @@
 // Metrothi Journey Engine (Ported from prototype)
 
 import stationsData from "../../../data/stations.json";
+import { fareForRoute } from "./fareEngine";
 
 export interface PlaceNode {
   isPlace: true;
@@ -131,7 +132,8 @@ export interface PlanResult {
   totalMins: number | null;
   feasible: boolean;
   strandedAtLine: string | null;
-  fare: number;
+  /** null when route distance could not be resolved - show nothing, never a guess. */
+  fare: number | null;
   ticketInfo: TicketInfo;
   usesViolet: boolean;
   crossesPhase: boolean;
@@ -175,8 +177,8 @@ function interchangeBetween(a: string, b: string) {
 
 export const LINE_META: Record<string, LineMeta> = {
   blue: { name: "Line 1 (Vastral Gam \u2013 Thaltej Gam)", avgSegmentMins: 45 / 17, avgFrequencyMins: 10 },
-  red: { name: "Line 2 (APMC \u2013 Motera Stadium)", avgSegmentMins: 35 / 13, avgFrequencyMins: 12 },
-  yellow: { name: "Line 3 (Motera Stadium \u2013 Mahatma Mandir)", avgSegmentMins: 43 / 19, avgFrequencyMins: 24 },
+  red: { name: "Line 2 (APMC \u2013 Motera Stadium)", avgSegmentMins: 35 / 14, avgFrequencyMins: 12 },
+  yellow: { name: "Line 3 (Motera Stadium \u2013 Mahatma Mandir)", avgSegmentMins: 43 / 20, avgFrequencyMins: 24 },
   violet: { name: "Line 4 (GNLU \u2013 GIFT City)", avgSegmentMins: 6 / 2, avgFrequencyMins: 53, noTrainWindow: [10.3, 16.1] },
 };
 
@@ -241,16 +243,7 @@ export function travelMinsBetween(line: string, fromId: string, toId: string): n
   return Math.abs(cum[j] - cum[i]);
 }
 
-const FARE_SLABS = [
-  { max: 2, fare: 5 },
-  { max: 5, fare: 10 },
-  { max: 9, fare: 15 },
-  { max: 15, fare: 20 },
-  { max: 999, fare: 25 },
-];
-export function fareForStops(stops: number) {
-  return FARE_SLABS.find((s) => stops <= s.max)!.fare;
-}
+// Fares live in fareEngine.ts - GMRC charges on distance, not stop count.
 
 const INTERCHANGE_BUFFER_MINS = 3;
 const WALK_SPEED_KMH = 5;
@@ -266,14 +259,18 @@ function getTicketOptions(source: StationRecord, dest: StationRecord): TicketInf
       tokenValid: false,
       cscValid: false,
       ncmcValid: true,
-      note: "This trip crosses Ahmedabad \u2194 Gandhinagar \u2014 only an NCMC card works. Token and Smart Card (CSC) aren't valid here.",
+      note: "This trip crosses Ahmedabad \u2194 Gandhinagar \u2014 only an NCMC card works. Token and Smart Card (CSC) aren't valid here. NCMC also gets 10% off the fare shown.",
     };
   }
   return {
     tokenValid: true,
     cscValid: true,
     ncmcValid: true,
-    note: "Token, Smart Card, or NCMC all work for this trip. NCMC gets a 10% fare discount.",
+    // Both CSC and NCMC carry the same 10% (GMRC fare-rules and smart-cards
+    // pages). It is deliberately NOT applied to the fare - the number we show is
+    // the token fare, and this note tells the rider what they would save.
+    // Do not fold it into the arithmetic.
+    note: "Token, Smart Card, or NCMC all work for this trip. Smart Card and NCMC both get 10% off the fare shown, deducted on exit.",
   };
 }
 
@@ -984,6 +981,9 @@ export function planJourney(sourceInput: string | PlaceNode, destInput: string |
   if (!base) return null;
   const { source, dest, legs, merged, totalStops } = base;
   const stops: JourneyStop[] = merged.map((m) => ({ ...STATION_BY_ID[m.id], viaLine: m.line }));
+  // Charged on the distance actually travelled, so it follows the same station
+  // sequence the rider passes through - including any interchange.
+  const fare = fareForRoute(merged.map((m) => m.id));
 
   const firstLeg = legs[0];
   const firstLegHeading = firstLeg.ids[firstLeg.ids.length - 1];
@@ -1010,7 +1010,7 @@ export function planJourney(sourceInput: string | PlaceNode, destInput: string |
       totalMins: null,
       feasible: false,
       strandedAtLine: LINE_META[firstLeg.line].name,
-      fare: fareForStops(totalStops),
+      fare,
       ticketInfo,
       usesViolet,
       crossesPhase,
@@ -1089,7 +1089,7 @@ export function planJourney(sourceInput: string | PlaceNode, destInput: string |
     totalMins: chosenTotalMins != null ? chosenTotalMins + sourceWalkMins + destWalkMins : null,
     feasible: chosen ? chosen.feasible : sim.feasible,
     strandedAtLine: chosen ? chosen.strandedAtLine : sim.strandedAtLine,
-    fare: fareForStops(totalStops),
+    fare,
     ticketInfo,
     usesViolet,
     crossesPhase,

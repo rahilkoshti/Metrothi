@@ -7,7 +7,8 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { StationBottomSheet } from './StationBottomSheet';
 import { LiveTrainsLayer } from './LiveTrainsLayer';
-import { Layers, MapPin } from 'lucide-react';
+import { Layers, MapPin, WifiOff } from 'lucide-react';
+import { useOnlineStatus } from '../../journey/hooks/useOnlineStatus';
 
 // Fix for default marker icons in Leaflet when using Webpack/Vite
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -49,6 +50,7 @@ function MapEffect({ coords, nearest }: { coords: any, nearest: any }) {
 export function MapScreen({ coords, nearest }: { coords: any, nearest: any }) {
   const navigate = useNavigate();
   const { theme } = useTheme();
+  const online = useOnlineStatus();
   const [routePath, setRoutePath] = useState<[number, number][] | null>(null);
 
   const [selectedStationId, setSelectedStationId] = useState<string | null>(null);
@@ -120,6 +122,18 @@ export function MapScreen({ coords, nearest }: { coords: any, nearest: any }) {
 
   return (
     <div className="w-full h-[calc(100vh-80px)] relative z-0">
+      {/* Tiles come from CARTO's CDN. Already-viewed areas are served from the
+          runtime cache offline, but unseen areas render blank — say so rather
+          than leaving the user staring at grey squares. */}
+      {!online && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[400] px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-[12px] font-semibold"
+          style={{ background: 'rgba(250,204,21,0.14)', border: '1px solid rgba(250,204,21,0.3)', color: 'var(--c-text)', backdropFilter: 'blur(8px)' }}
+          role="status"
+        >
+          <WifiOff size={14} className="text-yellow-600 shrink-0" />
+          Offline — only areas you've already viewed will show
+        </div>
+      )}
       <MapContainer
         center={center}
         zoom={12}

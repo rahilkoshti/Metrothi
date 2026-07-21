@@ -5,7 +5,7 @@ import {
   ArrowLeftRight, Flag, FastForward, Check, Train,
 } from "lucide-react";
 import { fullDayStationSchedule, LINE_PATHS, clockTimeAfter } from "../engine/journeyEngine";
-import { useJourneySession, type JourneyState } from "../hooks/useJourneySession";
+import type { JourneyState, useJourneySession } from "../hooks/useJourneySession";
 import { useNow } from "../hooks/useNow";
 import { LINE_COLORS } from "../constants";
 import { TrainRouteSheet } from "./TrainRouteSheet";
@@ -151,11 +151,11 @@ interface LiveJourneyScreenProps {
   activeOptionIdx?: number;
   onEnd: () => void;
   onMinimize: () => void;
+  session: ReturnType<typeof useJourneySession>;
 }
 
-export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, onMinimize }: LiveJourneyScreenProps) {
-  const { currentState, currentStopIndex, fastForward, elapsedMins, stopTimeline } =
-    useJourneySession(result);
+export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, onMinimize, session }: LiveJourneyScreenProps) {
+  const { currentState, currentStopIndex, fastForward, elapsedMins, stopTimeline } = session;
   useNow(1000); // re-render every second so countdowns and the glow head stay live
 
   const { dest, stops, legs, sourceStation, destStation, sourcePlace, destPlace } = result;
@@ -169,11 +169,10 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, onMinimize }
   // Auto-play: the Simulate toggle fast-forwards the session clock 30x.
   useAutoPlay(isSimulating, fastForward);
 
-  // Wall-clock anchor for displayed times: "now minus simulated elapsed", so
-  // stop clocks always equal now + minutes-remaining. Survives remounts
-  // (minimize/maximize) and fastForward, unlike anchoring on startedAt —
-  // which fastForward shifts backwards.
-  const startDate = new Date(Date.now() - elapsedMins * 60000);
+  // Wall-clock anchor for displayed times: since useJourneySession is mounted in App.tsx, 
+  // startedAt is stable across remounts. We use the true startedAt to anchor scheduled times, 
+  // so they remain fixed when fast-forwarding rather than artificially shifting backwards.
+  const startDate = session.startedAt ? new Date(session.startedAt) : null;
 
   // Global stop index of each leg's first station (leg k spans o[k] .. o[k+1]).
   const legOffsets = useMemo(() => {
@@ -244,7 +243,8 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, onMinimize }
   }
 
   async function share() {
-    const text = `Metrothi: ${result.source.name} → ${dest.name} · departs ${activeOption.departClockTime || "now"} · arrives ${activeOption.arriveClockTime || "—"} · ₹${result.fare} · ${result.totalStops} stops`;
+    const fareBit = result.fare == null ? "" : ` · ₹${result.fare}`;
+    const text = `Metrothi: ${result.source.name} → ${dest.name} · departs ${activeOption.departClockTime || "now"} · arrives ${activeOption.arriveClockTime || "—"}${fareBit} · ${result.totalStops} stops`;
     try {
       if (navigator.share) await navigator.share({ title: "Metrothi journey", text });
       else {
@@ -431,7 +431,7 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, onMinimize }
                 {dest.name}
               </h1>
               <div className="text-[12px] font-medium mt-0.5 flex items-center gap-1.5" style={{ color: "var(--c-text-3)" }}>
-                from {result.source.name} · ₹{result.fare}
+                from {result.source.name}{result.fare == null ? "" : ` · ₹${result.fare}`}
                 <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border" style={{ borderColor: "var(--c-border-2)", color: "var(--c-text-4)" }}>
                   Simulated
                 </span>

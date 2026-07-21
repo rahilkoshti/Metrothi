@@ -1,0 +1,945 @@
+{
+ "_meta": {
+  "source": "gujaratmetrorail.com admin-ajax action=get_fare, sampled 2026-07-20",
+  "note": "Real fares straight from GMRC. If a change to fareEngine breaks these, the change is wrong.",
+  "sampleCount": 156
+ },
+ "samples": [
+  {
+   "from": "vastral-gam",
+   "to": "nirant-cross-road",
+   "fare": 5,
+   "gmrcKm": 0.92
+  },
+  {
+   "from": "apmc",
+   "to": "jivraj-park",
+   "fare": 5,
+   "gmrcKm": 0.94
+  },
+  {
+   "from": "motera-stadium",
+   "to": "koteshwar-road",
+   "fare": 5,
+   "gmrcKm": 0.95
+  },
+  {
+   "from": "apmc",
+   "to": "rajivnagar",
+   "fare": 5,
+   "gmrcKm": 1.8
+  },
+  {
+   "from": "vastral-gam",
+   "to": "vastral",
+   "fare": 5,
+   "gmrcKm": 2.16
+  },
+  {
+   "from": "motera-stadium",
+   "to": "vishwakarma-college",
+   "fare": 5,
+   "gmrcKm": 2.36
+  },
+  {
+   "from": "koteshwar-road",
+   "to": "tapovan-circle",
+   "fare": 5,
+   "gmrcKm": 2.4
+  },
+  {
+   "from": "kalupur",
+   "to": "gheekanta",
+   "fare": 5,
+   "gmrcKm": 2.41
+  },
+  {
+   "from": "vijaynagar",
+   "to": "ranip",
+   "fare": 5,
+   "gmrcKm": 2.46
+  },
+  {
+   "from": "shahpur",
+   "to": "usmanpura",
+   "fare": 5,
+   "gmrcKm": 2.47
+  },
+  {
+   "from": "old-high-court",
+   "to": "paldi",
+   "fare": 5,
+   "gmrcKm": 2.49
+  },
+  {
+   "from": "nirant-cross-road",
+   "to": "rabari-colony",
+   "fare": 5,
+   "gmrcKm": 2.52
+  },
+  {
+   "from": "commerce-six-road",
+   "to": "usmanpura",
+   "fare": 5,
+   "gmrcKm": 2.53
+  },
+  {
+   "from": "raysan",
+   "to": "dholakuva-circle",
+   "fare": 10,
+   "gmrcKm": 2.53
+  },
+  {
+   "from": "aec",
+   "to": "motera-stadium",
+   "fare": 10,
+   "gmrcKm": 2.67
+  },
+  {
+   "from": "shreyas",
+   "to": "gandhigram",
+   "fare": 10,
+   "gmrcKm": 2.78
+  },
+  {
+   "from": "gujarat-university",
+   "to": "thaltej",
+   "fare": 10,
+   "gmrcKm": 2.9
+  },
+  {
+   "from": "tapovan-circle",
+   "to": "juna-koba",
+   "fare": 10,
+   "gmrcKm": 3.06
+  },
+  {
+   "from": "sp-stadium",
+   "to": "paldi",
+   "fare": 10,
+   "gmrcKm": 3.14
+  },
+  {
+   "from": "apmc",
+   "to": "shreyas",
+   "fare": 10,
+   "gmrcKm": 3.16
+  },
+  {
+   "from": "motera-stadium",
+   "to": "tapovan-circle",
+   "fare": 10,
+   "gmrcKm": 3.34
+  },
+  {
+   "from": "vastral-gam",
+   "to": "rabari-colony",
+   "fare": 10,
+   "gmrcKm": 3.45
+  },
+  {
+   "from": "vastral-gam",
+   "to": "amraivadi",
+   "fare": 10,
+   "gmrcKm": 4.17
+  },
+  {
+   "from": "motera-stadium",
+   "to": "narmada-canal",
+   "fare": 10,
+   "gmrcKm": 4.25
+  },
+  {
+   "from": "apmc",
+   "to": "paldi",
+   "fare": 10,
+   "gmrcKm": 4.61
+  },
+  {
+   "from": "vastral-gam",
+   "to": "apparel-park",
+   "fare": 10,
+   "gmrcKm": 5.33
+  },
+  {
+   "from": "motera-stadium",
+   "to": "koba-circle",
+   "fare": 10,
+   "gmrcKm": 5.4
+  },
+  {
+   "from": "apmc",
+   "to": "gandhigram",
+   "fare": 10,
+   "gmrcKm": 5.94
+  },
+  {
+   "from": "old-high-court",
+   "to": "jivraj-park",
+   "fare": 10,
+   "gmrcKm": 6.16
+  },
+  {
+   "from": "kalupur",
+   "to": "usmanpura",
+   "fare": 10,
+   "gmrcKm": 6.35
+  },
+  {
+   "from": "motera-stadium",
+   "to": "juna-koba",
+   "fare": 10,
+   "gmrcKm": 6.4
+  },
+  {
+   "from": "old-high-court",
+   "to": "aec",
+   "fare": 10,
+   "gmrcKm": 6.87
+  },
+  {
+   "from": "vastral-gam",
+   "to": "kankaria-east",
+   "fare": 10,
+   "gmrcKm": 6.91
+  },
+  {
+   "from": "gujarat-university",
+   "to": "ranip",
+   "fare": 10,
+   "gmrcKm": 7.25
+  },
+  {
+   "from": "motera-stadium",
+   "to": "koba-gam",
+   "fare": 10,
+   "gmrcKm": 7.41
+  },
+  {
+   "from": "vijaynagar",
+   "to": "motera-stadium",
+   "fare": 10,
+   "gmrcKm": 7.41
+  },
+  {
+   "from": "commerce-six-road",
+   "to": "sabarmati-railway-station",
+   "fare": 10,
+   "gmrcKm": 7.42
+  },
+  {
+   "from": "vishwakarma-college",
+   "to": "raysan",
+   "fare": 10,
+   "gmrcKm": 7.42
+  },
+  {
+   "from": "rajivnagar",
+   "to": "vijaynagar",
+   "fare": 15,
+   "gmrcKm": 7.44
+  },
+  {
+   "from": "kankaria-east",
+   "to": "usmanpura",
+   "fare": 10,
+   "gmrcKm": 7.47
+  },
+  {
+   "from": "gurukul-road",
+   "to": "shreyas",
+   "fare": 10,
+   "gmrcKm": 7.49
+  },
+  {
+   "from": "sp-stadium",
+   "to": "aec",
+   "fare": 10,
+   "gmrcKm": 7.52
+  },
+  {
+   "from": "kalupur",
+   "to": "vijaynagar",
+   "fare": 15,
+   "gmrcKm": 7.53
+  },
+  {
+   "from": "koteshwar-road",
+   "to": "gnlu",
+   "fare": 15,
+   "gmrcKm": 7.53
+  },
+  {
+   "from": "gheekanta",
+   "to": "ranip",
+   "fare": 15,
+   "gmrcKm": 7.58
+  },
+  {
+   "from": "raysan",
+   "to": "sachivalaya",
+   "fare": 15,
+   "gmrcKm": 7.6
+  },
+  {
+   "from": "koba-circle",
+   "to": "gift-city",
+   "fare": 15,
+   "gmrcKm": 7.62
+  },
+  {
+   "from": "shahpur",
+   "to": "jivraj-park",
+   "fare": 15,
+   "gmrcKm": 7.66
+  },
+  {
+   "from": "gnlu",
+   "to": "sector-10a",
+   "fare": 15,
+   "gmrcKm": 7.72
+  },
+  {
+   "from": "kalupur",
+   "to": "paldi",
+   "fare": 15,
+   "gmrcKm": 7.88
+  },
+  {
+   "from": "sabarmati-railway-station",
+   "to": "narmada-canal",
+   "fare": 15,
+   "gmrcKm": 7.94
+  },
+  {
+   "from": "vastral-gam",
+   "to": "kalupur",
+   "fare": 15,
+   "gmrcKm": 8.02
+  },
+  {
+   "from": "apmc",
+   "to": "usmanpura",
+   "fare": 15,
+   "gmrcKm": 8.06
+  },
+  {
+   "from": "motera-stadium",
+   "to": "gnlu",
+   "fare": 15,
+   "gmrcKm": 8.48
+  },
+  {
+   "from": "apmc",
+   "to": "vijaynagar",
+   "fare": 15,
+   "gmrcKm": 9.24
+  },
+  {
+   "from": "motera-stadium",
+   "to": "raysan",
+   "fare": 15,
+   "gmrcKm": 9.79
+  },
+  {
+   "from": "vastral-gam",
+   "to": "gheekanta",
+   "fare": 15,
+   "gmrcKm": 10.43
+  },
+  {
+   "from": "sector-1",
+   "to": "gift-city",
+   "fare": 15,
+   "gmrcKm": 10.71
+  },
+  {
+   "from": "apmc",
+   "to": "vadaj",
+   "fare": 15,
+   "gmrcKm": 10.85
+  },
+  {
+   "from": "sp-stadium",
+   "to": "koteshwar-road",
+   "fare": 15,
+   "gmrcKm": 11.14
+  },
+  {
+   "from": "motera-stadium",
+   "to": "randesan",
+   "fare": 15,
+   "gmrcKm": 11.2
+  },
+  {
+   "from": "apmc",
+   "to": "ranip",
+   "fare": 15,
+   "gmrcKm": 11.7
+  },
+  {
+   "from": "vastral-gam",
+   "to": "shahpur",
+   "fare": 15,
+   "gmrcKm": 11.91
+  },
+  {
+   "from": "motera-stadium",
+   "to": "dholakuva-circle",
+   "fare": 15,
+   "gmrcKm": 12.32
+  },
+  {
+   "from": "vastral",
+   "to": "gandhigram",
+   "fare": 15,
+   "gmrcKm": 12.41
+  },
+  {
+   "from": "thaltej",
+   "to": "aec",
+   "fare": 15,
+   "gmrcKm": 12.42
+  },
+  {
+   "from": "rabari-colony",
+   "to": "paldi",
+   "fare": 15,
+   "gmrcKm": 12.45
+  },
+  {
+   "from": "aec",
+   "to": "raysan",
+   "fare": 15,
+   "gmrcKm": 12.46
+  },
+  {
+   "from": "nirant-cross-road",
+   "to": "old-high-court",
+   "fare": 15,
+   "gmrcKm": 12.48
+  },
+  {
+   "from": "kalupur",
+   "to": "apmc",
+   "fare": 15,
+   "gmrcKm": 12.48
+  },
+  {
+   "from": "koteshwar-road",
+   "to": "infocity",
+   "fare": 15,
+   "gmrcKm": 12.5
+  },
+  {
+   "from": "gheekanta",
+   "to": "motera-stadium",
+   "fare": 20,
+   "gmrcKm": 12.52
+  },
+  {
+   "from": "sp-stadium",
+   "to": "vishwakarma-college",
+   "fare": 20,
+   "gmrcKm": 12.56
+  },
+  {
+   "from": "sabarmati",
+   "to": "randesan",
+   "fare": 20,
+   "gmrcKm": 12.58
+  },
+  {
+   "from": "kankaria-east",
+   "to": "jivraj-park",
+   "fare": 20,
+   "gmrcKm": 12.66
+  },
+  {
+   "from": "thaltej-gam",
+   "to": "sabarmati-railway-station",
+   "fare": 20,
+   "gmrcKm": 12.76
+  },
+  {
+   "from": "doordarshan-kendra",
+   "to": "sabarmati",
+   "fare": 20,
+   "gmrcKm": 12.84
+  },
+  {
+   "from": "apmc",
+   "to": "sabarmati-railway-station",
+   "fare": 20,
+   "gmrcKm": 12.96
+  },
+  {
+   "from": "vastral-gam",
+   "to": "old-high-court",
+   "fare": 20,
+   "gmrcKm": 13.41
+  },
+  {
+   "from": "motera-stadium",
+   "to": "infocity",
+   "fare": 20,
+   "gmrcKm": 13.44
+  },
+  {
+   "from": "kankaria-east",
+   "to": "apmc",
+   "fare": 20,
+   "gmrcKm": 13.6
+  },
+  {
+   "from": "apmc",
+   "to": "aec",
+   "fare": 20,
+   "gmrcKm": 13.97
+  },
+  {
+   "from": "vastral-gam",
+   "to": "sp-stadium",
+   "fare": 20,
+   "gmrcKm": 14.05
+  },
+  {
+   "from": "vastral-gam",
+   "to": "commerce-six-road",
+   "fare": 20,
+   "gmrcKm": 14.97
+  },
+  {
+   "from": "apmc",
+   "to": "sabarmati",
+   "fare": 20,
+   "gmrcKm": 15.26
+  },
+  {
+   "from": "vastral-gam",
+   "to": "gujarat-university",
+   "fare": 20,
+   "gmrcKm": 16.05
+  },
+  {
+   "from": "vastral-gam",
+   "to": "gurukul-road",
+   "fare": 20,
+   "gmrcKm": 16.96
+  },
+  {
+   "from": "old-high-court",
+   "to": "koba-gam",
+   "fare": 20,
+   "gmrcKm": 16.96
+  },
+  {
+   "from": "vastral",
+   "to": "sabarmati-railway-station",
+   "fare": 20,
+   "gmrcKm": 17.11
+  },
+  {
+   "from": "ranip",
+   "to": "dholakuva-circle",
+   "fare": 20,
+   "gmrcKm": 17.26
+  },
+  {
+   "from": "thaltej-gam",
+   "to": "koteshwar-road",
+   "fare": 20,
+   "gmrcKm": 17.39
+  },
+  {
+   "from": "motera-stadium",
+   "to": "sachivalaya",
+   "fare": 20,
+   "gmrcKm": 17.39
+  },
+  {
+   "from": "vastral",
+   "to": "jivraj-park",
+   "fare": 20,
+   "gmrcKm": 17.41
+  },
+  {
+   "from": "paldi",
+   "to": "koba-circle",
+   "fare": 20,
+   "gmrcKm": 17.44
+  },
+  {
+   "from": "shahpur",
+   "to": "juna-koba",
+   "fare": 20,
+   "gmrcKm": 17.45
+  },
+  {
+   "from": "thaltej",
+   "to": "vishwakarma-college",
+   "fare": 20,
+   "gmrcKm": 17.46
+  },
+  {
+   "from": "commerce-six-road",
+   "to": "juna-koba",
+   "fare": 25,
+   "gmrcKm": 17.51
+  },
+  {
+   "from": "doordarshan-kendra",
+   "to": "tapovan-circle",
+   "fare": 25,
+   "gmrcKm": 17.56
+  },
+  {
+   "from": "koteshwar-road",
+   "to": "akshardham",
+   "fare": 25,
+   "gmrcKm": 17.57
+  },
+  {
+   "from": "sabarmati",
+   "to": "sector-10a",
+   "fare": 25,
+   "gmrcKm": 17.58
+  },
+  {
+   "from": "gujarat-university",
+   "to": "koba-circle",
+   "fare": 25,
+   "gmrcKm": 17.59
+  },
+  {
+   "from": "apmc",
+   "to": "koteshwar-road",
+   "fare": 25,
+   "gmrcKm": 17.59
+  },
+  {
+   "from": "apparel-park",
+   "to": "motera-stadium",
+   "fare": 25,
+   "gmrcKm": 17.62
+  },
+  {
+   "from": "vijaynagar",
+   "to": "pdeu",
+   "fare": 25,
+   "gmrcKm": 17.64
+  },
+  {
+   "from": "jivraj-park",
+   "to": "vishwakarma-college",
+   "fare": 25,
+   "gmrcKm": 18.07
+  },
+  {
+   "from": "vastral-gam",
+   "to": "doordarshan-kendra",
+   "fare": 25,
+   "gmrcKm": 18.08
+  },
+  {
+   "from": "vastral-gam",
+   "to": "thaltej",
+   "fare": 25,
+   "gmrcKm": 18.95
+  },
+  {
+   "from": "vastral-gam",
+   "to": "thaltej-gam",
+   "fare": 25,
+   "gmrcKm": 20.3
+  },
+  {
+   "from": "amraivadi",
+   "to": "tapovan-circle",
+   "fare": 25,
+   "gmrcKm": 22.12
+  },
+  {
+   "from": "sabarmati-railway-station",
+   "to": "akshardham",
+   "fare": 25,
+   "gmrcKm": 22.21
+  },
+  {
+   "from": "gheekanta",
+   "to": "raysan",
+   "fare": 25,
+   "gmrcKm": 22.31
+  },
+  {
+   "from": "ranip",
+   "to": "sachivalaya",
+   "fare": 25,
+   "gmrcKm": 22.33
+  },
+  {
+   "from": "gujarat-university",
+   "to": "pdeu",
+   "fare": 25,
+   "gmrcKm": 22.43
+  },
+  {
+   "from": "kankaria-east",
+   "to": "juna-koba",
+   "fare": 25,
+   "gmrcKm": 22.45
+  },
+  {
+   "from": "thaltej",
+   "to": "koba-gam",
+   "fare": 30,
+   "gmrcKm": 22.51
+  },
+  {
+   "from": "sp-stadium",
+   "to": "dholakuva-circle",
+   "fare": 30,
+   "gmrcKm": 22.51
+  },
+  {
+   "from": "old-high-court",
+   "to": "gift-city",
+   "fare": 30,
+   "gmrcKm": 22.57
+  },
+  {
+   "from": "gheekanta",
+   "to": "pdeu",
+   "fare": 30,
+   "gmrcKm": 22.76
+  },
+  {
+   "from": "gurukul-road",
+   "to": "raysan",
+   "fare": 30,
+   "gmrcKm": 22.89
+  },
+  {
+   "from": "nirant-cross-road",
+   "to": "koteshwar-road",
+   "fare": 30,
+   "gmrcKm": 22.98
+  },
+  {
+   "from": "old-high-court",
+   "to": "infocity",
+   "fare": 30,
+   "gmrcKm": 22.99
+  },
+  {
+   "from": "kalupur",
+   "to": "gnlu",
+   "fare": 30,
+   "gmrcKm": 23.41
+  },
+  {
+   "from": "commerce-six-road",
+   "to": "dholakuva-circle",
+   "fare": 30,
+   "gmrcKm": 23.43
+  },
+  {
+   "from": "gandhigram",
+   "to": "infocity",
+   "fare": 30,
+   "gmrcKm": 24.15
+  },
+  {
+   "from": "shreyas",
+   "to": "randesan",
+   "fare": 30,
+   "gmrcKm": 24.68
+  },
+  {
+   "from": "sabarmati-railway-station",
+   "to": "sector-24",
+   "fare": 30,
+   "gmrcKm": 25.23
+  },
+  {
+   "from": "rabari-colony",
+   "to": "juna-koba",
+   "fare": 30,
+   "gmrcKm": 25.91
+  },
+  {
+   "from": "apmc",
+   "to": "raysan",
+   "fare": 30,
+   "gmrcKm": 26.43
+  },
+  {
+   "from": "gheekanta",
+   "to": "sector-1",
+   "fare": 30,
+   "gmrcKm": 27.16
+  },
+  {
+   "from": "apmc",
+   "to": "randesan",
+   "fare": 30,
+   "gmrcKm": 27.84
+  },
+  {
+   "from": "gujarat-university",
+   "to": "sector-10a",
+   "fare": 30,
+   "gmrcKm": 28.39
+  },
+  {
+   "from": "usmanpura",
+   "to": "sector-16",
+   "fare": 30,
+   "gmrcKm": 29.09
+  },
+  {
+   "from": "shreyas",
+   "to": "sector-10a",
+   "fare": 30,
+   "gmrcKm": 29.68
+  },
+  {
+   "from": "thaltej-gam",
+   "to": "infocity",
+   "fare": 30,
+   "gmrcKm": 29.89
+  },
+  {
+   "from": "gheekanta",
+   "to": "sachivalaya",
+   "fare": 30,
+   "gmrcKm": 29.91
+  },
+  {
+   "from": "apparel-park",
+   "to": "dholakuva-circle",
+   "fare": 30,
+   "gmrcKm": 29.94
+  },
+  {
+   "from": "amraivadi",
+   "to": "randesan",
+   "fare": 30,
+   "gmrcKm": 29.98
+  },
+  {
+   "from": "old-high-court",
+   "to": "sector-16",
+   "fare": 35,
+   "gmrcKm": 30.06
+  },
+  {
+   "from": "apmc",
+   "to": "infocity",
+   "fare": 35,
+   "gmrcKm": 30.09
+  },
+  {
+   "from": "commerce-six-road",
+   "to": "juna-sachivalaya",
+   "fare": 35,
+   "gmrcKm": 30.52
+  },
+  {
+   "from": "paldi",
+   "to": "akshardham",
+   "fare": 35,
+   "gmrcKm": 30.56
+  },
+  {
+   "from": "nirant-cross-road",
+   "to": "pdeu",
+   "fare": 35,
+   "gmrcKm": 32.27
+  },
+  {
+   "from": "doordarshan-kendra",
+   "to": "akshardham",
+   "fare": 35,
+   "gmrcKm": 32.74
+  },
+  {
+   "from": "kankaria-east",
+   "to": "sachivalaya",
+   "fare": 35,
+   "gmrcKm": 33.44
+  },
+  {
+   "from": "shreyas",
+   "to": "sector-16",
+   "fare": 35,
+   "gmrcKm": 34
+  },
+  {
+   "from": "gurukul-road",
+   "to": "sector-24",
+   "fare": 35,
+   "gmrcKm": 34.65
+  },
+  {
+   "from": "gheekanta",
+   "to": "mahatma-mandir",
+   "fare": 35,
+   "gmrcKm": 35.27
+  },
+  {
+   "from": "apmc",
+   "to": "juna-sachivalaya",
+   "fare": 35,
+   "gmrcKm": 36.06
+  },
+  {
+   "from": "thaltej-gam",
+   "to": "sector-16",
+   "fare": 35,
+   "gmrcKm": 36.95
+  },
+  {
+   "from": "vastral-gam",
+   "to": "sector-1",
+   "fare": 40,
+   "gmrcKm": 37.59
+  },
+  {
+   "from": "kankaria-east",
+   "to": "sector-24",
+   "fare": 40,
+   "gmrcKm": 37.59
+  },
+  {
+   "from": "rajivnagar",
+   "to": "mahatma-mandir",
+   "fare": 40,
+   "gmrcKm": 37.59
+  },
+  {
+   "from": "thaltej-gam",
+   "to": "sector-24",
+   "fare": 40,
+   "gmrcKm": 37.99
+  },
+  {
+   "from": "amraivadi",
+   "to": "sector-16",
+   "fare": 40,
+   "gmrcKm": 39.29
+  },
+  {
+   "from": "nirant-cross-road",
+   "to": "juna-sachivalaya",
+   "fare": 40,
+   "gmrcKm": 41.45
+  },
+  {
+   "from": "vastral-gam",
+   "to": "mahatma-mandir",
+   "fare": 40,
+   "gmrcKm": 45.7
+  }
+ ]
+}

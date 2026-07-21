@@ -18,33 +18,11 @@ interface PhotonFeature {
   };
 }
 
-// Normalized shape returned by the Mappls proxy (proxy/geocode-worker).
-interface ProxyResult {
-  name: string;
-  lat: number;
-  lng: number;
-}
-
-// Two providers, picked at build time:
-//  - Mappls (MapmyIndia) via our Cloudflare Worker proxy, when
-//    VITE_GEOCODE_PROXY_URL is set — best POI coverage for Gujarat. The
-//    proxy holds the OAuth secret; see proxy/geocode-worker/README.md.
-//  - Photon (photon.komoot.io) otherwise — OSM-based, keyless, CORS-enabled,
-//    and its usage policy permits client-side autocomplete (Nominatim's
-//    doesn't). This keeps dev working with zero setup.
-const PROXY_URL: string | undefined = import.meta.env.VITE_GEOCODE_PROXY_URL;
-
+// Place search uses Photon (photon.komoot.io) — OSM-based, keyless,
+// CORS-enabled, and its usage policy permits client-side autocomplete
+// (Nominatim's doesn't), so it works with zero setup.
 function toPlaceNode(name: string, lat: number, lng: number): PlaceNode {
   return { isPlace: true, id: `place_${lat}_${lng}`, name, lat, lng };
-}
-
-async function searchViaProxy(q: string): Promise<PlaceNode[]> {
-  const res = await fetch(`${PROXY_URL}/?q=${encodeURIComponent(q)}`);
-  if (!res.ok) throw new Error('Geocoding failed');
-  const data = await res.json();
-  return ((data.results ?? []) as ProxyResult[])
-    .filter((r) => r.name && typeof r.lat === 'number' && typeof r.lng === 'number')
-    .map((r) => toPlaceNode(r.name, r.lat, r.lng));
 }
 
 async function searchViaPhoton(q: string): Promise<PlaceNode[]> {
@@ -87,7 +65,7 @@ export class GeocodingService {
 
     const promise = (async () => {
       try {
-        const results = PROXY_URL ? await searchViaProxy(q) : await searchViaPhoton(q);
+        const results = await searchViaPhoton(q);
         this.CACHE.set(q, results);
         return results;
       } catch (err) {

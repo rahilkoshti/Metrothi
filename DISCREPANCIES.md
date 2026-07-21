@@ -36,42 +36,14 @@ dimming, or zoom-progressive labels.
 - [ ] `INTERCHANGE_BUFFER_MINS` (line 77) is a flat 3-minute transfer penalty
       for every interchange. PRD §5.1 calls this out explicitly: "Must be
       upgraded to per-station walking matrixes before v2.0 launch."
-- [ ] `LINE_META` run-time denominators don't all match their line's actual
-      segment count: yellow's path is 21 stations (20 segments) but its run
-      time is `43 / 19`; red's path is 15 stations (14 segments) but uses
-      `35 / 13` (which matches only if the non-operational Sabarmati Railway
-      Station doesn't count as a stop — yet the engine's paths include it).
-      Net effect: full-line red rides show ~37.7 min instead of the published
-      35, yellow ~45.3 instead of 43. Verify segment counts against GMRC's
-      published end-to-end times and fix the `avgSegmentMins` fractions.
+
 - [ ] `tracks.json` `stationKm` values are non-monotonic for most of blue,
       red, and yellow (its own `tracks-report.txt` flags these), so track-length
       distances can't yet replace the straight-line distances used for
       segment-time weighting (`buildCumulativeMins`). Once the Phase A traces
       are cleaned up, swap haversine for along-track distance there.
 
----
 
-## Journey session hook (`app/src/features/journey/hooks/useJourneySession.ts`)
-
-- [ ] `computeStopTimeline` distributes a non-first leg's `travelMins` over
-      `len - 2` segments instead of `len - 1` (leg starts are detected at the
-      first stop *after* the interchange, since the interchange stop carries
-      the previous leg's `viaLine`). Net effect: the first stop after an
-      interchange shows the departure time as its arrival, and per-stop times
-      within later legs are slightly stretched.
-- [ ] The initial walk-time estimate reads `result.source.distanceKm`, but no
-      `planJourney` output ever carries that field (App.tsx only attaches
-      `distanceKm` to its nearest-station fallback object, which enters
-      `planJourney` as a plain station ID). The estimate therefore always falls
-      back to `DEFAULT_WALK_MINS` — `result.sourceWalkMins` is the field that
-      actually holds the walk estimate for place-based searches.
-- [ ] Journey progress resets on minimize/maximize: `useJourneySession` state
-      lives inside `LiveJourneyScreen` / `MinimizedJourneyBar` (each mounts its
-      own session with a fresh `startedAt`). The session should be lifted to
-      App level (or a context) so progression survives UI transitions.
-
----
 
 ## Template for new entries
 
@@ -80,3 +52,38 @@ dimming, or zoom-progressive labels.
 
 - [ ] <what's wrong> — <where/how to fix it>
 ```
+
+## Place search (`app/src/services/GeocodingService.ts`)
+
+- [ ] Place suggestions look wrong — typing "Vastral Gam" returned five identical "Old High Court, Usmanpura" rows, and typing "Vastral" returned "Vastral, Rabari Colony" three times. Station matching is fine; only the PLACES section is affected. Likely fallout from the in-flight GeocodingService change and/or the removed `proxy/geocode-worker`. Seen on /go, 2026-07-20.
+
+## PWA / offline deviations
+
+- [ ] **Dexie deliberately not implemented.** PRD §5.2/§5.3 originally mandated
+      Dexie.js (IndexedDB) for the transit graph, schedules, and user data. The
+      PWA/offline work (2026-07-22) instead relies on the transit graph being
+      bundled JSON precached by the service worker, and keeps user data in
+      `localStorage`. This satisfies the airplane-mode launch criterion (§6.2)
+      without Dexie. PRD §5.2/§5.3 have been amended to match. Revisit only if
+      saved-journey data outgrows localStorage's ~5 MB budget.
+
+- [ ] **Leaflet default marker icons load from a CDN**
+      (`MapScreen.tsx:15-17` → `cdnjs.cloudflare.com/.../leaflet/1.7.1/images/*`).
+      These won't be cached by the service worker's runtime rules, so any
+      default Leaflet marker breaks offline. Fix by importing the marker PNGs
+      from the `leaflet` package (so Vite bundles + precaches them) instead of
+      pointing at the CDN. Out of scope for the PWA pass; low impact since the
+      app mostly uses `CircleMarker`s.
+
+---
+
+## Resolved / Fixed
+
+- **[Fixed 2026-07-21]** `TS6133: 'walkMinsForKm' is declared but its value is never read` in `useJourneySession.ts` broke `npm run build`. The in-flight edits replaced that call with `result.sourceWalkMins` and left the import behind; import removed.
+
+- **[Fixed 2026-07-20]** `LINE_META` run-time denominators for red and yellow lines corrected (red: 35 / 14, yellow: 43 / 20) to match actual segment counts.
+- **[Fixed 2026-07-20]** `computeStopTimeline` now correctly divides `travelMins` over `len - 1` segments for post-interchange legs instead of `len - 2`.
+- **[Fixed 2026-07-20]** Walk estimate correctly uses `result.sourceWalkMins` if available, instead of blindly falling back to `DEFAULT_WALK_MINS`.
+- **[Fixed 2026-07-20]** Journey progress state no longer resets on minimize/maximize; `useJourneySession` was lifted up to `MainApp` in `App.tsx`.
+- **[Fixed 2026-07-20]** Fare calculation rebuilt on real GMRC distance data (`fareEngine.ts`) instead of the guessed station-count slabs in the old `fares.json`; see PRD §5.4.
+- **[Fixed 2026-07-20]** Cross-phase ticket rule ("only NCMC works between Phase 1 and Phase 2") and the CSC/NCMC 10% discount are now confirmed against GMRC's `fare-rules` page and recorded in `app/src/data/metroInfo.json`. The discount is display-only and intentionally not applied to any fare.

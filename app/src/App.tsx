@@ -1,18 +1,41 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import { Dashboard } from './features/journey/components/Dashboard';
 import { Planner } from './features/journey/components/Planner';
 import { ResultsScreen } from './features/journey/components/ResultsScreen';
 import { LiveJourneyScreen } from './features/journey/components/LiveJourneyScreen';
 import { MinimizedJourneyBar } from './features/journey/components/MinimizedJourneyBar';
-import { LocationService } from './services/LocationService';
+import { LocationService, type LocationErrorKind } from './services/LocationService';
 import { STATIONS, haversineKm, planJourney, STATION_BY_ID } from './features/journey/engine/journeyEngine';
 import { StationsDirectory } from './features/journey/components/StationsDirectory';
 import { StationDetail } from './features/journey/components/StationDetail';
 import { YouScreen } from './features/journey/components/YouScreen';
-import { MapScreen } from './features/map/components/MapScreen';
+// Lazy-loaded so Leaflet, react-leaflet, and the tile layer leave the initial
+// bundle — /map is the heaviest screen and not on the first-paint path.
+const MapScreen = lazy(() =>
+  import('./features/map/components/MapScreen').then((m) => ({ default: m.MapScreen }))
+);
 import { ThemeProvider } from './contexts/ThemeContext';
 import { Home, Compass, Map as MapIcon, Navigation, User } from 'lucide-react';
+import { useJourneySession } from './features/journey/hooks/useJourneySession';
+
+// "locating" and "granted" plus the three ways a location request can fail.
+// Kept distinct because each failure needs different wording and a different
+// fix from the user — a denial is a settings change, a timeout is worth a retry.
+export type LocStatus = "locating" | "granted" | LocationErrorKind;
+
+// Shown while the lazy MapScreen chunk loads. Fills the same viewport height the
+// map uses (100vh minus the tab bar) so the layout doesn't jump.
+function MapFallback() {
+  return (
+    <div
+      className="w-full h-[calc(100vh-80px)] flex items-center justify-center"
+      style={{ color: 'var(--c-text-4)' }}
+    >
+      <span className="text-sm tracking-wide">Loading map…</span>
+    </div>
+  );
+}
 
 function MainApp() {
   const [result, setResult] = useState<any>(null);
@@ -20,17 +43,22 @@ function MainApp() {
   const [activeJourneyOptionIdx, setActiveJourneyOptionIdx] = useState(0);
   const [isJourneyMinimized, setIsJourneyMinimized] = useState(false);
   const [coords, setCoords] = useState<{ lat: number, lng: number } | null>(null);
-  const [locStatus, setLocStatus] = useState("locating");
+  const [locStatus, setLocStatus] = useState<LocStatus>("locating");
 
   const navigate = useNavigate();
   const location = useLocation();
 
-  useEffect(() => {
+  const journeySession = useJourneySession(activeJourney ? result : null);
+
+  const requestLocation = useCallback(() => {
+    setLocStatus("locating");
     LocationService.getCurrentPosition(
       (pos) => { setCoords(pos); setLocStatus("granted"); },
-      () => setLocStatus("denied")
+      (kind) => { setCoords(null); setLocStatus(kind); }
     );
   }, []);
+
+  useEffect(() => { requestLocation(); }, [requestLocation]);
 
   const nearest = useMemo(() => {
     if (!coords) return null;
@@ -43,7 +71,8 @@ function MainApp() {
     return best ? { ...best, distanceKm: bestDist } : null;
   }, [coords]);
 
-  const nearestOrFallback = nearest || (locStatus === "denied" ? { ...STATION_BY_ID["old-high-court"], distanceKm: null } : null);
+  const locFailed = locStatus === "denied" || locStatus === "unavailable" || locStatus === "timeout";
+  const nearestOrFallback = nearest || (locFailed ? { ...STATION_BY_ID["old-high-court"], distanceKm: null } : null);
 
   function handlePlan(source: any, dest: any, config?: any) {
     // If the object passed has an 'id' and 'isPlace' is false/undefined, we could pass it or pass its ID.
@@ -95,20 +124,21 @@ function MainApp() {
                 activeOptionIdx={activeJourneyOptionIdx}
                 onEnd={() => { setActiveJourney(false); setResult(null); setIsJourneyMinimized(false); }} 
                 onMinimize={() => setIsJourneyMinimized(true)}
+                session={journeySession}
               />
             ) : (
               <>
                 <div className="animate-in fade-in duration-300">
                   <Routes>
-                    <Route path="/" element={<Dashboard nearest={nearestOrFallback} locStatus={locStatus} onPlanFromHere={handlePlanFromHere} onPlan={handlePlan} />} />
-                    <Route path="/go" element={<Planner onPlan={handlePlan} nearest={nearestOrFallback} locStatus={locStatus} />} />
-                    <Route path="/map" element={<MapScreen coords={coords} nearest={nearestOrFallback} />} />
+                    <Route path="/" element={<Dashboard nearest={nearestOrFallback} locStatus={locStatus} onRetryLocation={requestLocation} onPlanFromHere={handlePlanFromHere} onPlan={handlePlan} />} />
+                    <Route path="/go" element={<Planner onPlan={handlePlan} nearest={nearestOrFallback} locStatus={locStatus} onRetryLocation={requestLocation} />} />
+                    <Route path="/map" element={<Suspense fallback={<MapFallback />}><MapScreen coords={coords} nearest={nearestOrFallback} /></Suspense>} />
                     <Route path="/stations" element={<StationsDirectory />} />
                     <Route path="/stations/:id" element={<StationDetail />} />
                     <Route path="/you" element={<YouScreen />} />
                   </Routes>
                 </div>
-                <MinimizedJourneyBar result={result} onMaximize={() => setIsJourneyMinimized(false)} />
+                <MinimizedJourneyBar result={result} onMaximize={() => setIsJourneyMinimized(false)} session={journeySession} />
               </>
             )
           ) : (
@@ -118,12 +148,12 @@ function MainApp() {
           <div className="animate-in fade-in duration-300">
             <Routes>
               <Route path="/" element={
-                <Dashboard nearest={nearestOrFallback} locStatus={locStatus} onPlanFromHere={handlePlanFromHere} onPlan={handlePlan} />
+                <Dashboard nearest={nearestOrFallback} locStatus={locStatus} onRetryLocation={requestLocation} onPlanFromHere={handlePlanFromHere} onPlan={handlePlan} />
               } />
               <Route path="/go" element={
-                <Planner onPlan={handlePlan} nearest={nearestOrFallback} locStatus={locStatus} />
+                <Planner onPlan={handlePlan} nearest={nearestOrFallback} locStatus={locStatus} onRetryLocation={requestLocation} />
               } />
-              <Route path="/map" element={<MapScreen coords={coords} nearest={nearestOrFallback} />} />
+              <Route path="/map" element={<Suspense fallback={<MapFallback />}><MapScreen coords={coords} nearest={nearestOrFallback} /></Suspense>} />
               <Route path="/stations" element={<StationsDirectory />} />
               <Route path="/stations/:id" element={<StationDetail />} />
               <Route path="/you" element={<YouScreen />} />

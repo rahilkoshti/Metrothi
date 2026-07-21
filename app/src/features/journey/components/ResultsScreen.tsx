@@ -100,8 +100,8 @@ export function ResultsScreen({ result, onBack, onStartJourney }: ResultsScreenP
           </div>
           <div className="rounded-2xl p-4 flex flex-col justify-between" style={{ background: 'var(--c-card)' }}>
             <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: 'var(--c-text-3)' }}>Fare est.</div>
-            <div className="text-3xl font-bold leading-none mt-1" style={{ color: 'var(--c-text)' }}>₹{fare}</div>
-            <div className="text-[11px] mt-1" style={{ color: 'var(--c-text-4)' }}>approx.</div>
+            <div className="text-3xl font-bold leading-none mt-1" style={{ color: 'var(--c-text)' }}>{fare == null ? '—' : `₹${fare}`}</div>
+            <div className="text-[11px] mt-1" style={{ color: 'var(--c-text-4)' }}>{fare == null ? 'unavailable' : 'approx.'}</div>
           </div>
           <div className="rounded-2xl p-4 flex flex-col justify-between" style={{ background: 'var(--c-card)' }}>
             <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: 'var(--c-text-3)' }}>Leave in</div>
