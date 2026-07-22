@@ -1,8 +1,9 @@
 import { useMemo, useEffect, useState } from 'react';
-import { MapContainer, CircleMarker, Polyline, TileLayer, Tooltip, useMap, Marker } from 'react-leaflet';
+import { MapContainer, CircleMarker, Polyline, TileLayer, Tooltip, useMap, Marker, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { STATIONS, LINE_PATHS, STATION_BY_ID, planJourney } from '../../journey/engine/journeyEngine';
+import { trackPath, routeLegSlices } from '../geometry/trackGeometry';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { StationBottomSheet } from './StationBottomSheet';
@@ -47,6 +48,22 @@ function MapEffect({ coords, nearest }: { coords: any, nearest: any }) {
   return null;
 }
 
+function RouteFitEffect({ routeLegs }: { routeLegs: { coords: [number, number][] }[] | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!routeLegs?.length) return;
+    const all = routeLegs.flatMap(l => l.coords);
+    map.fitBounds(L.latLngBounds(all), { padding: [60, 60], animate: true });
+  }, [routeLegs, map]);
+  return null;
+}
+
+function ZoomWatcher({ onZoom }: { onZoom: (z: number) => void }) {
+  const map = useMapEvents({ zoomend: () => onZoom(map.getZoom()) });
+  useEffect(() => { onZoom(map.getZoom()); }, [map, onZoom]);
+  return null;
+}
+
 export function MapScreen({ coords, nearest }: { coords: any, nearest: any }) {
   const navigate = useNavigate();
   const { theme } = useTheme();
@@ -58,6 +75,7 @@ export function MapScreen({ coords, nearest }: { coords: any, nearest: any }) {
   const [routeEndId, setRouteEndId] = useState<string | null>(null);
   const [activeLines, setActiveLines] = useState<Set<string>>(new Set(Object.keys(LINE_PATHS)));
   const [showFilters, setShowFilters] = useState(false);
+  const [zoom, setZoom] = useState(12);
 
   const plannedJourney = useMemo(() => {
     if (routeStartId && routeEndId) {
@@ -66,13 +84,9 @@ export function MapScreen({ coords, nearest }: { coords: any, nearest: any }) {
     return null;
   }, [routeStartId, routeEndId]);
 
-  const plannedRouteCoords = useMemo(() => {
-    if (plannedJourney && plannedJourney.stops) {
-      return plannedJourney.stops
-        .filter((s: any) => s.lat !== null && s.lng !== null)
-        .map((s: any) => [s.lat, s.lng] as [number, number]);
-    }
-    return null;
+  const routeLegs = useMemo(() => {
+    if (!plannedJourney?.stops) return null;
+    return routeLegSlices(plannedJourney.stops);
   }, [plannedJourney]);
 
   useEffect(() => {
@@ -109,6 +123,8 @@ export function MapScreen({ coords, nearest }: { coords: any, nearest: any }) {
     return Object.entries(LINE_PATHS)
       .filter(([lineId]) => activeLines.has(lineId))
       .map(([lineId, path]) => {
+        const track = trackPath(lineId);
+        if (track) return { lineId, coords: track };
         const lineCoords: [number, number][] = [];
         path.forEach(stationId => {
           const station = STATION_BY_ID[stationId];
@@ -138,9 +154,11 @@ export function MapScreen({ coords, nearest }: { coords: any, nearest: any }) {
         center={center}
         zoom={12}
         scrollWheelZoom={true}
-        className="w-full h-full bg-[#ebe8e0]"
+        className={`w-full h-full bg-[#ebe8e0] ${plannedJourney ? 'map-routing' : ''}`}
         zoomControl={false}
       >
+        <RouteFitEffect routeLegs={routeLegs} />
+        <ZoomWatcher onZoom={setZoom} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
           url={theme === 'dark' 
@@ -177,29 +195,38 @@ export function MapScreen({ coords, nearest }: { coords: any, nearest: any }) {
 
         {polylines.map(line => (
           <Polyline
+            key={`${line.lineId}-casing`}
+            positions={line.coords}
+            pathOptions={{
+              color: theme === 'dark' ? '#0f0f0f' : '#ffffff',
+              weight: plannedJourney ? 0 : 13,
+              opacity: 1, lineJoin: 'round', lineCap: 'round',
+            }}
+          />
+        ))}
+
+        {polylines.map(line => (
+          <Polyline
             key={line.lineId}
             positions={line.coords}
             pathOptions={{ 
               color: LINE_COLORS[line.lineId] || '#666', 
               weight: plannedJourney ? 4 : 9, 
-              opacity: plannedJourney ? 0.3 : 1,
+              opacity: plannedJourney ? 0.15 : 1,
               lineJoin: 'round',
               lineCap: 'round'
             }}
           />
         ))}
 
-        {plannedRouteCoords && (
-          <Polyline
-            positions={plannedRouteCoords}
-            pathOptions={{
-              color: theme === 'dark' ? '#fff' : '#000',
-              weight: 8,
-              opacity: 0.9,
-              dashArray: '10, 10'
-            }}
-          />
-        )}
+        {routeLegs?.map((leg, i) => (
+          <Polyline key={`route-casing-${i}`} positions={leg.coords}
+            pathOptions={{ color: theme === 'dark' ? '#fff' : '#000', weight: 12, opacity: 0.9, lineJoin: 'round', lineCap: 'round' }} />
+        ))}
+        {routeLegs?.map((leg, i) => (
+          <Polyline key={`route-${i}`} positions={leg.coords}
+            pathOptions={{ color: LINE_COLORS[leg.line], weight: 7, opacity: 1, lineJoin: 'round', lineCap: 'round' }} />
+        ))}
 
         {validStations.map(station => {
           const isInterchange = station.interchange;
@@ -221,9 +248,14 @@ export function MapScreen({ coords, nearest }: { coords: any, nearest: any }) {
             tooltipAnchor: [12, 0],
           });
 
+          const isMajor = station.interchange || station.terminal ||
+            LINE_PATHS[station.line]?.[0] === station.id ||
+            LINE_PATHS[station.line]?.at(-1) === station.id;
+          const showLabel = zoom >= 13 || isMajor;
+
           return (
             <Marker 
-              key={station.id} 
+              key={`${station.id}-${showLabel ? 'lbl' : 'dot'}`} 
               position={[station.lat!, station.lng!]}
               icon={icon}
               eventHandlers={{
@@ -232,14 +264,16 @@ export function MapScreen({ coords, nearest }: { coords: any, nearest: any }) {
                 }
               }}
             >
-              <Tooltip 
-                permanent 
-                direction="right" 
-                className="vignelli-label"
-                offset={isInterchange ? [7, 0] : [4, 0]}
-              >
-                {station.name}
-              </Tooltip>
+              {showLabel && (
+                <Tooltip 
+                  permanent 
+                  direction="right" 
+                  className={`vignelli-label ${zoom >= 15 ? 'vignelli-lg' : ''}`}
+                  offset={isInterchange ? [7, 0] : [4, 0]}
+                >
+                  {station.name}
+                </Tooltip>
+              )}
             </Marker>
           );
         })}

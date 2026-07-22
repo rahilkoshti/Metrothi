@@ -1,5 +1,6 @@
-import { ChevronRight, User, Moon, Sun, Footprints, MapPin, BookMarked, Clock, Train, Info, MessageSquare, Database, Zap } from "lucide-react";
+import { ChevronRight, User, Moon, Sun, Footprints, MapPin, BookMarked, Clock, Train, Info, MessageSquare, Database, Zap, ArrowLeft } from "lucide-react";
 import { useTheme } from "../../../contexts/ThemeContext";
+import { useNavigate } from "react-router-dom";
 
 // ─── Shared row components ────────────────────────────────────────────────────
 
@@ -112,16 +113,27 @@ function ThemeToggle() {
 
 export function YouScreen() {
   const { theme } = useTheme();
+  const navigate = useNavigate();
 
   return (
     <div className="max-w-[var(--layout-max-width)] mx-auto pb-28" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
 
       {/* ── Header / Avatar ──────────────────────────────────────────────── */}
-      <div className="px-5 pt-12 pb-6">
-        <div className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--c-text-3)' }}>
-          {theme === 'dark' ? '🌙 Dark mode' : '☀️ Light mode'}
+      <div className="px-5 pt-8 pb-6 flex items-center justify-between">
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--c-text-3)' }}>
+            {theme === 'dark' ? '🌙 Dark mode' : '☀️ Light mode'}
+          </div>
+          <h1 className="text-4xl font-bold tracking-tight" style={{ color: 'var(--c-text)' }}>You</h1>
         </div>
-        <h1 className="text-4xl font-bold tracking-tight" style={{ color: 'var(--c-text)' }}>You</h1>
+        <button
+          onClick={() => navigate(-1)}
+          aria-label="Go back"
+          className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+          style={{ background: 'var(--c-card)', border: '1px solid var(--c-border-2)' }}
+        >
+          <ArrowLeft size={20} style={{ color: 'var(--c-text)' }} />
+        </button>
       </div>
 
       {/* Avatar card */}

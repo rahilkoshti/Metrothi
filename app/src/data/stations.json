@@ -17,7 +17,7 @@
   "stations": [
     { "id": "vastral-gam", "name": "Vastral Gam", "line": "blue", "order": 1, "phase": 1, "terminal": true, "interchange": false, "lat": 22.997249, "lng": 72.667317 },
     { "id": "nirant-cross-road", "name": "Nirant Cross Road", "line": "blue", "order": 2, "phase": 1, "terminal": false, "interchange": false, "lat": 22.999813, "lng": 72.658914 },
-    { "id": "vastral", "name": "Vastral", "line": "blue", "order": 3, "phase": 1, "terminal": false, "interchange": false, "lat": 22.997276, "lng": 72.667467, "needsVerification": true },
+    { "id": "vastral", "name": "Vastral", "line": "blue", "order": 3, "phase": 1, "terminal": false, "interchange": false, "lat": 23.00360, "lng": 72.64761 },
     { "id": "rabari-colony", "name": "Rabari Colony", "line": "blue", "order": 4, "phase": 1, "terminal": false, "interchange": false, "lat": 23.005521, "lng": 72.635473 },
     { "id": "amraivadi", "name": "Amraiwadi", "line": "blue", "order": 5, "phase": 1, "terminal": false, "interchange": false, "lat": 23.007592, "lng": 72.628584 },
     { "id": "apparel-park", "name": "Apparel Park", "line": "blue", "order": 6, "phase": 1, "terminal": false, "interchange": false, "lat": 23.010873, "lng": 72.617559 },
@@ -68,7 +68,7 @@
     { "id": "juna-sachivalaya", "name": "Juna Sachivalaya", "line": "yellow", "order": 17, "phase": 2, "terminal": false, "interchange": false, "lat": 23.228989, "lng": 72.659406 },
     { "id": "sector-16", "name": "Sector-16 (Gandhinagar)", "line": "yellow", "order": 18, "phase": 2, "terminal": false, "interchange": false, "lat": 23.233952, "lng": 72.650136 },
     { "id": "sector-24", "name": "Sector-24 (Gandhinagar)", "line": "yellow", "order": 19, "phase": 2, "terminal": false, "interchange": false, "lat": 23.238573, "lng": 72.641494 },
-    { "id": "mahatma-mandir", "name": "Mahatma Mandir", "line": "yellow", "order": 20, "phase": 2, "terminal": true, "interchange": false, "lat": 23.231685, "lng": 72.633469, "needsVerification": true },
+    { "id": "mahatma-mandir", "name": "Mahatma Mandir", "line": "yellow", "order": 20, "phase": 2, "terminal": true, "interchange": false, "lat": 23.2339412, "lng": 72.6338714 },
 
     { "id": "pdeu", "name": "PDEU", "line": "violet", "order": 1, "phase": 2, "terminal": false, "interchange": false, "lat": 23.154955, "lng": 72.66135 },
     { "id": "gift-city", "name": "GIFT City", "line": "violet", "order": 2, "phase": 2, "terminal": true, "lat": 23.153258, "lng": 72.685533 }

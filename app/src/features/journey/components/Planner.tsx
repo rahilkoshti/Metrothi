@@ -1,5 +1,4 @@
 import { useState, useMemo, useEffect } from "react";
-import { useLocation } from "react-router-dom";
 import { ArrowUpDown, ArrowRight, MapPin } from "lucide-react";
 import { StationInput } from "./StationInput";
 import { STATIONS, estimateLine, nextDepartureFromStation, formatDuration, walkMinsForKm } from "../engine/journeyEngine";
@@ -19,12 +18,13 @@ interface PlannerProps {
   nearest: any;
   locStatus: LocStatus;
   onRetryLocation: () => void;
+  prefillSource?: any;
+  prefillDest?: any;
 }
 
-export function Planner({ onPlan, nearest, locStatus, onRetryLocation }: PlannerProps) {
-  const location = useLocation();
-  const prefillSourceId = location.state?.prefillSource;
-  const prefillDestId = location.state?.prefillDest;
+export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSource, prefillDest: prefillDestProp }: PlannerProps) {
+  const prefillSourceId = prefillSource;
+  const prefillDestId = prefillDestProp;
 
   const [source, setSource] = useState<any>(null);
   const [destination, setDestination] = useState<any>(null);
@@ -151,7 +151,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation }: Planner
   }, [source, destination, now]);
 
   return (
-    <div className="p-5 max-w-[var(--layout-max-width)] mx-auto pt-10 flex flex-col min-h-[calc(100vh-80px)]" onClick={() => setActiveField(null)}>
+    <div className="p-5 max-w-[var(--layout-max-width)] mx-auto pt-6 flex flex-col" onClick={() => setActiveField(null)}>
       <div className="mb-7">
         <div className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--c-text-3)' }}>Journey Planner</div>
         <h1 className="text-4xl font-bold tracking-tight leading-none" style={{ color: 'var(--c-text)' }}>Where to?</h1>

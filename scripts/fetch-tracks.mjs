@@ -48,7 +48,7 @@ const INCLUDE_CONSTRUCTION = false;
 // Stations skipped as *routing waypoints* (traced through, measure computed
 // afterwards by projection): known-bad coords, null coords, not operational.
 // Keep 'vastral' here until its coordinate is fixed in stations.json.
-const TRACE_SKIP = new Set(['vastral', 'sabarmati-railway-station']);
+const TRACE_SKIP = new Set(['sabarmati-railway-station']);
 
 // Line paths in official station order. Interchange stations appear in both
 // lines' paths (stations.json stores each station once, under one line, so
@@ -318,9 +318,25 @@ async function main() {
     for (let i = 0; i < snapped.length - 1; i++) {
       const a = snapped[i], b = snapped[i + 1];
       const nodePath = dijkstra(graph, a.nodeId, b.nodeId);
-      if (!nodePath) {
-        report.push(`  !! ${a.id} → ${b.id}: no rail path in OSM — using straight line. ` +
-                    `Map this segment in OSM or accept the chord.`);
+      
+      const directDist = haversineM(a.s, b.s);
+      let pathLen = 0;
+      if (nodePath) {
+        for (let k = 1; k < nodePath.length; k++) {
+          const p1 = graph.nodePos.get(nodePath[k - 1]);
+          const p2 = graph.nodePos.get(nodePath[k]);
+          pathLen += haversineM(p1, p2);
+        }
+      }
+
+      const isDetour = nodePath && (pathLen > Math.max(3000, directDist * 2.2));
+
+      if (!nodePath || isDetour) {
+        if (isDetour) {
+          report.push(`  !! ${a.id} → ${b.id}: rejected detour in OSM (path=${(pathLen/1000).toFixed(2)} km, direct=${(directDist/1000).toFixed(2)} km) — using straight line.`);
+        } else {
+          report.push(`  !! ${a.id} → ${b.id}: no rail path in OSM — using straight line.`);
+        }
         const pa = graph.nodePos.get(a.nodeId), pb = graph.nodePos.get(b.nodeId);
         if (coords.length === 0) coords.push(pa);
         coords.push(pb);

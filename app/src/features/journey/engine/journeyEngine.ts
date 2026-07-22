@@ -827,6 +827,10 @@ export interface ActiveTrain {
   originId: string;
   /** Destination terminal of this train's run */
   destId: string;
+  /** Station the train just departed (id) */
+  fromStationId: string;
+  /** Station the train is heading to (id) */
+  toStationId: string;
   /** Current interpolated latitude */
   lat: number;
   /** Current interpolated longitude */
@@ -926,6 +930,8 @@ export function getActiveTrains(now: Date = new Date()): ActiveTrain[] {
             direction: `Towards ${destinationName}`,
             originId,
             destId,
+            fromStationId: fromStation.id,
+            toStationId: toStation.id,
             lat,
             lng,
             fromStationName: STATION_BY_ID[fromStation.id]?.name ?? fromStation.id,

@@ -51,7 +51,7 @@ export function MinimizedJourneyBar({ result, onMaximize, session }: MinimizedJo
   if (!result || currentState === 'COMPLETED') return null;
 
   return (
-    <div className="absolute bottom-[80px] left-4 right-4 z-40 animate-in slide-in-from-bottom-5 fade-in duration-300">
+    <div className="absolute bottom-4 left-4 right-4 z-40 animate-in slide-in-from-bottom-5 fade-in duration-300">
       <button 
         onClick={onMaximize}
         className="w-full flex items-center justify-between p-3 rounded-2xl shadow-xl border border-neutral-700/50 backdrop-blur-xl transition-transform active:scale-[0.98]"

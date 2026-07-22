@@ -6,28 +6,7 @@ an entry once it's fixed.
 
 ---
 
-## Map track geometry (`files/map/STEP1-IMPLEMENTATION.md`)
 
-Phase A (OSM track fetch) has run and produced `app/src/data/tracks.json`, but
-`app/src/data/tracks-report.txt` has unresolved `!!` flags the guide's own
-acceptance checklist requires clearing before Phase E ships:
-
-- [ ] `mahatma-mandir` station coord is 153m off the traced track (`!! BAD COORD?`).
-      OSM suggests `lat 23.2339412, lng 72.6338714` (node 13457569598) — apply to
-      `app/src/data/stations.json`.
-- [ ] Non-monotonic trace warnings need manual inspection on geojson.io:
-      `vastral`, `gheekanta`, `gujarat-university`, `gurukul-road`, `thaltej`,
-      `motera-stadium`, `koba-circle`, `koba-gam`, `sector-1`.
-- [ ] Two segments have no OSM rail path and fall back to a straight chord:
-      `gandhigram → old-high-court` and `old-high-court → usmanpura`. Either
-      accept the chord or trace the missing viaduct in OSM's iD editor.
-
-Phases B–E of the same guide are **not started** — `trackGeometry.ts` and the
-updated `LiveTrainsLayer.tsx` sit unused in `files/map/`, not yet copied to
-`app/src/features/map/geometry/` and `app/src/features/map/components/`.
-`journeyEngine.ts`'s `ActiveTrain` doesn't yet expose `fromStationId`/
-`toStationId`, and `MapScreen.tsx` doesn't render real track polylines, route
-dimming, or zoom-progressive labels.
 
 ---
 
@@ -37,11 +16,7 @@ dimming, or zoom-progressive labels.
       for every interchange. PRD §5.1 calls this out explicitly: "Must be
       upgraded to per-station walking matrixes before v2.0 launch."
 
-- [ ] `tracks.json` `stationKm` values are non-monotonic for most of blue,
-      red, and yellow (its own `tracks-report.txt` flags these), so track-length
-      distances can't yet replace the straight-line distances used for
-      segment-time weighting (`buildCumulativeMins`). Once the Phase A traces
-      are cleaned up, swap haversine for along-track distance there.
+- [ ] `tracks.json` `stationKm` values are now monotonic and clean. We can now swap haversine for along-track distance in segment-time weighting (`buildCumulativeMins`).
 
 
 

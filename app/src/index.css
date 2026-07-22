@@ -87,3 +87,27 @@ html, body, #root {
 .leaflet-tooltip-right.vignelli-label::before {
   display: none; /* hide the little triangle arrow */
 }
+
+/* Trains glide between 1s simulation ticks */
+.leaflet-marker-icon.train-glide {
+  transition: transform 0.95s linear;
+}
+/* …but never during zoom/pan animations, or markers lag behind the map */
+.leaflet-zoom-anim .leaflet-marker-icon.train-glide {
+  transition: none;
+}
+
+/* When a route is active, mute the basemap so the route owns the screen */
+.map-routing .leaflet-tile-pane {
+  filter: grayscale(1) brightness(1.06) contrast(0.92);
+  transition: filter 0.3s ease;
+}
+:root[data-theme="dark"] .map-routing .leaflet-tile-pane {
+  filter: grayscale(1) brightness(0.75) contrast(0.95);
+}
+
+.leaflet-tooltip.vignelli-label.vignelli-lg { font-size: 13px; }
+:root[data-theme="dark"] .leaflet-tooltip.vignelli-label {
+  color: #fff;
+  text-shadow: 1px 1px 0 #0f0f0f, -1px -1px 0 #0f0f0f, 1px -1px 0 #0f0f0f, -1px 1px 0 #0f0f0f;
+}

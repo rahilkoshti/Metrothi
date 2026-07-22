@@ -1,87 +1,96 @@
 
 ═══ BLUE LINE ═══
-  ~~ vastral: skipped as waypoint (TRACE_SKIP)
-  Track: 1144 pts → 356 after simplify
-  Length: 70.67 km
+  !! vastral → rabari-colony: rejected detour in OSM (path=5.31 km, direct=1.26 km) — using straight line.
+  !! kalupur → gheekanta: rejected detour in OSM (path=7.65 km, direct=1.66 km) — using straight line.
+  !! shahpur → old-high-court: rejected detour in OSM (path=13.99 km, direct=1.64 km) — using straight line.
+  !! old-high-court → sp-stadium: rejected detour in OSM (path=11.95 km, direct=0.60 km) — using straight line.
+  !! sp-stadium → commerce-six-road: rejected detour in OSM (path=10.42 km, direct=0.89 km) — using straight line.
+  !! commerce-six-road → gujarat-university: rejected detour in OSM (path=8.42 km, direct=1.09 km) — using straight line.
+  !! gurukul-road → doordarshan-kendra: rejected detour in OSM (path=4.41 km, direct=1.07 km) — using straight line.
+  Track: 184 pts → 61 after simplify
+  Length: 19.29 km
   vastral-gam                  km=  0.02  offset=4m
-  nirant-cross-road            km=  0.92  offset=6m
-  vastral                      km=  0.01  offset=5m
-  rabari-colony                km=  5.02  offset=7m
-  amraivadi                    km=  5.76  offset=16m
-  apparel-park                 km=  7.26  offset=17m
-  kankaria-east                km=  8.75  offset=1m
-  kalupur                      km= 27.69  offset=18m
-  gheekanta                    km= 17.64  offset=47m
-  shahpur                      km= 18.85  offset=52m
-  old-high-court               km= 32.84  offset=0m
-  sp-stadium                   km= 44.78  offset=3m
-  commerce-six-road            km= 55.18  offset=2m
-  gujarat-university           km= 42.77  offset=2m
-  gurukul-road                 km= 41.90  offset=10m
-  doordarshan-kendra           km= 65.58  offset=1m
-  thaltej                      km= 38.31  offset=4m
-  thaltej-gam                  km= 70.67  offset=0m
-  !! Non-monotonic measure at vastral — inspect the track trace.
-  !! Non-monotonic measure at gheekanta — inspect the track trace.
-  !! Non-monotonic measure at gujarat-university — inspect the track trace.
-  !! Non-monotonic measure at gurukul-road — inspect the track trace.
-  !! Non-monotonic measure at thaltej — inspect the track trace.
+  nirant-cross-road            km=  0.93  offset=1m
+  vastral                      km=  2.16  offset=5m
+  rabari-colony                km=  3.42  offset=8m
+  amraivadi                    km=  4.16  offset=16m
+  apparel-park                 km=  5.66  offset=17m
+  kankaria-east                km=  7.15  offset=1m
+  kalupur                      km=  8.44  offset=3m
+  gheekanta                    km= 10.10  offset=12m
+  shahpur                      km= 11.34  offset=52m
+  old-high-court               km= 12.96  offset=1m
+  sp-stadium                   km= 13.57  offset=1m
+  commerce-six-road            km= 14.46  offset=2m
+  gujarat-university           km= 15.55  offset=2m
+  gurukul-road                 km= 16.42  offset=9m
+  doordarshan-kendra           km= 17.49  offset=3m
+  thaltej                      km= 18.36  offset=4m
+  thaltej-gam                  km= 19.28  offset=0m
+  Measures monotonic ✓
 
 ═══ RED LINE ═══
   ~~ sabarmati-railway-station: skipped as waypoint (TRACE_SKIP)
-  !! gandhigram → old-high-court: no rail path in OSM — using straight line. Map this segment in OSM or accept the chord.
-  !! old-high-court → usmanpura: no rail path in OSM — using straight line. Map this segment in OSM or accept the chord.
-  Track: 537 pts → 158 after simplify
-  Length: 58.21 km
+  !! gandhigram → old-high-court: no rail path in OSM — using straight line.
+  !! old-high-court → usmanpura: no rail path in OSM — using straight line.
+  !! usmanpura → vijaynagar: rejected detour in OSM (path=10.34 km, direct=1.13 km) — using straight line.
+  !! vijaynagar → vadaj: rejected detour in OSM (path=13.28 km, direct=1.41 km) — using straight line.
+  !! aec → sabarmati: rejected detour in OSM (path=21.50 km, direct=1.22 km) — using straight line.
+  Track: 145 pts → 45 after simplify
+  Length: 16.90 km
   apmc                         km=  0.00  offset=8m
   jivraj-park                  km=  1.59  offset=4m
   rajivnagar                   km=  2.51  offset=27m
   shreyas                      km=  3.75  offset=1m
-  paldi                        km=  5.46  offset=7m
+  paldi                        km=  5.46  offset=6m
   gandhigram                   km=  6.61  offset=9m
   old-high-court               km=  7.78  offset=5m
-  usmanpura                    km= 29.32  offset=0m
-  vijaynagar                   km= 30.46  offset=56m
-  vadaj                        km= 32.19  offset=5m
-  ranip                        km= 32.92  offset=20m
-  aec                          km= 35.31  offset=2m
-  sabarmati                    km= 56.76  offset=6m
-  motera-stadium               km= 55.40  offset=1m
-  !! Non-monotonic measure at motera-stadium — inspect the track trace.
+  usmanpura                    km=  8.66  offset=4m
+  vijaynagar                   km=  9.81  offset=24m
+  vadaj                        km= 11.22  offset=9m
+  ranip                        km= 11.94  offset=20m
+  aec                          km= 14.32  offset=2m
+  sabarmati                    km= 15.54  offset=6m
+  motera-stadium               km= 16.90  offset=3m
+  Measures monotonic ✓
 
 ═══ YELLOW LINE ═══
-  Track: 878 pts → 270 after simplify
-  Length: 104.39 km
+  !! koteshwar-road → vishwakarma-college: rejected detour in OSM (path=13.75 km, direct=1.31 km) — using straight line.
+  !! vishwakarma-college → tapovan-circle: rejected detour in OSM (path=11.77 km, direct=0.73 km) — using straight line.
+  !! tapovan-circle → narmada-canal: rejected detour in OSM (path=9.92 km, direct=0.86 km) — using straight line.
+  !! koba-circle → juna-koba: rejected detour in OSM (path=6.29 km, direct=0.34 km) — using straight line.
+  !! dholakuva-circle → infocity: rejected detour in OSM (path=8.50 km, direct=0.82 km) — using straight line.
+  !! infocity → sector-1: rejected detour in OSM (path=11.05 km, direct=1.47 km) — using straight line.
+  Track: 156 pts → 51 after simplify
+  Length: 22.46 km
   motera-stadium               km=  0.00  offset=4m
   koteshwar-road               km=  1.25  offset=1m
-  vishwakarma-college          km=  2.59  offset=5m
-  tapovan-circle               km=  3.32  offset=0m
-  narmada-canal                km= 36.76  offset=5m
-  koba-circle                  km= 11.98  offset=1m
-  juna-koba                    km= 35.18  offset=0m
-  koba-gam                     km=  7.49  offset=12m
-  gnlu                         km= 47.19  offset=4m
-  raysan                       km= 48.50  offset=0m
-  randesan                     km= 49.95  offset=1m
-  dholakuva-circle             km= 51.07  offset=13m
-  infocity                     km= 94.99  offset=3m
-  sector-1                     km= 70.68  offset=0m
-  sector-10a                   km= 71.93  offset=4m
-  sachivalaya                  km= 73.13  offset=26m
-  akshardham                   km= 74.23  offset=3m
-  juna-sachivalaya             km= 75.15  offset=1m
-  sector-16                    km= 76.25  offset=4m
-  sector-24                    km= 77.27  offset=6m
-  mahatma-mandir               km=104.39  offset=153m  !! BAD COORD?
-     → OSM suggests: lat 23.2339412, lng 72.6338714 (node 13457569598, "Mahatma Mandir") — update stations.json and re-run.
-  !! Non-monotonic measure at koba-circle — inspect the track trace.
-  !! Non-monotonic measure at koba-gam — inspect the track trace.
-  !! Non-monotonic measure at sector-1 — inspect the track trace.
+  vishwakarma-college          km=  2.58  offset=6m
+  tapovan-circle               km=  3.31  offset=1m
+  narmada-canal                km=  4.17  offset=7m
+  koba-circle                  km=  5.41  offset=1m
+  juna-koba                    km=  5.75  offset=6m
+  koba-gam                     km=  7.48  offset=12m
+  gnlu                         km=  8.46  offset=4m
+  raysan                       km=  9.77  offset=0m
+  randesan                     km= 11.23  offset=1m
+  dholakuva-circle             km= 12.35  offset=13m
+  infocity                     km= 13.19  offset=8m
+  sector-1                     km= 14.67  offset=1m
+  sector-10a                   km= 15.91  offset=4m
+  sachivalaya                  km= 17.11  offset=26m
+  akshardham                   km= 18.21  offset=3m
+  juna-sachivalaya             km= 19.13  offset=2m
+  sector-16                    km= 20.23  offset=6m
+  sector-24                    km= 21.25  offset=8m
+  mahatma-mandir               km= 22.46  offset=1m
+  Measures monotonic ✓
 
 ═══ VIOLET LINE ═══
-  Track: 77 pts → 28 after simplify
-  Length: 7.39 km
+  !! pdeu → gift-city: rejected detour in OSM (path=5.73 km, direct=2.48 km) — using straight line.
+  Track: 23 pts → 10 after simplify
+  Length: 4.16 km
   gnlu                         km=  0.01  offset=4m
-  pdeu                         km=  4.64  offset=10m
-  gift-city                    km=  7.38  offset=1m
+  pdeu                         km=  1.68  offset=1m
+  gift-city                    km=  4.16  offset=10m
   Measures monotonic ✓
