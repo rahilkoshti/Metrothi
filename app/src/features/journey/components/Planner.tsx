@@ -12,36 +12,7 @@ import { LineBadge } from "../../../components/LineBadge";
 import { LocationNotice } from "../../../components/LocationNotice";
 import type { LocStatus } from "../../../App";
 
-function fuzzySearch(query: string, items: any[], keyFn: (item: any) => string) {
-  const q = query.toLowerCase().replace(/\s+/g, "");
-  if (!q) return items.slice(0, 6);
-  
-  const scored = items.map(item => {
-    const target = keyFn(item).toLowerCase();
-    const targetNoSpace = target.replace(/\s+/g, "");
-    let score = -1;
-    if (target === query.toLowerCase()) score = 100;
-    else if (target.startsWith(query.toLowerCase())) score = 80;
-    else if (target.includes(query.toLowerCase())) score = 50;
-    else {
-      let qIdx = 0;
-      for (let i = 0; i < targetNoSpace.length && qIdx < q.length; i++) {
-        if (targetNoSpace[i] === q[qIdx]) {
-          qIdx++;
-          if (qIdx === q.length) break;
-        }
-      }
-      if (qIdx === q.length) score = 10;
-    }
-    return { item, score };
-  });
-
-  return scored
-    .filter(s => s.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .map(s => s.item)
-    .slice(0, 6);
-}
+import { fuzzySearch } from "../utils/fuzzySearch";
 
 interface PlannerProps {
   onPlan: (sourceId: string | PlaceNode, destId: string | PlaceNode, timeConfig?: { queryTime?: Date, arriveBy?: boolean }) => void;

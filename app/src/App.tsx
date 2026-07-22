@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
-import { Dashboard } from './features/journey/components/Dashboard';
+import { HomeScreen } from './features/journey/components/HomeScreen';
 import { Planner } from './features/journey/components/Planner';
 import { ResultsScreen } from './features/journey/components/ResultsScreen';
 import { LiveJourneyScreen } from './features/journey/components/LiveJourneyScreen';
@@ -50,6 +50,12 @@ function MainApp() {
 
   const journeySession = useJourneySession(activeJourney ? result : null);
 
+  // The tab bar's height isn't the 80px screens have been assuming: it's ~68px
+  // intrinsically, and grows by the home-indicator inset on notched phones, so
+  // a hardcoded offset either leaves a gap or hides content behind the bar.
+  // Publish the measured height for full-viewport screens to subtract.
+  const navRef = useRef<HTMLElement>(null);
+
   const requestLocation = useCallback(() => {
     setLocStatus("locating");
     LocationService.getCurrentPosition(
@@ -96,10 +102,23 @@ function MainApp() {
     setIsJourneyMinimized(false);
     if (location.pathname !== "/go") navigate("/go");
   }
-  function handlePlanFromHere() { setResult(null); setActiveJourney(false); setIsJourneyMinimized(false); navigate("/go"); }
   function handleBack() { setResult(null); setActiveJourney(false); setIsJourneyMinimized(false); }
 
   const showTabBar = !result || (activeJourney && isJourneyMinimized);
+
+  useEffect(() => {
+    const el = navRef.current;
+    const root = document.documentElement;
+    if (!el) {
+      root.style.removeProperty('--nav-h');
+      return;
+    }
+    const measure = () => root.style.setProperty('--nav-h', `${el.offsetHeight}px`);
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => ro.disconnect();
+  }, [showTabBar]);
 
   const navItems = [
     { path: "/", label: "Home", icon: Home },
@@ -115,7 +134,12 @@ function MainApp() {
       style={{ background: 'var(--c-bg)', color: 'var(--c-text)', fontFamily: "'Space Grotesk', sans-serif" }}
     >
       <div className="w-full flex-1 relative flex flex-col">
-        <main className={`flex-1 overflow-y-auto ${showTabBar ? 'pb-20' : ''}`}>
+        <main
+          className="flex-1 overflow-y-auto"
+          // Matches the real tab bar rather than a hardcoded 80px, so a
+          // viewport-height screen fills exactly and the page doesn't scroll.
+          style={{ paddingBottom: showTabBar ? 'var(--nav-h, 80px)' : undefined }}
+        >
         {result ? (
           activeJourney ? (
             !isJourneyMinimized ? (
@@ -130,7 +154,7 @@ function MainApp() {
               <>
                 <div className="animate-in fade-in duration-300">
                   <Routes>
-                    <Route path="/" element={<Dashboard nearest={nearestOrFallback} locStatus={locStatus} onRetryLocation={requestLocation} onPlanFromHere={handlePlanFromHere} onPlan={handlePlan} />} />
+                    <Route path="/" element={<HomeScreen coords={coords} nearest={nearestOrFallback} locStatus={locStatus} onRetryLocation={requestLocation} />} />
                     <Route path="/go" element={<Planner onPlan={handlePlan} nearest={nearestOrFallback} locStatus={locStatus} onRetryLocation={requestLocation} />} />
                     <Route path="/map" element={<Suspense fallback={<MapFallback />}><MapScreen coords={coords} nearest={nearestOrFallback} /></Suspense>} />
                     <Route path="/stations" element={<StationsDirectory />} />
@@ -148,7 +172,7 @@ function MainApp() {
           <div className="animate-in fade-in duration-300">
             <Routes>
               <Route path="/" element={
-                <Dashboard nearest={nearestOrFallback} locStatus={locStatus} onRetryLocation={requestLocation} onPlanFromHere={handlePlanFromHere} onPlan={handlePlan} />
+                <HomeScreen coords={coords} nearest={nearestOrFallback} locStatus={locStatus} onRetryLocation={requestLocation} />
               } />
               <Route path="/go" element={
                 <Planner onPlan={handlePlan} nearest={nearestOrFallback} locStatus={locStatus} onRetryLocation={requestLocation} />
@@ -164,6 +188,7 @@ function MainApp() {
 
       {showTabBar && (
         <nav
+          ref={navRef}
           className="fixed bottom-0 w-full border-t z-50 pb-[env(safe-area-inset-bottom)] transition-colors duration-300"
           style={{ 
             background: 'var(--c-blur)', 

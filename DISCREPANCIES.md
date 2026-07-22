@@ -75,6 +75,23 @@ dimming, or zoom-progressive labels.
       pointing at the CDN. Out of scope for the PWA pass; low impact since the
       app mostly uses `CircleMarker`s.
 
+- [ ] **Full-viewport screens still hardcode an 80px tab-bar offset**
+      (`MapScreen.tsx:124`, `Planner.tsx:154`, `App.tsx` `MapFallback`).
+      The tab bar is ~68px intrinsically and grows by
+      `env(safe-area-inset-bottom)` on notched phones, so these leave a ~12px
+      dead gap on most devices and overlap the bar on iPhones. `App.tsx` now
+      measures the bar and publishes `--nav-h`; these three should switch to
+      `calc(100dvh - var(--nav-h, 80px))`. They also use `100vh` rather than
+      `100dvh`, so they jump as mobile browser toolbars collapse. Found while
+      making the home screen mobile-safe; left alone to keep that change scoped.
+
+- [ ] **Sub-44px touch targets in shared components**
+      (`LocationNotice` Retry button ~27px tall; `StationDetail` direction tabs
+      ~39px; `App.tsx` tab-bar links ~39px). Below both Apple's 44pt and
+      Material's 48dp minimums. Found during the home-screen mobile audit; these
+      are pre-existing and shared across screens, so changing them affects more
+      than the home surface.
+
 ---
 
 ## Resolved / Fixed

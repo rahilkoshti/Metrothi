@@ -13,7 +13,7 @@ import { useNow } from "../hooks/useNow";
 import type { DayScheduleDirection, DayTrain } from "../engine/journeyEngine";
 
 import { LineBadge } from "../../../components/LineBadge";
-import { LINE_COLORS, LINE_NAMES, LINE_LETTER } from "../constants";
+import { LINE_COLORS, LINE_NAMES } from "../constants";
 import { TrainRouteSheet } from "./TrainRouteSheet";
 
 // ─── Direction Schedule (speedometer list) ───────────────────────────
@@ -316,158 +316,39 @@ function LineScheduleCard({ stationId, line, autoOpenDirDest }: { stationId: str
   );
 }
 
-// ─── Main page ───────────────────────────────────────────────────────
-export function StationDetail() {
-  const { id } = useParams();
+// ─── Shared detail body ──────────────────────────────────────────────
+// Everything the station page shows below its sticky header. Extracted so the
+// home screen's draggable sheet renders the identical content rather than a
+// second, drifting copy of it.
+export function StationDetailBody({
+  stationId,
+  openLine,
+  openDirDest,
+}: {
+  stationId: string;
+  openLine?: string;
+  openDirDest?: string;
+}) {
   const navigate = useNavigate();
+  const station = STATION_BY_ID[stationId];
 
-  const location = useLocation();
-
-  const station = id ? STATION_BY_ID[id] : undefined;
-
-  // Hooks must run unconditionally, so this sits above the not-found return.
+  // Hooks must run unconditionally, so this sits above the missing-station return.
   const posOnLine = useMemo(() => {
-    if (!id || !station) return null;
+    if (!station) return null;
     const path = LINE_PATHS[station.line];
     if (!path) return null;
-    const idx = path.indexOf(id);
+    const idx = path.indexOf(stationId);
     if (idx === -1) return null;
     return { idx, total: path.length - 1 };
-  }, [id, station]);
+  }, [stationId, station]);
 
-  if (!id || !station) {
-    return (
-      <div className="p-8 text-center pt-24">
-        <h2 className="text-xl font-bold" style={{ color: "var(--c-text)" }}>
-          Station not found
-        </h2>
-        <button onClick={() => navigate(-1)} className="mt-4 text-yellow-400 font-semibold">
-          Go back
-        </button>
-      </div>
-    );
-  }
-
-  const deepLinkState = (location.state as { openLine?: string; openDirDest?: string } | null) ?? {};
+  if (!station) return null;
 
   const lines = [station.line, ...(station.secondLine ? [station.secondLine] : [])];
 
   const handlePlanFromHere = () => navigate("/go", { state: { prefillSource: station.id } });
 
-  const primaryColor = LINE_COLORS[station.line];
-
   return (
-    <div className="min-h-screen pb-28 animate-in fade-in slide-in-from-right-4 duration-300">
-      {/* Sticky top bar */}
-      <div
-        className="sticky top-0 z-30 px-4 py-3 flex items-center gap-3 transition-colors"
-        style={{
-          background: "var(--c-blur)",
-          borderBottom: "1px solid var(--c-border)",
-          backdropFilter: "blur(20px)",
-        }}
-      >
-        <button
-          onClick={() => navigate(-1)}
-          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-          style={{ background: "var(--c-card)" }}
-        >
-          <ArrowLeft size={18} style={{ color: "var(--c-text)" }} />
-        </button>
-        <span className="font-bold text-[14px] truncate" style={{ color: "var(--c-text)" }}>
-          {station.name}
-        </span>
-      </div>
-
-      {/* Station Banner */}
-      <div
-        className="relative overflow-hidden"
-        style={{
-          height: 160,
-          background: `linear-gradient(135deg, ${primaryColor}22 0%, ${primaryColor}08 60%, var(--c-bg) 100%)`,
-          borderBottom: `1px solid ${primaryColor}22`,
-        }}
-      >
-        {/* Decorative blobs */}
-        <div
-          className="absolute rounded-full"
-          style={{
-            width: 220,
-            height: 220,
-            top: -80,
-            right: -60,
-            background: `radial-gradient(circle, ${primaryColor}30 0%, transparent 70%)`,
-            animation: "pulse 4s ease-in-out infinite",
-          }}
-        />
-        <div
-          className="absolute rounded-full"
-          style={{
-            width: 120,
-            height: 120,
-            bottom: -40,
-            left: 20,
-            background: `radial-gradient(circle, ${primaryColor}18 0%, transparent 70%)`,
-            animation: "pulse 6s ease-in-out infinite",
-            animationDelay: "1s",
-          }}
-        />
-
-        {/* Rail track motif */}
-        {/* Schematic line mini-map */}
-        {posOnLine && (
-          <div className="absolute bottom-0 left-0 right-0 w-full h-8 flex items-center px-6" style={{ paddingBottom: '12px' }}>
-            <div className="relative w-full h-1.5" style={{ background: primaryColor, opacity: 0.9 }}>
-              {Array.from({ length: posOnLine.total + 1 }).map((_, i) => {
-                const isCurrent = i === posOnLine.idx;
-                const left = `${(i / posOnLine.total) * 100}%`;
-                return (
-                  <div
-                    key={i}
-                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2"
-                    style={{
-                      left,
-                      width: isCurrent ? 8 : 4,
-                      height: isCurrent ? 14 : 10,
-                      background: "white",
-                      border: `2px solid ${primaryColor}`,
-                      zIndex: isCurrent ? 10 : 1,
-                    }}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Line badge watermark */}
-        <div
-          className="absolute top-5 right-6 font-black text-[80px] leading-none select-none pointer-events-none"
-          style={{ color: primaryColor, opacity: 0.07, fontVariantNumeric: "tabular-nums" }}
-        >
-          {LINE_LETTER[station.line]}
-        </div>
-
-        {/* Line pill */}
-        <div className="absolute bottom-16 left-5 flex items-center gap-2">
-          <LineBadge line={station.line} size="xs" />
-          <span
-            className="text-[11px] font-bold uppercase tracking-widest"
-            style={{ color: primaryColor, opacity: 0.85 }}
-          >
-            {LINE_NAMES[station.line]}
-          </span>
-          {station.interchange && (
-            <span
-              className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded"
-              style={{ background: `${primaryColor}22`, color: primaryColor }}
-            >
-              Interchange
-            </span>
-          )}
-        </div>
-      </div>
-
       <div className="p-5 max-w-[var(--layout-max-width)] mx-auto space-y-6">
         {/* Hero */}
         <div className="pt-4">
@@ -547,14 +428,68 @@ export function StationDetail() {
             {lines.map((line) => (
               <LineScheduleCard
                 key={line}
-                stationId={id}
+                stationId={stationId}
                 line={line}
-                autoOpenDirDest={deepLinkState.openLine === line ? deepLinkState.openDirDest : undefined}
+                autoOpenDirDest={openLine === line ? openDirDest : undefined}
               />
             ))}
           </div>
         </div>
       </div>
+  );
+}
+
+// ─── Main page ───────────────────────────────────────────────────────
+export function StationDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const station = id ? STATION_BY_ID[id] : undefined;
+
+  if (!id || !station) {
+    return (
+      <div className="p-8 text-center pt-24">
+        <h2 className="text-xl font-bold" style={{ color: "var(--c-text)" }}>
+          Station not found
+        </h2>
+        <button onClick={() => navigate(-1)} className="mt-4 text-yellow-400 font-semibold">
+          Go back
+        </button>
+      </div>
+    );
+  }
+
+  const deepLinkState = (location.state as { openLine?: string; openDirDest?: string } | null) ?? {};
+
+  return (
+    <div className="min-h-screen pb-28 animate-in fade-in slide-in-from-right-4 duration-300">
+      {/* Sticky top bar */}
+      <div
+        className="sticky top-0 z-30 px-4 py-3 flex items-center gap-3 transition-colors"
+        style={{
+          background: "var(--c-blur)",
+          borderBottom: "1px solid var(--c-border)",
+          backdropFilter: "blur(20px)",
+        }}
+      >
+        <button
+          onClick={() => navigate(-1)}
+          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+          style={{ background: "var(--c-card)" }}
+        >
+          <ArrowLeft size={18} style={{ color: "var(--c-text)" }} />
+        </button>
+        <span className="font-bold text-[14px] truncate" style={{ color: "var(--c-text)" }}>
+          {station.name}
+        </span>
+      </div>
+
+      <StationDetailBody
+        stationId={id}
+        openLine={deepLinkState.openLine}
+        openDirDest={deepLinkState.openDirDest}
+      />
     </div>
   );
 }

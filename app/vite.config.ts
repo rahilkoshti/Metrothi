@@ -40,6 +40,8 @@ export default defineConfig({
         // Precache the built shell — the transit engines are bundled in the JS,
         // so this alone makes airplane-mode journey planning work.
         globPatterns: ['**/*.{js,css,html,svg,ico,woff2}'],
+        // Build input for the icon generator, never requested at runtime.
+        globIgnores: ['**/icon-source.svg'],
         // The app is a client-routed SPA; vercel.json rewrites are server-side
         // and do nothing offline. Serve index.html for any uncached navigation
         // so deep links like /go and /map survive a hard reload while offline.

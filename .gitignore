@@ -4,3 +4,6 @@
 !.dev.vars.example
 .env*
 !.env.example
+
+# Large reference screen recordings kept locally, not in history
+files/*.mp4

@@ -3,11 +3,17 @@ import {
   minimal2023Preset,
 } from '@vite-pwa/assets-generator/config'
 
-// The source favicon is a transparent purple glyph. Transparent-background
-// icons look fine as a standard/any icon, but a maskable icon is cropped to a
-// circle/squircle by the OS, so it needs a solid background and safe-zone
-// padding or the glyph gets clipped and floats on nothing. We fill the
-// maskable background with the app's light theme-color and pad generously.
+// Rasters are generated from icon-source.svg, not favicon.svg: the brand glyph
+// is monochrome near-black, so on a transparent icon it disappears against a
+// dark launcher or a dark browser tab strip. icon-source.svg carries its own
+// opaque background. (Note a `background` in resizeOptions can't fix this — it
+// only fills padding, it doesn't flatten the source's alpha.)
+//
+// favicon.svg stays transparent and flips to a light glyph via a
+// prefers-color-scheme rule, which browsers honour and rasterisers ignore.
+//
+// The maskable icon is additionally cropped to a circle/squircle by the OS, so
+// it needs generous safe-zone padding or the glyph gets clipped.
 const preset = minimal2023Preset
 
 preset.maskable.padding = 0.4
@@ -25,5 +31,5 @@ preset.apple.resizeOptions = {
 
 export default defineConfig({
   preset,
-  images: ['public/favicon.svg'],
+  images: ['public/icon-source.svg'],
 })
