@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, X, MapPin, Navigation, History, Star, Loader2 } from 'lucide-react';
 import {
   STATIONS,
@@ -105,10 +105,12 @@ export function HomeSearch({
   onClose,
   onSelectStation,
   onPlanTo,
+  focusLine,
 }: {
   onClose: () => void;
   onSelectStation: (id: string) => void;
   onPlanTo: (item: StationRecord | PlaceNode) => void;
+  focusLine?: string | null;
 }) {
   const [query, setQuery] = useState('');
   const [places, setPlaces] = useState<PlaceNode[]>([]);
@@ -119,7 +121,10 @@ export function HomeSearch({
   const [savedJourneys, setSavedJourneys] = useState<any[]>([]);
 
   useEffect(() => {
-    inputRef.current?.focus();
+    // When arriving from a line pill we're browsing that line's stations, so
+    // don't steal focus into the input (and pop the keyboard) — the scroll to
+    // the line group is the point.
+    if (!focusLine) inputRef.current?.focus();
     try {
       setRecentTrips(JSON.parse(localStorage.getItem('metrothi-recent-trips') || '[]'));
     } catch { /* ignore */ }
@@ -232,7 +237,7 @@ export function HomeSearch({
                 Search any landmark to find the metro stop closest to it — or pick a station below.
               </p>
             )}
-            <AllStations onSelectStation={onSelectStation} onPlanTo={onPlanTo} />
+            <AllStations onSelectStation={onSelectStation} onPlanTo={onPlanTo} focusLine={focusLine} />
           </>
         ) : (
           <>
@@ -300,10 +305,23 @@ export function HomeSearch({
 function AllStations({
   onSelectStation,
   onPlanTo,
+  focusLine,
 }: {
   onSelectStation: (id: string) => void;
   onPlanTo: (item: StationRecord) => void;
+  focusLine?: string | null;
 }) {
+  const focusRef = useRef<HTMLDivElement>(null);
+
+  // Jump the tapped line's group to the top of the directory. Runs in a layout
+  // effect, before paint, so the list is already parked at the right line when
+  // the overlay first shows — no visible scroll. Instant, not smooth: the
+  // overlay is appearing fresh, so there's no jump to soften.
+  useLayoutEffect(() => {
+    if (!focusLine) return;
+    focusRef.current?.scrollIntoView({ block: 'start' });
+  }, [focusLine]);
+
   return (
     <>
       <SectionLabel text="All stations" />
@@ -311,7 +329,7 @@ function AllStations({
         const stns = STATIONS_BY_LINE[line];
         if (!stns?.length) return null;
         return (
-          <div key={line}>
+          <div key={line} ref={line === focusLine ? focusRef : undefined}>
             <div className="flex items-center gap-3 px-4 pt-3 pb-2">
               <LineBadge line={line} size="md" />
               <span className="text-sm font-bold" style={{ color: 'var(--c-text)' }}>

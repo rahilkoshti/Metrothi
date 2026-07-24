@@ -4,11 +4,171 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Metrothi</title>
+
+    <!--
+      ============================================================
+      SEO — production origin is https://metrothi.vercel.app
+      If the deployed domain changes, update EVERY occurrence of
+      that origin below AND in /public/robots.txt + /public/sitemap.xml.
+      ============================================================
+    -->
+    <title>Metrothi — Ahmedabad Metro Route, Map, Timings & Fare Planner</title>
+    <meta
+      name="description"
+      content="Plan Ahmedabad & Gandhinagar Metro journeys with live train timings, route maps, interchange details, and accurate distance-based fares. Free, offline-capable, and installable."
+    />
+    <meta
+      name="keywords"
+      content="Ahmedabad Metro, Ahmedabad Metro Route, Ahmedabad Metro Map, Ahmedabad Metro Timings, Ahmedabad Metro Fare, Gandhinagar Metro, GMRC, metro journey planner, Blue Line, Red Line"
+    />
+    <meta name="author" content="Metrothi" />
+    <meta name="application-name" content="Metrothi" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+    <link rel="canonical" href="https://metrothi.vercel.app/" />
+
+    <!-- Geo targeting (Ahmedabad, Gujarat, India) -->
+    <meta name="geo.region" content="IN-GJ" />
+    <meta name="geo.placename" content="Ahmedabad" />
+    <meta name="geo.position" content="23.0225;72.5714" />
+    <meta name="ICBM" content="23.0225, 72.5714" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Metrothi" />
+    <meta property="og:title" content="Metrothi — Ahmedabad Metro Route, Map, Timings & Fare Planner" />
+    <meta
+      property="og:description"
+      content="Plan Ahmedabad & Gandhinagar Metro journeys with live train timings, route maps, interchange details, and accurate distance-based fares. Free, offline-capable, and installable."
+    />
+    <meta property="og:url" content="https://metrothi.vercel.app/" />
+    <meta property="og:locale" content="en_IN" />
+    <!-- TODO: replace with a dedicated 1200x630 social image when one exists. -->
+    <meta property="og:image" content="https://metrothi.vercel.app/pwa-512x512.png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Metrothi — Ahmedabad Metro Route, Map, Timings & Fare Planner" />
+    <meta
+      name="twitter:description"
+      content="Plan Ahmedabad & Gandhinagar Metro journeys with live timings, route maps, and accurate distance-based fares. Free, offline-capable, and installable."
+    />
+    <meta name="twitter:image" content="https://metrothi.vercel.app/pwa-512x512.png" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
     <meta name="theme-color" content="#f4f4f5" />
+
+    <!-- Structured data: the app itself -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Metrothi",
+        "alternateName": "Metrothi — Ahmedabad Metro",
+        "url": "https://metrothi.vercel.app/",
+        "description": "Offline-capable journey planner for the Ahmedabad and Gandhinagar Metro, with live train timings, route maps, interchange details, and accurate distance-based fares.",
+        "applicationCategory": "TravelApplication",
+        "operatingSystem": "Web, Android, iOS",
+        "browserRequirements": "Requires JavaScript. Installable as a Progressive Web App.",
+        "inLanguage": "en-IN",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" },
+        "areaServed": {
+          "@type": "City",
+          "name": "Ahmedabad",
+          "containedInPlace": { "@type": "AdministrativeArea", "name": "Gujarat, India" }
+        }
+      }
+    </script>
+
+    <!-- Structured data: breadcrumb -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://metrothi.vercel.app/" },
+          { "@type": "ListItem", "position": 2, "name": "Plan a Journey", "item": "https://metrothi.vercel.app/go" },
+          { "@type": "ListItem", "position": 3, "name": "Metro Map", "item": "https://metrothi.vercel.app/map" },
+          { "@type": "ListItem", "position": 4, "name": "Stations", "item": "https://metrothi.vercel.app/stations" }
+        ]
+      }
+    </script>
+
+    <!-- Structured data: FAQ (targets Google "People Also Ask") -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is Metrothi?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Metrothi is a free, offline-capable journey planner for the Ahmedabad and Gandhinagar Metro. It shows the fastest route between any two stations, live train timings, interchange waits, and the exact fare for your trip."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I plan an Ahmedabad Metro journey?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Open Metrothi, enter your starting and destination station (or search for a place), and choose whether to depart now or arrive by a certain time. Metrothi returns the next departures, interchange details, total travel time, and fare."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How many stations does the Ahmedabad Metro have?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Metrothi covers 54 metro stations across the Ahmedabad and Gandhinagar network, spanning the Blue, Red, and Phase 2 lines."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Which is the interchange station on the Ahmedabad Metro?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Old High Court is the main interchange, where the Blue Line and Red Line connect. Metrothi automatically routes you through interchanges and adds the transfer wait to your total journey time."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How is the Ahmedabad Metro fare calculated?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Fares are distance-based, using GMRC's official distance slabs. Metrothi computes the fare from the actual track distance of your route rather than a flat per-trip charge."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is there a discount on Ahmedabad Metro fares?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "GMRC offers a 10% discount on completion of a journey when you pay with a smart card (CSC) or a National Common Mobility Card (NCMC). Metrothi shows token fares by default and notes where the discount applies."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does Metrothi work offline?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Metrothi is an installable Progressive Web App. Once loaded, you can plan journeys, view timings, and check fares even in airplane mode, without any network connection."
+            }
+          }
+        ]
+      }
+    </script>
+
+    <!-- Structured data: all stations (generated from stations.json) -->
+    <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"ItemList","name":"Ahmedabad Metro Stations","numberOfItems":54,"itemListElement":[{"@type":"ListItem","position":1,"item":{"@type":"TrainStation","name":"Vastral Gam Metro Station"}},{"@type":"ListItem","position":2,"item":{"@type":"TrainStation","name":"Nirant Cross Road Metro Station"}},{"@type":"ListItem","position":3,"item":{"@type":"TrainStation","name":"Vastral Metro Station"}},{"@type":"ListItem","position":4,"item":{"@type":"TrainStation","name":"Rabari Colony Metro Station"}},{"@type":"ListItem","position":5,"item":{"@type":"TrainStation","name":"Amraiwadi Metro Station"}},{"@type":"ListItem","position":6,"item":{"@type":"TrainStation","name":"Apparel Park Metro Station"}},{"@type":"ListItem","position":7,"item":{"@type":"TrainStation","name":"Kankaria East Metro Station"}},{"@type":"ListItem","position":8,"item":{"@type":"TrainStation","name":"Kalupur Railway Station Metro Station"}},{"@type":"ListItem","position":9,"item":{"@type":"TrainStation","name":"Gheekanta Metro Station"}},{"@type":"ListItem","position":10,"item":{"@type":"TrainStation","name":"Shahpur Metro Station"}},{"@type":"ListItem","position":11,"item":{"@type":"TrainStation","name":"Old High Court Metro Station"}},{"@type":"ListItem","position":12,"item":{"@type":"TrainStation","name":"SP Stadium Metro Station"}},{"@type":"ListItem","position":13,"item":{"@type":"TrainStation","name":"Commerce Six Road Metro Station"}},{"@type":"ListItem","position":14,"item":{"@type":"TrainStation","name":"Gujarat University Metro Station"}},{"@type":"ListItem","position":15,"item":{"@type":"TrainStation","name":"Gurukul Road Metro Station"}},{"@type":"ListItem","position":16,"item":{"@type":"TrainStation","name":"Doordarshan Kendra Metro Station"}},{"@type":"ListItem","position":17,"item":{"@type":"TrainStation","name":"Thaltej Metro Station"}},{"@type":"ListItem","position":18,"item":{"@type":"TrainStation","name":"Thaltej Gam Metro Station"}},{"@type":"ListItem","position":19,"item":{"@type":"TrainStation","name":"APMC Metro Station"}},{"@type":"ListItem","position":20,"item":{"@type":"TrainStation","name":"Jivraj Park Metro Station"}},{"@type":"ListItem","position":21,"item":{"@type":"TrainStation","name":"Rajiv Nagar Metro Station"}},{"@type":"ListItem","position":22,"item":{"@type":"TrainStation","name":"Shreyas Metro Station"}},{"@type":"ListItem","position":23,"item":{"@type":"TrainStation","name":"Paldi Metro Station"}},{"@type":"ListItem","position":24,"item":{"@type":"TrainStation","name":"Gandhigram Metro Station"}},{"@type":"ListItem","position":25,"item":{"@type":"TrainStation","name":"Usmanpura Metro Station"}},{"@type":"ListItem","position":26,"item":{"@type":"TrainStation","name":"Vijay Nagar Metro Station"}},{"@type":"ListItem","position":27,"item":{"@type":"TrainStation","name":"Vadaj Metro Station"}},{"@type":"ListItem","position":28,"item":{"@type":"TrainStation","name":"Ranip Metro Station"}},{"@type":"ListItem","position":29,"item":{"@type":"TrainStation","name":"Sabarmati Railway Station Metro Station"}},{"@type":"ListItem","position":30,"item":{"@type":"TrainStation","name":"AEC Metro Station"}},{"@type":"ListItem","position":31,"item":{"@type":"TrainStation","name":"Sabarmati Metro Station"}},{"@type":"ListItem","position":32,"item":{"@type":"TrainStation","name":"Motera Stadium Metro Station"}},{"@type":"ListItem","position":33,"item":{"@type":"TrainStation","name":"Koteshwar Road Metro Station"}},{"@type":"ListItem","position":34,"item":{"@type":"TrainStation","name":"Vishwakarma College Metro Station"}},{"@type":"ListItem","position":35,"item":{"@type":"TrainStation","name":"Tapovan Circle Metro Station"}},{"@type":"ListItem","position":36,"item":{"@type":"TrainStation","name":"Narmada Canal Metro Station"}},{"@type":"ListItem","position":37,"item":{"@type":"TrainStation","name":"Koba Circle Metro Station"}},{"@type":"ListItem","position":38,"item":{"@type":"TrainStation","name":"Juna Koba Metro Station"}},{"@type":"ListItem","position":39,"item":{"@type":"TrainStation","name":"Koba Gam Metro Station"}},{"@type":"ListItem","position":40,"item":{"@type":"TrainStation","name":"GNLU Metro Station"}},{"@type":"ListItem","position":41,"item":{"@type":"TrainStation","name":"Raysan Metro Station"}},{"@type":"ListItem","position":42,"item":{"@type":"TrainStation","name":"Randesan Metro Station"}},{"@type":"ListItem","position":43,"item":{"@type":"TrainStation","name":"Dholakuva Circle Metro Station"}},{"@type":"ListItem","position":44,"item":{"@type":"TrainStation","name":"Infocity Metro Station"}},{"@type":"ListItem","position":45,"item":{"@type":"TrainStation","name":"Sector-1 (Gandhinagar) Metro Station"}},{"@type":"ListItem","position":46,"item":{"@type":"TrainStation","name":"Sector-10A (Gandhinagar) Metro Station"}},{"@type":"ListItem","position":47,"item":{"@type":"TrainStation","name":"Sachivalaya Metro Station"}},{"@type":"ListItem","position":48,"item":{"@type":"TrainStation","name":"Akshardham Metro Station"}},{"@type":"ListItem","position":49,"item":{"@type":"TrainStation","name":"Juna Sachivalaya Metro Station"}},{"@type":"ListItem","position":50,"item":{"@type":"TrainStation","name":"Sector-16 (Gandhinagar) Metro Station"}},{"@type":"ListItem","position":51,"item":{"@type":"TrainStation","name":"Sector-24 (Gandhinagar) Metro Station"}},{"@type":"ListItem","position":52,"item":{"@type":"TrainStation","name":"Mahatma Mandir Metro Station"}},{"@type":"ListItem","position":53,"item":{"@type":"TrainStation","name":"PDEU Metro Station"}},{"@type":"ListItem","position":54,"item":{"@type":"TrainStation","name":"GIFT City Metro Station"}}]}
+    </script>
+
     <script>
       // Set data-theme and the background before first paint, from the same
       // localStorage key ThemeContext reads - otherwise light-theme users

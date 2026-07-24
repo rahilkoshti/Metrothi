@@ -16,9 +16,32 @@ an entry once it's fixed.
       for every interchange. PRD §5.1 calls this out explicitly: "Must be
       upgraded to per-station walking matrixes before v2.0 launch."
 
-- [ ] `tracks.json` `stationKm` values are now monotonic and clean. We can now swap haversine for along-track distance in segment-time weighting (`buildCumulativeMins`).
 
 
+
+## Map rendering (`app/src/features/map/components/HomeMap.tsx`, `map/geometry/trackGeometry.ts`)
+
+
+## Routing / dead code (`app/src/App.tsx`, `map/components/MapScreen.tsx`, `journey/components/StationsDirectory.tsx`)
+
+- [ ] **`MapScreen` and `StationsDirectory` are dead code** — neither is imported
+      anywhere. They are the only in-app components that link to the
+      `/stations/:id` route (via `navigate` / `<Link>`); with them unused, that
+      route is now reached only by direct URL (SEO/deep-link). Safe to delete
+      both files once confirmed no external entry point relies on them. Found
+      2026-07-23 while auditing overlay-vs-page navigation.
+
+- [ ] **`StationDetail` SEO page's "From here" / "To here" buttons are no-ops.**
+      As of the 2026-07-23 overlay work, both buttons dispatch a `home-plan-trip`
+      event that only `HomeScreen` listens for. Inside the home sheet that opens
+      the planner overlay correctly (source for "From here", dest for "To here");
+      on the standalone `/stations/:id` page no `HomeScreen` is mounted, so the
+      event is silently dropped. Previously the single button navigated to `/go`,
+      which never existed as a route and fell through to `HomeScreen` without
+      opening the planner either — so no behavioural regression, but the
+      standalone page still needs its own way to start a plan (e.g. navigate to
+      `/` carrying the plan intent in router state, and have `HomeScreen` open the
+      planner from it on mount).
 
 ## Template for new entries
 
@@ -42,14 +65,6 @@ an entry once it's fixed.
       without Dexie. PRD §5.2/§5.3 have been amended to match. Revisit only if
       saved-journey data outgrows localStorage's ~5 MB budget.
 
-- [ ] **Leaflet default marker icons load from a CDN**
-      (`MapScreen.tsx:15-17` → `cdnjs.cloudflare.com/.../leaflet/1.7.1/images/*`).
-      These won't be cached by the service worker's runtime rules, so any
-      default Leaflet marker breaks offline. Fix by importing the marker PNGs
-      from the `leaflet` package (so Vite bundles + precaches them) instead of
-      pointing at the CDN. Out of scope for the PWA pass; low impact since the
-      app mostly uses `CircleMarker`s.
-
 - [ ] **Full-viewport screens still hardcode an 80px tab-bar offset**
       (`MapScreen.tsx:124`, `Planner.tsx:154`, `App.tsx` `MapFallback`).
       The tab bar is ~68px intrinsically and grows by
@@ -70,6 +85,49 @@ an entry once it's fixed.
 ---
 
 ## Resolved / Fixed
+
+- **[Added 2026-07-23]** Home-map viewport is now fenced to the metro area. Set
+  `maxBounds` (network box padded ~25%), `maxBoundsViscosity: 1.0` (hard fence —
+  the drag stops solid at the edge, no bounce-back), `minZoom: 11` (zoom-out
+  locked to the whole-network view) and `maxZoom: 18` (free close-up within the
+  box). Verified live: zoom-out clamps 3→11, zoom-in clamps 25→18, a pan toward
+  Mumbai keeps the centre inside the bounds.
+
+- **[Fixed 2026-07-23]** Home-map station markers floated off the line. Once the
+  polylines switched from station chords to real OSM track geometry (commit
+  468c12f), markers still rendered at raw `stations.json` coords and drifted up
+  to ~52m off the drawn track. Markers now snap to the track via
+  `stationPointOnTrack()` (projection stored as `stationKm`), verified on-screen
+  to <1px. Terminal markers additionally rotate perpendicular to the track using
+  `trackScreenAngleAtStation()` (exact vs Web Mercator; see the open caveat above
+  re: Leaflet's drawn-line simplification).
+
+- **[Fixed 2026-07-23]** Live train markers now indicate direction of travel.
+  The old marker was a colour dot with a static, non-directional train glyph.
+  Each train now renders a white arrowhead rotated to its on-screen heading
+  (`trainHeadingDeg()`, from two track points straddling the train's progress in
+  the from→to direction). Verified: arrows lie along the track and point forward
+  — across a 4s window all 17 trains' arrows matched actual movement direction to
+  within ~10°, none reversed.
+
+- **[Fixed 2026-07-23]** `LiveTrainsLayer` never actually rendered. `onAdd`
+  attached its SVG group via `map._renderer._svg`, but Leaflet 1.9's SVG
+  renderer has no `_svg` property (the `<svg>` is `_container`, its content group
+  is `_rootGroup`), so the group was never inserted and no trains appeared. Now
+  attaches to the renderer's `_rootGroup` (via `map.getRenderer(this)`), the same
+  coordinate space as the vector polylines. Also fixed a listener leak: `onAdd`
+  and `onRemove` passed separate `() => this.render()` closures to `on`/`off`, so
+  the `move zoom` handler was never detached — now a single stored `onMapMove`
+  reference is used for both.
+
+- **[Fixed 2026-07-23]** Three TypeScript build errors in the in-flight
+  map/home WIP cleared, restoring a clean `tsc -b --noEmit`:
+  - `HomeScreen.tsx` — the service-status message was built from an object
+    literal that read `status.minsUntilFirst` on every variant; replaced with a
+    `switch` that narrows the union, so only `before-first-train` reads it.
+  - `HomeMap.tsx` — removed the unused value-imported `ReactNode`.
+  - `LiveTrainsLayer.tsx` — `TrainRenderer.onRemove` now returns `this` to match
+    Leaflet's `Layer.onRemove` signature.
 
 - **[Fixed 2026-07-21]** `TS6133: 'walkMinsForKm' is declared but its value is never read` in `useJourneySession.ts` broke `npm run build`. The in-flight edits replaced that call with `result.sourceWalkMins` and left the import behind; import removed.
 

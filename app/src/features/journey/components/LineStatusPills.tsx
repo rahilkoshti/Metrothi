@@ -20,9 +20,9 @@ function label(est: ReturnType<typeof estimateLine>) {
   }
 }
 
-// Read-only status indicators, not controls — so they stay out of the tab order
-// and aren't held to the 44px touch-target minimum.
-export function LineStatusPills() {
+// Tappable status indicators — each pill opens the search overlay scrolled to
+// that line's stations.
+export function LineStatusPills({ onSelectLine }: { onSelectLine?: (line: string) => void }) {
   const now = useNow();
 
   return (
@@ -39,11 +39,12 @@ export function LineStatusPills() {
         const short = LINE_NAMES[line].replace(' Line', '');
 
         return (
-          <div
+          <button
             key={line}
             role="listitem"
-            aria-label={`${LINE_NAMES[line]}: ${text}`}
-            className="shrink-0 flex items-center gap-1.5 rounded-full pl-2 pr-3 py-1.5"
+            aria-label={`${LINE_NAMES[line]}: ${text}. View stations`}
+            onClick={() => onSelectLine?.(line)}
+            className="shrink-0 flex items-center gap-1.5 rounded-full pl-2 pr-3 py-1.5 active:scale-95 transition-transform"
             style={{
               background: 'var(--c-blur)',
               backdropFilter: 'blur(16px)',
@@ -67,7 +68,7 @@ export function LineStatusPills() {
             <span className="text-[11px] font-semibold" style={{ color: tone }}>
               {text}
             </span>
-          </div>
+          </button>
         );
       })}
     </div>

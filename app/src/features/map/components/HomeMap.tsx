@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { MapContainer, Polyline, TileLayer, Tooltip, CircleMarker, useMap } from 'react-leaflet';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { MapContainer, Polyline, TileLayer, Tooltip, CircleMarker, Marker, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { STATIONS, LINE_PATHS, STATION_BY_ID } from '../../journey/engine/journeyEngine';
 import { LINE_COLORS } from '../../journey/constants';
 import { useTheme } from '../../../contexts/ThemeContext';
+import { trackPath, stationPointOnTrack, trackScreenAngleAtStation } from '../../map/geometry/trackGeometry';
 import { LiveTrainsLayer } from './LiveTrainsLayer';
 
 // Fraction of the network the home frame must span, per the brief: the frame
@@ -20,6 +21,57 @@ const NETWORK_BOUNDS = (() => {
   );
   return L.latLngBounds(pts);
 })();
+
+// Panning is fenced to the metro's footprint (Ahmedabad + Gandhinagar) with a
+// little breathing room. Users can roam anywhere inside this box — including
+// close-up when zoomed in — but the drag stops solid at the edge (viscosity
+// 1.0, no bounce-back), so they can never wander off into empty map.
+const AREA_BOUNDS = NETWORK_BOUNDS.pad(0.25);
+// Zoom floor: you can't zoom out past seeing the whole network (keeps the view
+// on Ahmedabad + Gandhinagar). Ceiling leaves room to inspect any section.
+const MIN_ZOOM = 11;
+const MAX_ZOOM = 18;
+
+/** Create station marker icon. Interchange=square, terminal=rectangle, else=circle. */
+function stationMarkerIcon(
+  isSelected: boolean,
+  isInterchange: boolean,
+  isTerminal: boolean,
+  color: string,
+  rotationDeg = 0
+): L.DivIcon {
+  const size = isSelected ? 16 : isInterchange ? 12 : isTerminal ? 14 : 8;
+  const w = isTerminal ? size + 4 : size;
+  const h = size;
+  const strokeWidth = isSelected ? 3 : 2;
+  const totalW = w + strokeWidth * 2;
+  const totalH = h + strokeWidth * 2;
+
+  let shape: string;
+  if (isInterchange) {
+    // Square
+    shape = `<rect x="${strokeWidth}" y="${strokeWidth}" width="${size}" height="${size}" fill="${color}" stroke="white" stroke-width="${strokeWidth}" rx="2"/>`;
+  } else if (isTerminal) {
+    // Rectangle (wider)
+    shape = `<rect x="${strokeWidth}" y="${strokeWidth}" width="${w}" height="${h}" fill="${color}" stroke="white" stroke-width="${strokeWidth}" rx="2"/>`;
+  } else {
+    // Circle
+    shape = `<circle cx="${totalW / 2}" cy="${totalH / 2}" r="${size / 2}" fill="${color}" stroke="white" stroke-width="${strokeWidth}"/>`;
+  }
+
+  // Rotate the whole svg box rigidly about its centre (= the icon anchor), so
+  // the marker stays pinned to the station while its shape turns. Rotating the
+  // box rather than the shape inside keeps the shape from being clipped.
+  const transform = rotationDeg ? ` style="transform:rotate(${rotationDeg}deg)"` : '';
+
+  return L.divIcon({
+    className: 'station-marker',
+    iconSize: [totalW, totalH],
+    iconAnchor: [totalW / 2, totalH / 2],
+    tooltipAnchor: [10, 0],
+    html: `<svg width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg"${transform}>${shape}</svg>`,
+  });
+}
 
 const NETWORK_CENTER = NETWORK_BOUNDS.getCenter();
 
@@ -104,6 +156,20 @@ function PanTo({ target, bottomInset }: { target: { lat: number; lng: number } |
   return null;
 }
 
+function DynamicMinZoom({ areaBounds }: { areaBounds: L.LatLngBounds }) {
+  const map = useMapEvents({
+    resize: () => {
+      map.setMinZoom(map.getBoundsZoom(areaBounds, false));
+    }
+  });
+
+  useEffect(() => {
+    map.setMinZoom(map.getBoundsZoom(areaBounds, false));
+  }, [map, areaBounds]);
+
+  return null;
+}
+
 export function HomeMap({
   coords,
   nearest,
@@ -120,16 +186,48 @@ export function HomeMap({
   panTo: { lat: number; lng: number } | null;
 }) {
   const { theme } = useTheme();
+  const [walkingRoute, setWalkingRoute] = useState<[number, number][] | null>(null);
+
+  // Fetch walking route from OSRM when location or nearest station changes
+  useEffect(() => {
+    if (!coords || !nearest?.lat || !nearest?.lng) {
+      setWalkingRoute(null);
+      return;
+    }
+
+    const fetchRoute = async () => {
+      try {
+        const url = `https://router.project-osrm.org/route/v1/foot/${coords.lng},${coords.lat};${nearest.lng},${nearest.lat}?geometries=geojson&overview=full`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.routes?.[0]?.geometry?.coordinates) {
+          // OSRM returns [lng, lat], we need [lat, lng]
+          setWalkingRoute(
+            data.routes[0].geometry.coordinates.map((coord: [number, number]) => [coord[1], coord[0]])
+          );
+        }
+      } catch (err) {
+        console.error('Failed to fetch walking route:', err);
+        setWalkingRoute(null);
+      }
+    };
+
+    fetchRoute();
+  }, [coords, nearest?.lat, nearest?.lng]);
 
   const polylines = useMemo(
     () =>
-      Object.entries(LINE_PATHS).map(([lineId, path]) => ({
-        lineId,
-        coords: path
-          .map((id) => STATION_BY_ID[id])
-          .filter((s) => s && s.lat != null && s.lng != null)
-          .map((s) => [s.lat!, s.lng!] as [number, number]),
-      })),
+      Object.entries(LINE_PATHS).map(([lineId, path]) => {
+        // Try to use actual track geometry; fall back to station coords if unavailable.
+        const trackCoords = trackPath(lineId);
+        const coords = trackCoords
+          ? (trackCoords as [number, number][])
+          : path
+              .map((id) => STATION_BY_ID[id])
+              .filter((s) => s && s.lat != null && s.lng != null)
+              .map((s) => [s.lat!, s.lng!] as [number, number]);
+        return { lineId, coords };
+      }),
     []
   );
 
@@ -139,6 +237,10 @@ export function HomeMap({
     <MapContainer
       center={[NETWORK_CENTER.lat, NETWORK_CENTER.lng]}
       zoom={11}
+      minZoom={MIN_ZOOM}
+      maxZoom={MAX_ZOOM}
+      maxBounds={AREA_BOUNDS}
+      maxBoundsViscosity={1.0}
       zoomControl={false}
       attributionControl={false}
       scrollWheelZoom
@@ -153,6 +255,7 @@ export function HomeMap({
         }
       />
 
+      <DynamicMinZoom areaBounds={AREA_BOUNDS} />
       <HomeFrame coords={coords} nearest={nearest} bottomInset={bottomInset} />
       <PanTo target={panTo} bottomInset={bottomInset} />
 
@@ -160,6 +263,7 @@ export function HomeMap({
         <Polyline
           key={line.lineId}
           positions={line.coords}
+          smoothFactor={0}
           pathOptions={{
             color: LINE_COLORS[line.lineId] ?? '#666',
             weight: 5,
@@ -172,19 +276,24 @@ export function HomeMap({
 
       {stations.map((s) => {
         const isSelected = s.id === selectedStationId;
+        const isInterchange = !!s.interchange;
+        const isTerminal = !!s.terminal;
         // At network-wide zoom every label is noise — name only the anchors.
-        const labelled = isSelected || s.interchange;
+        const labelled = isSelected || isInterchange || isTerminal;
+        const color = LINE_COLORS[s.line] ?? '#666';
+        // Snap the marker onto the drawn track so it sits on the line, not
+        // beside it; fall back to the raw coordinate when track data is missing.
+        const position = stationPointOnTrack(s.line, s.id) ?? ([s.lat!, s.lng!] as [number, number]);
+        // Terminal caps sit perpendicular to the line: rotate the rectangle's
+        // long axis 90° off the track's on-screen direction.
+        const trackAngle = isTerminal ? trackScreenAngleAtStation(s.line, s.id) : null;
+        const rotationDeg = trackAngle == null ? 0 : trackAngle + 90;
+
         return (
-          <CircleMarker
+          <Marker
             key={s.id}
-            center={[s.lat!, s.lng!]}
-            radius={isSelected ? 8 : s.interchange ? 6 : 4}
-            pathOptions={{
-              color: isSelected ? 'var(--c-text)' : '#ffffff',
-              weight: isSelected ? 3 : 2,
-              fillColor: LINE_COLORS[s.line] ?? '#666',
-              fillOpacity: 1,
-            }}
+            position={position}
+            icon={stationMarkerIcon(isSelected, isInterchange, isTerminal, color, rotationDeg)}
             eventHandlers={{ click: () => onSelectStation(s.id) }}
           >
             {labelled && (
@@ -192,11 +301,26 @@ export function HomeMap({
                 {s.name}
               </Tooltip>
             )}
-          </CircleMarker>
+          </Marker>
         );
       })}
 
       <LiveTrainsLayer activeLines={ALL_LINES} />
+
+      {walkingRoute && walkingRoute.length > 0 && (
+        <Polyline
+          positions={walkingRoute}
+          pathOptions={{
+            color: '#3b82f6',
+            weight: 2,
+            opacity: 0.5,
+            dashArray: '5, 5',
+            lineCap: 'round',
+            lineJoin: 'round',
+          }}
+          interactive={false}
+        />
+      )}
 
       {coords && (
         <>

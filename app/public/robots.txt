@@ -1,0 +1,6 @@
+# Metrothi — Ahmedabad Metro journey planner
+# Production origin: https://metrothi.vercel.app (update if the domain changes)
+User-agent: *
+Allow: /
+
+Sitemap: https://metrothi.vercel.app/sitemap.xml

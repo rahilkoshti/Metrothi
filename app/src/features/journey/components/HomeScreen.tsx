@@ -1,16 +1,18 @@
-import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, LocateFixed, ChevronUp, Compass, Settings, X } from 'lucide-react';
+import { Search, LocateFixed, ChevronUp, Compass, Settings, X, MapPin, Footprints } from 'lucide-react';
 import {
   STATION_BY_ID,
-  upcomingStationDepartures,
   formatDuration,
   walkMinsForKm,
+  estimateLine,
+  LINE_PATHS,
   type StationRecord,
   type PlaceNode,
 } from '../engine/journeyEngine';
 import { useNow } from '../hooks/useNow';
 import { LineBadge } from '../../../components/LineBadge';
+import { LINE_NAMES, LINE_COLORS } from '../constants';
 import { LocationNotice } from '../../../components/LocationNotice';
 import { DraggableSheet, type SheetSnap } from '../../../components/DraggableSheet';
 import { LineStatusPills } from './LineStatusPills';
@@ -22,35 +24,62 @@ import type { LocStatus } from '../../../App';
 // Leaflet is heavy and now sits on the first-paint path, so it stays split out.
 const HomeMap = lazy(() => import('../../map/components/HomeMap').then((m) => ({ default: m.HomeMap })));
 
-// Height of the sheet's peek state — the grab handle plus one header row.
-const COLLAPSED_H = 112;
+// Height of the sheet's peek state — the grab handle, the name row, and the
+// single chip row beneath it (line, distance, walk time). Sized to fit exactly
+// that so the body's action buttons stay below the fold when collapsed.
+const COLLAPSED_H = 118;
 
-/** Soonest departure from this station across both directions of a line. */
-function NextTrainChip({ stationId, line }: { stationId: string; line: string }) {
+/** Format distance in km or meters based on value. */
+function formatDistance(km: number): string {
+  if (km < 1) return `${Math.round(km * 1000)} m`;
+  return `${km.toFixed(1)} km`;
+}
+
+/** A pill chip used across the sheet header. `alert` tints it for a
+ *  service-status warning. */
+function Chip({ children, tone = 'default' }: { children: ReactNode; tone?: 'default' | 'alert' }) {
+  const alert = tone === 'alert';
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold tabular-nums whitespace-nowrap"
+      style={{
+        background: 'var(--c-card)',
+        color: alert ? '#f0997b' : 'var(--c-text-2)',
+        border: `1px solid ${alert ? 'rgba(216,90,48,0.35)' : 'var(--c-border)'}`,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** Service-status chip — renders only when the line isn't running. Isolated in
+ *  its own component so the per-minute tick doesn't re-render the whole screen. */
+function StatusChip({ line }: { line: string }) {
   const now = useNow();
-  const mins = useMemo(() => {
-    const dirs = upcomingStationDepartures(stationId, line, now, 1);
-    const waits = dirs.flatMap((d: any) => d.departures.map((dep: any) => dep.waitMins));
-    return waits.length ? Math.min(...waits) : null;
-  }, [stationId, line, now]);
+  const status = estimateLine(line, now);
+  if (status.status === 'running') return null;
 
-  if (mins == null) return null;
+  let text: string;
+  switch (status.status) {
+    case 'before-first-train':
+      text = `Starts in ${formatDuration(status.minsUntilFirst)}`;
+      break;
+    case 'after-last-train':
+      text = 'Service ended';
+      break;
+    case 'bus-only':
+      text = 'Bus only';
+      break;
+    default:
+      text = 'Service unavailable';
+  }
 
   return (
-    <div
-      className="shrink-0 flex flex-col items-center rounded-xl px-2.5 py-1.5"
-      style={{ background: 'var(--c-card)' }}
-    >
-      <span className="text-[15px] font-bold leading-none tabular-nums" style={{ color: 'var(--c-text)' }}>
-        {mins === 0 ? 'Due' : formatDuration(mins)}
-      </span>
-      <span
-        className="text-[9px] font-bold uppercase tracking-widest mt-1 leading-none"
-        style={{ color: 'var(--c-text-4)' }}
-      >
-        Next
-      </span>
-    </div>
+    <Chip tone="alert">
+      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: '#d85a30' }} />
+      {text}
+    </Chip>
   );
 }
 
@@ -66,10 +95,12 @@ export function HomeScreen({ coords, nearest, locStatus, onRetryLocation, onPlan
   const navigate = useNavigate();
   const [snap, setSnap] = useState<SheetSnap>('collapsed');
   const [searchOpen, setSearchOpen] = useState(false);
+  const [focusLine, setFocusLine] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [panTo, setPanTo] = useState<{ lat: number; lng: number } | null>(null);
   const [plannerOpen, setPlannerOpen] = useState(false);
   const [prefillDest, setPrefillDest] = useState<any>(null);
+  const [prefillSource, setPrefillSource] = useState<any>(null);
 
   // How far short of the top the sheet stops when fully open: just below the
   // search row. Measured rather than hardcoded so it survives font scaling and
@@ -98,9 +129,35 @@ export function HomeScreen({ coords, nearest, locStatus, onRetryLocation, onPlan
     if (!selectedId && nearest?.id) setSelectedId(nearest.id);
   }, [nearest, selectedId]);
 
+  // The station sheet's "From here" / "To here" buttons open the planner via
+  // this event rather than navigating — the planner is an overlay, and the map
+  // stays mounted beneath. Mirrors the 'home-recenter' event the recentre
+  // button uses. The detail seeds the source or the destination.
+  useEffect(() => {
+    const openPlanner = (e: Event) => {
+      const detail = (e as CustomEvent).detail ?? {};
+      setSearchOpen(false);
+      setPrefillSource(detail.source ?? null);
+      setPrefillDest(detail.dest ?? null);
+      setPlannerOpen(true);
+    };
+    document.addEventListener('home-plan-trip', openPlanner);
+    return () => document.removeEventListener('home-plan-trip', openPlanner);
+  }, []);
+
   const station: StationRecord | undefined = selectedId ? STATION_BY_ID[selectedId] : undefined;
   const isNearest = !!station && station.id === nearest?.id;
   const locFailed = locStatus !== 'granted' && locStatus !== 'locating';
+
+  // Position of the selected station along its line, for the "Stop N of M" chip.
+  const stopPos = useMemo(() => {
+    if (!station) return null;
+    const path = LINE_PATHS[station.line];
+    if (!path) return null;
+    const idx = path.indexOf(station.id);
+    if (idx === -1) return null;
+    return { idx, total: path.length - 1 };
+  }, [station]);
 
   function selectStation(id: string) {
     const s = STATION_BY_ID[id];
@@ -112,12 +169,14 @@ export function HomeScreen({ coords, nearest, locStatus, onRetryLocation, onPlan
 
   function planTo(item: StationRecord | PlaceNode) {
     setSearchOpen(false);
+    setPrefillSource(null);
     setPrefillDest(item);
     setPlannerOpen(true);
   }
 
   function handlePlanFromModal(source: any, dest: any, config?: any) {
     setPlannerOpen(false);
+    setPrefillSource(null);
     setPrefillDest(null);
     onPlan(source, dest, config);
   }
@@ -185,13 +244,18 @@ export function HomeScreen({ coords, nearest, locStatus, onRetryLocation, onPlan
           </button>
         </div>
         <div className="pointer-events-auto">
-          <LineStatusPills />
+          <LineStatusPills
+            onSelectLine={(line) => {
+              setFocusLine(line);
+              setSearchOpen(true);
+            }}
+          />
         </div>
       </div>
 
       {/* Plan Route FAB */}
       <button
-        onClick={() => { setPrefillDest(null); setPlannerOpen(true); }}
+        onClick={() => { setPrefillSource(null); setPrefillDest(null); setPlannerOpen(true); }}
         aria-label="Plan route"
         className="absolute right-4 z-[600] w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-all duration-200 active:scale-90"
         style={{
@@ -237,39 +301,72 @@ export function HomeScreen({ coords, nearest, locStatus, onRetryLocation, onPlan
         header={
           station ? (
             <div
-              className="px-4 pb-3 flex items-center gap-3"
+              className="flex flex-col gap-3 px-4 pb-3"
               onClick={() => setSnap(snap === 'collapsed' ? 'full' : 'collapsed')}
             >
-              <div className="flex flex-col gap-1 shrink-0">
-                <LineBadge line={station.line} size="md" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div
-                  className="text-[10px] font-bold uppercase tracking-widest"
-                  style={{ color: 'var(--c-text-4)' }}
-                >
-                  {isNearest ? (locFailed ? 'Default station' : 'Nearest station') : 'Station'}
-                  {isNearest && nearest?.distanceKm != null && (
-                    <>
-                      {' · '}
-                      {Math.round(nearest.distanceKm * 1000)}m ·{' '}
-                      {formatDuration(walkMinsForKm(nearest.distanceKm))} walk
-                    </>
-                  )}
+              {/* Top row: line badge, name, chevron */}
+              <div className="flex items-center gap-3">
+                <LineBadge line={station.line} size="lg" />
+                <div className="flex-1 min-w-0">
+                  <div
+                    className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2"
+                    style={{ color: 'var(--c-text-4)' }}
+                  >
+                    {isNearest ? (locFailed ? 'Default station' : 'Nearest station') : 'Station'}
+                    {station.interchange && (
+                      <span
+                        className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded"
+                        style={{ background: 'var(--c-card)', color: 'var(--c-text)' }}
+                      >
+                        Interchange
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[19px] font-bold truncate leading-tight" style={{ color: 'var(--c-text)' }}>
+                    {station.name}
+                  </div>
                 </div>
-                <div className="text-[19px] font-bold truncate leading-tight" style={{ color: 'var(--c-text)' }}>
-                  {station.name}
-                </div>
+                <ChevronUp
+                  size={16}
+                  className="shrink-0 transition-transform duration-200"
+                  style={{
+                    color: 'var(--c-text-4)',
+                    transform: snap === 'collapsed' ? 'none' : 'rotate(180deg)',
+                  }}
+                />
               </div>
-              <NextTrainChip stationId={station.id} line={station.line} />
-              <ChevronUp
-                size={16}
-                className="shrink-0 transition-transform duration-200"
-                style={{
-                  color: 'var(--c-text-4)',
-                  transform: snap === 'collapsed' ? 'none' : 'rotate(180deg)',
-                }}
-              />
+
+              {/* Chip row. Collapsed shows proximity (line, distance, walk);
+                  expanded shows structure (line, phase, stop) plus a status
+                  chip when the line isn't running. */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <Chip>
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: LINE_COLORS[station.line] }} />
+                  {LINE_NAMES[station.line] ?? station.line}
+                </Chip>
+
+                {snap === 'collapsed'
+                  ? isNearest && nearest?.distanceKm != null && (
+                      <>
+                        <Chip>
+                          <MapPin size={12} strokeWidth={2.4} style={{ color: 'var(--c-text-4)' }} />
+                          {formatDistance(nearest.distanceKm)}
+                        </Chip>
+                        <Chip>
+                          <Footprints size={12} strokeWidth={2.4} style={{ color: 'var(--c-text-4)' }} />
+                          {formatDuration(walkMinsForKm(nearest.distanceKm))}
+                        </Chip>
+                      </>
+                    )
+                  : (
+                      <>
+                        {station.phase != null && <Chip>Phase {station.phase}</Chip>}
+                        {stopPos && <Chip>Stop {stopPos.idx + 1} of {stopPos.total + 1}</Chip>}
+                        {station.interchange && <Chip>Interchange</Chip>}
+                        <StatusChip line={station.line} />
+                      </>
+                    )}
+              </div>
             </div>
           ) : (
             <div className="px-4 pb-3">
@@ -284,13 +381,14 @@ export function HomeScreen({ coords, nearest, locStatus, onRetryLocation, onPlan
             <LocationNotice status={locStatus} onRetry={onRetryLocation} />
           </div>
         )}
-        {station && <StationDetailBody stationId={station.id} />}
+        {station && <StationDetailBody stationId={station.id} showHero={false} />}
         <div style={{ height: 24 }} />
       </DraggableSheet>
 
       {searchOpen && (
         <HomeSearch
-          onClose={() => setSearchOpen(false)}
+          focusLine={focusLine}
+          onClose={() => { setSearchOpen(false); setFocusLine(null); }}
           onSelectStation={selectStation}
           onPlanTo={planTo}
         />
@@ -307,7 +405,7 @@ export function HomeScreen({ coords, nearest, locStatus, onRetryLocation, onPlan
           {/* Close button */}
           <div className="flex items-center justify-end px-4 pt-4 pb-0">
             <button
-              onClick={() => { setPlannerOpen(false); setPrefillDest(null); }}
+              onClick={() => { setPlannerOpen(false); setPrefillSource(null); setPrefillDest(null); }}
               aria-label="Close planner"
               className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform"
               style={{
@@ -323,6 +421,7 @@ export function HomeScreen({ coords, nearest, locStatus, onRetryLocation, onPlan
               nearest={nearest}
               locStatus={locStatus}
               onRetryLocation={onRetryLocation}
+              prefillSource={prefillSource}
               prefillDest={prefillDest}
             />
           </div>

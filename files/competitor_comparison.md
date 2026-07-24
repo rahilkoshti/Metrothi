@@ -3,6 +3,9 @@
 > [!NOTE]
 > Based on a live exploration of [ahmedabadmetro.site](https://www.ahmedabadmetro.site/) and a full code review of the Metrothi codebase.
 
+> [!TIP]
+> **Updated 2026-07-23.** Since the original comparison, Metrothi has shipped **real track polylines** and **animated live train markers** on the map (commit `468c12f`), and a full **SEO foundation** (meta/OG/Twitter tags, geo tags, `robots.txt`, `sitemap.xml`, and JSON-LD for `WebApplication`, `FAQPage`, `BreadcrumbList`, and all 54 stations). Rows below are marked accordingly.
+
 ---
 
 ## At a Glance
@@ -15,12 +18,12 @@
 | **Lines supported** | 4 (blue, red, yellow/green, violet/purple) | 4 (blue, red, green, purple) |
 | **PWA** | Yes (vite-plugin-pwa, precached) | Yes (service worker, install prompt in menu) |
 | **Offline** | Full (bundled JSON, localStorage) | Full (offline-first) |
-| **Map** | Leaflet, lazy-loaded, station circle markers, **no track polylines yet** | Leaflet, **real colored track polylines** on the map, animated train markers |
+| **Map** | Leaflet, lazy-loaded, station markers, **real colored track polylines + animated live train markers** (shipped) | Leaflet, **real colored track polylines** on the map, animated train markers |
 | **Routing** | Station-to-station + place-search (geocoding → nearest station) | Station-to-station only (no place search) |
 | **Fare engine** | Distance-based slabs from GMRC data, with segment overrides | Fare calculator integrated in route results |
 | **i18n** | English only | English + Gujarati toggle |
 | **Dark mode** | Yes (CSS vars, ThemeContext) | Yes (toggle in menu) |
-| **SEO** | Basic (title tag) | **Extremely heavy** — JSON-LD (WebApplication, FAQPage, BreadcrumbList, ItemList), OG/Twitter cards, keyword meta, geo meta, hreflang, structured FAQ |
+| **SEO** | **Solid foundation** (shipped) — JSON-LD (WebApplication, FAQPage, BreadcrumbList, ItemList of 54 stations), OG/Twitter cards, geo meta, keyword meta, `robots.txt`, `sitemap.xml`. Missing vs AhmMetro: hreflang, `/llms.txt`, dedicated social image | **Extremely heavy** — JSON-LD (WebApplication, FAQPage, BreadcrumbList, ItemList), OG/Twitter cards, keyword meta, geo meta, hreflang, structured FAQ |
 
 ---
 
@@ -96,15 +99,19 @@ It encodes **multi-line membership** (a station can belong to two lines via `sec
 
 ## What AhmMetro Does Better (Things to Learn)
 
-### 🗺️ 1. Real Track Polylines on the Map
+### 🗺️ 1. Real Track Polylines on the Map ✅ SHIPPED
 
-This is the **single biggest visual difference**. AhmMetro draws actual colored polylines tracing each metro line on the map — you can see the blue, red, green, and purple tracks as thick colored lines overlaid on OpenStreetMap. Metrothi's map only shows station circle markers with no connecting tracks.
+> [!NOTE]
+> **Closed (commit `468c12f`).** Metrothi now draws real colored track polylines from `trackGeometry.ts` in [MapScreen.tsx](file:///r:/Metrothi/app/src/features/map/components/MapScreen.tsx), including route-leg highlighting and casing. This was previously the single biggest visual gap; it is now at parity with AhmMetro.
 
-Your `DISCREPANCIES.md` already notes that Phases B–E of the track geometry guide are not started — this is what that would deliver.
+Originally: AhmMetro drew colored polylines tracing each metro line while Metrothi showed only station markers with no connecting tracks.
 
-### 🚇 2. Animated Live Train Markers on the Map
+### 🚇 2. Animated Live Train Markers on the Map ✅ SHIPPED
 
-AhmMetro shows animated orange/green train icons moving along the polylines during operating hours. Metrothi has the `getActiveTrains()` function that *computes* interpolated positions, but the map doesn't render them yet (`LiveTrainsLayer.tsx` sits unused in `files/map/`).
+> [!NOTE]
+> **Closed (commit `468c12f`).** [LiveTrainsLayer.tsx](file:///r:/Metrothi/app/src/features/map/components/LiveTrainsLayer.tsx) now renders `getActiveTrains()` output as gliding train markers on the map during operating hours. The engine function was already there; it is now wired to Leaflet.
+
+Originally: the map didn't render the interpolated train positions the engine computed.
 
 ### 📊 3. Crowd Indicators
 
@@ -114,17 +121,16 @@ Station departure lists show crowd levels: **"Heavy"** (red), **"Moderate"** (or
 
 Station names are shown bilingually (e.g., "Old High Court" / "જૂની હાય કોર્ટ"). Metrothi is English-only. For a local transit app in Gujarat, this is a meaningful gap.
 
-### 🔍 5. SEO is on Another Level
+### 🔍 5. SEO ✅ FOUNDATION SHIPPED (some depth still to close)
 
-AhmMetro's `<head>` has:
-- **JSON-LD structured data**: `WebApplication`, `FAQPage` (10 questions targeting "People Also Ask"), `BreadcrumbList`, `ItemList` (all 53 stations individually listed)
-- **Geo meta tags** (`geo.region`, `geo.placename`, `geo.position`, `ICBM`)
-- **hreflang** tags for regional targeting
-- Full **Open Graph** + **Twitter Card** meta
-- Keyword-rich meta description targeting "Ahmedabad Metro Route", "Ahmedabad Metro Map", etc.
-- Even an `/llms.txt` file for AI discoverability
+> [!NOTE]
+> **Largely closed (2026-07-23).** Metrothi's [index.html](file:///r:/Metrothi/app/index.html) now has JSON-LD (`WebApplication`, `FAQPage`, `BreadcrumbList`, and an `ItemList` of all 54 stations generated from `stations.json`), full Open Graph + Twitter cards, geo meta tags, a keyword-rich description, plus [robots.txt](file:///r:/Metrothi/app/public/robots.txt) and [sitemap.xml](file:///r:/Metrothi/app/public/sitemap.xml).
 
-Metrothi has a basic `<title>` tag and nothing else. If you want to be found on Google, this is a major gap.
+Still missing vs AhmMetro:
+- **hreflang** tags (blocked on Gujarati support — see §4 below)
+- **`/llms.txt`** file for AI discoverability
+- A dedicated **1200×630 social image** (currently `og:image` points at the 512px PWA icon as a placeholder)
+- The canonical origin is wired to `https://metrothi.vercel.app`; confirm/replace with the real production domain before relying on canonical/sitemap URLs.
 
 ### 🏠 6. Daily Commute Feature
 
@@ -217,8 +223,8 @@ The engine forces IST regardless of device timezone — a visitor from another t
 | Fare calculation | ✅ (distance slabs + overrides) | ✅ |
 | Metro Card discount display | ⚠️ (text only) | ✅ (applied toggle) |
 | Ticket type validation | ✅ (Token/CSC/NCMC) | ❌ |
-| Track polylines on map | ❌ (not yet) | ✅ |
-| Animated train markers | ❌ (engine ready, not rendered) | ✅ |
+| Track polylines on map | ✅ (shipped) | ✅ |
+| Animated train markers | ✅ (shipped) | ✅ |
 | Station detail page | ✅ (full page) | ✅ (bottom sheet) |
 | Full day timetable | ✅ | ❓ |
 | Crowd indicators | ❌ | ✅ (simulated) |
@@ -231,7 +237,7 @@ The engine forces IST regardless of device timezone — a visitor from another t
 | Dark mode | ✅ | ✅ |
 | Gujarati language | ❌ | ✅ |
 | PWA / offline | ✅ | ✅ |
-| SEO / structured data | ❌ | ✅✅✅ |
+| SEO / structured data | ✅ (foundation shipped; hreflang + llms.txt + social image pending) | ✅✅✅ |
 | TypeScript / tests | ✅ | ❌ |
 | IST timezone safety | ✅ | ❓ |
 
@@ -240,11 +246,11 @@ The engine forces IST regardless of device timezone — a visitor from another t
 ## Key Recommendations
 
 ### Quick wins to steal from AhmMetro:
-1. **Track polylines on the map** — you already have `tracks.json` and the unused `trackGeometry.ts`. Ship Phases B–E.
-2. **Render `getActiveTrains()` on the map** — the engine function exists, just wire it to Leaflet markers.
-3. **Add basic SEO** — at minimum, OG tags, a meta description, and JSON-LD `WebApplication` structured data.
-4. **Add "Share this route"** — trivial to implement with the Web Share API.
-5. **Crowd level indicators** — derive from frequency rules (peak = heavy, off-peak = low). Pure UI sugar, no new data needed.
+1. ✅ **Track polylines on the map** — *Done (commit `468c12f`).*
+2. ✅ **Render `getActiveTrains()` on the map** — *Done (commit `468c12f`).*
+3. ✅ **Add basic SEO** — *Done (2026-07-23):* OG/Twitter, meta description, geo tags, `robots.txt`, `sitemap.xml`, and JSON-LD (`WebApplication`, `FAQPage`, `BreadcrumbList`, station `ItemList`). Remaining SEO depth: hreflang, `/llms.txt`, a dedicated 1200×630 social image.
+4. **Add "Share this route"** — trivial to implement with the Web Share API. *(Not started — top remaining quick win.)*
+5. **Crowd level indicators** — derive from frequency rules (peak = heavy, off-peak = low). Pure UI sugar, no new data needed. *(Not started.)*
 
 ### Medium effort:
 6. **Gujarati support** — add a `nameGu` field to `stations.json` and a language toggle.

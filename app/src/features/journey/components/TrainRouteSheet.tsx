@@ -1,5 +1,4 @@
 import { useEffect, useRef, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
 import { ArrowRight, X } from "lucide-react";
 import {
   STATION_BY_ID,
@@ -91,7 +90,6 @@ export function TrainRouteSheet({
   now: Date;
   onClose: () => void;
 }) {
-  const navigate = useNavigate();
   const route = useMemo(
     () => computeTrainRoute(stationId, line, dir, train, now),
     [stationId, line, dir, train, now]
@@ -258,29 +256,6 @@ export function TrainRouteSheet({
               </div>
             );
           })}
-
-          {/* CTA button */}
-          <div className="pt-4 pb-2">
-            <button
-              onClick={() => {
-                onClose();
-                navigate("/go", {
-                  state: {
-                    prefillSource: stationId,
-                    prefillDest: dir.destinationId,
-                  },
-                });
-              }}
-              className="w-full py-4 rounded-2xl text-[15px] font-black flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-lg"
-              style={{ background: color, color: line === "yellow" ? "#000" : "#fff" }}
-            >
-              I want to catch this train
-              <ArrowRight size={18} strokeWidth={2.5} />
-            </button>
-            <p className="text-center text-[11px] font-semibold mt-2" style={{ color: "var(--c-text-4)" }}>
-              Departs {dir.originName} at {route[0]?.clockTime} · arrives {dir.destinationName} at {route[route.length - 1]?.clockTime}
-            </p>
-          </div>
 
           <div className="h-6" />
         </div>

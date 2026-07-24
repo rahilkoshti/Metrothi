@@ -84,6 +84,47 @@ export function stationKm(lineId: string, stationId: string): number | null {
 }
 
 /**
+ * The point where a station sits *on* its line's drawn track — i.e. the raw
+ * station coordinate projected onto the polyline. Keeps station markers glued
+ * to the line instead of floating off it. Returns null when geometry is
+ * missing, so callers fall back to the raw station coordinate.
+ */
+export function stationPointOnTrack(lineId: string, stationId: string): LatLng | null {
+  const km = stationKm(lineId, stationId);
+  if (km == null) return null;
+  return pointAtKm(lineId, km);
+}
+
+/**
+ * On-screen direction of the track as it passes a station, in degrees measured
+ * clockwise from east (screen +x). Computed in Web Mercator so it matches the
+ * angle at which Leaflet actually draws the polyline (not the ground bearing).
+ * The result is only meaningful mod 180° — the direction of travel is
+ * irrelevant for a symmetric marker. Returns null when geometry is missing.
+ */
+export function trackScreenAngleAtStation(lineId: string, stationId: string): number | null {
+  const line = TRACKS[lineId];
+  const cum = CUM_KM[lineId];
+  const km = stationKm(lineId, stationId);
+  if (!line || !cum || km == null || line.coords.length < 2) return null;
+
+  // Use the exact drawn track segment the station sits on, so the angle matches
+  // the polyline Leaflet actually renders (rather than a chord that could spill
+  // onto a curving neighbour segment).
+  const clamped = Math.max(0, Math.min(km, cum[cum.length - 1]));
+  const i = segmentIndexAtKm(cum, clamped);
+  const a = line.coords[i];
+  const b = line.coords[i + 1];
+
+  // Web Mercator is conformal; locally Δlat stretches by 1/cos(lat) and screen
+  // y points down. That gives the on-screen direction of the segment.
+  const latMean = ((a[0] + b[0]) / 2) * (Math.PI / 180);
+  const dx = b[1] - a[1]; // Δlng → screen +x (east)
+  const dy = -((b[0] - a[0]) / Math.cos(latMean)); // Δlat → Mercator y, screen +y is down
+  return (Math.atan2(dy, dx) * 180) / Math.PI;
+}
+
+/**
  * Position of a train that is `progress` (0–1) of the way between two
  * stations, following the real track. Returns null when geometry is missing —
  * caller should fall back to straight-line interpolation.

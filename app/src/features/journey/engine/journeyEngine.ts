@@ -1,6 +1,7 @@
 // Metrothi Journey Engine (Ported from prototype)
 
 import stationsData from "../../../data/stations.json";
+import tracksData from "../../../data/tracks.json";
 import { fareForRoute } from "./fareEngine";
 
 export interface PlaceNode {
@@ -186,12 +187,13 @@ export const LINE_META: Record<string, LineMeta> = {
 // station to each station on its path. The end-to-end total stays pinned to
 // the published run time (segments × avgSegmentMins) so full-line totals are
 // unchanged; within the line, each segment's share is proportional to the
-// straight-line distance between its stations instead of an even split.
-// (tracks.json's stationKm values are non-monotonic per its own report, so
-// station coordinates are the reliable distance source for now.)
+// along-track distance between its stations instead of an even split.
 function buildCumulativeMins(lineId: string): number[] {
   const path = LINE_PATHS[lineId];
   const totalMins = (path.length - 1) * LINE_META[lineId].avgSegmentMins;
+
+  const trackLine = (tracksData as any).lines[lineId];
+  const stationKm = trackLine ? trackLine.stationKm : {};
 
   // Segment distances. Stations with unknown coords (e.g. the unopened
   // Sabarmati Railway Station) are bridged by splitting the distance between
@@ -199,14 +201,14 @@ function buildCumulativeMins(lineId: string): number[] {
   const dists: number[] = new Array(path.length - 1).fill(0);
   let prevKnown = -1;
   for (let i = 0; i < path.length; i++) {
-    const s = STATION_BY_ID[path[i]];
-    if (!s || s.lat == null || s.lng == null) continue;
+    const stationId = path[i];
+    const km = stationKm[stationId];
+    if (km == null) continue;
+    
     if (prevKnown !== -1) {
-      const prev = STATION_BY_ID[path[prevKnown]];
-      const d = haversineKm(
-        { lat: prev.lat!, lng: prev.lng! },
-        { lat: s.lat, lng: s.lng }
-      );
+      const prevId = path[prevKnown];
+      const prevKm = stationKm[prevId];
+      const d = Math.abs(km - prevKm);
       const span = i - prevKnown;
       for (let k = prevKnown; k < i; k++) dists[k] = d / span;
     }
@@ -216,7 +218,7 @@ function buildCumulativeMins(lineId: string): number[] {
   const totalDist = dists.reduce((a, b) => a + b, 0);
   const cum: number[] = [0];
   if (totalDist <= 0) {
-    // No usable coordinates — fall back to uniform segments.
+    // No usable distances — fall back to uniform segments.
     for (let i = 1; i < path.length; i++) cum.push(i * LINE_META[lineId].avgSegmentMins);
     return cum;
   }

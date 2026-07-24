@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Marker, Tooltip } from 'react-leaflet';
+import { useEffect, useRef } from 'react';
+import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { getActiveTrains } from '../../journey/engine/journeyEngine';
 import type { ActiveTrain } from '../../journey/engine/journeyEngine';
@@ -10,92 +10,166 @@ interface LiveTrainsLayerProps {
   activeLines: Set<string>;
 }
 
-// Icons are per-line and static — build once, not per render.
-const ICON_CACHE: Record<string, L.DivIcon> = {};
-function trainIcon(color: string): L.DivIcon {
-  if (ICON_CACHE[color]) return ICON_CACHE[color];
-  const size = 14;
-  ICON_CACHE[color] = L.divIcon({
-    // 'train-glide' lets CSS transition the marker's transform between ticks.
-    className: 'train-glide',
-    iconSize: [size + 6, size + 6],
-    iconAnchor: [(size + 6) / 2, (size + 6) / 2],
-    tooltipAnchor: [10, 0],
-    html: `
-      <div style="position:relative;width:${size + 6}px;height:${size + 6}px;display:flex;align-items:center;justify-content:center;">
-        <div style="position:absolute;width:${size + 6}px;height:${size + 6}px;border-radius:50%;background-color:${color};opacity:0.25;animation:live-train-pulse 1.8s ease-out infinite;"></div>
-        <div style="position:absolute;width:${size}px;height:${size}px;border-radius:50%;background-color:${color};border:2.5px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;">
-          <svg width="7" height="7" viewBox="0 0 24 24" fill="white" style="display:block;">
-            <path d="M4 4h16a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v7h16V6H4zm2 9l-2 3h16l-2-3H6z"/>
-          </svg>
-        </div>
-      </div>
-    `,
-  });
-  return ICON_CACHE[color];
-}
+/** Custom Leaflet renderer for trains — positions update independently of zoom. */
+class TrainRenderer extends L.Layer {
+  private container: SVGGElement | null = null;
+  private updateInterval: number | null = null;
+  private activeLines: Set<string> = new Set();
+  private trains: Map<string, ActiveTrain> = new Map();
+  // Stable handler reference so onRemove's `off` actually detaches the listener
+  // that onAdd's `on` attached.
+  private readonly onMapMove = () => this.render();
 
-// Inject keyframes once.
-if (typeof document !== 'undefined' && !document.getElementById('live-train-keyframes')) {
-  const style = document.createElement('style');
-  style.id = 'live-train-keyframes';
-  style.textContent = `
-    @keyframes live-train-pulse {
-      0%   { transform: scale(0.8); opacity: 0.4; }
-      50%  { transform: scale(1.6); opacity: 0.15; }
-      100% { transform: scale(2.2); opacity: 0; }
+  constructor(activeLines: Set<string>) {
+    super();
+    this.activeLines = activeLines;
+  }
+
+  onAdd(map: L.Map) {
+    this.container = L.SVG.create('g');
+    this.container.setAttribute('class', 'live-trains-layer');
+
+    // Attach to the shared SVG renderer's root group — the same coordinate
+    // space as the vector polylines, since our train points come from
+    // latLngToLayerPoint. (Leaflet's SVG renderer exposes the <g> as
+    // `_rootGroup` and the <svg> as `_container`; there is no `_svg`.)
+    const renderer = (map as any).getRenderer(this) as any;
+    const svgRoot: SVGElement | undefined = renderer?._rootGroup ?? renderer?._container;
+    if (svgRoot) svgRoot.appendChild(this.container);
+
+    this.startUpdating();
+    map.on('move zoom', this.onMapMove);
+    return this;
+  }
+
+  onRemove(map: L.Map) {
+    if (this.container && this.container.parentNode) {
+      this.container.parentNode.removeChild(this.container);
     }
-  `;
-  document.head.appendChild(style);
-}
+    this.stopUpdating();
+    map.off('move zoom', this.onMapMove);
+    return this;
+  }
 
-/** Resolve a train's on-screen position: real track first, chord fallback. */
-function trainLatLng(t: ActiveTrain): [number, number] {
-  const onTrack = trainPositionOnTrack(t.line, t.fromStationId, t.toStationId, t.segmentProgress);
-  return onTrack ?? [t.lat, t.lng];
+  private startUpdating() {
+    this.updateInterval = window.setInterval(() => {
+      const trains = getActiveTrains().filter((t) => this.activeLines.has(t.line));
+      this.trains.clear();
+      trains.forEach((t) => this.trains.set(t.id, t));
+      this.render();
+    }, 1000);
+  }
+
+  private stopUpdating() {
+    if (this.updateInterval) clearInterval(this.updateInterval);
+  }
+
+  private render() {
+    if (!this.container || !this._map) return;
+
+    // Clear previous render
+    while (this.container.firstChild) {
+      this.container.removeChild(this.container.firstChild);
+    }
+
+    // Render each train
+    this.trains.forEach((train) => {
+      const latLng = this.getTrainLatLng(train);
+      const point = this._map!.latLngToLayerPoint(latLng);
+      const color = LINE_COLORS[train.line] || '#666';
+
+      const size = 14;
+      const group = L.SVG.create('g');
+      group.setAttribute('class', 'train-marker');
+      group.setAttribute('transform', `translate(${point.x},${point.y})`);
+
+      // Pulse halo
+      const halo = L.SVG.create('circle');
+      halo.setAttribute('r', String(size + 6));
+      halo.setAttribute('fill', color);
+      halo.setAttribute('opacity', '0.25');
+      halo.setAttribute('class', 'train-halo');
+      group.appendChild(halo);
+
+      // Main circle
+      const circle = L.SVG.create('circle');
+      circle.setAttribute('r', String(size / 2));
+      circle.setAttribute('fill', color);
+      circle.setAttribute('stroke', 'white');
+      circle.setAttribute('stroke-width', '2.5');
+      circle.setAttribute('class', 'train-dot');
+      group.appendChild(circle);
+
+      // Directional arrowhead — points the way the train is travelling. Falls
+      // back to a plain centre dot when the heading can't be derived.
+      const headingDeg = this.trainHeadingDeg(train);
+      if (headingDeg == null) {
+        const dot = L.SVG.create('circle');
+        dot.setAttribute('r', '2');
+        dot.setAttribute('fill', 'white');
+        group.appendChild(dot);
+      } else {
+        const arrow = L.SVG.create('path');
+        arrow.setAttribute('d', 'M -2.5 -3.6 L 4.5 0 L -2.5 3.6 Z');
+        arrow.setAttribute('fill', 'white');
+        arrow.setAttribute('transform', `rotate(${headingDeg})`);
+        group.appendChild(arrow);
+      }
+
+      this.container!.appendChild(group);
+    });
+  }
+
+  private getTrainLatLng(train: ActiveTrain): L.LatLng {
+    const onTrack = trainPositionOnTrack(
+      train.line,
+      train.fromStationId,
+      train.toStationId,
+      train.segmentProgress
+    );
+    const [lat, lng] = onTrack ?? [train.lat, train.lng];
+    return L.latLng(lat, lng);
+  }
+
+  /**
+   * On-screen heading of the train (degrees, clockwise from east), derived from
+   * two track points straddling its current position — from→to is the travel
+   * direction. Measured in layer-point space so it matches what's drawn.
+   * Returns null when geometry is missing or the step is too small to trust.
+   */
+  private trainHeadingDeg(train: ActiveTrain): number | null {
+    if (!this._map) return null;
+    const step = 0.05;
+    const p = train.segmentProgress;
+    const behind = trainPositionOnTrack(train.line, train.fromStationId, train.toStationId, Math.max(0, p - step));
+    const ahead = trainPositionOnTrack(train.line, train.fromStationId, train.toStationId, Math.min(1, p + step));
+    if (!behind || !ahead) return null;
+    const a = this._map.latLngToLayerPoint(L.latLng(behind[0], behind[1]));
+    const b = this._map.latLngToLayerPoint(L.latLng(ahead[0], ahead[1]));
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    if (dx * dx + dy * dy < 0.25) return null;
+    return (Math.atan2(dy, dx) * 180) / Math.PI;
+  }
 }
 
 export function LiveTrainsLayer({ activeLines }: LiveTrainsLayerProps) {
-  const [trains, setTrains] = useState<ActiveTrain[]>([]);
+  const map = useMap();
+  const rendererRef = useRef<TrainRenderer | null>(null);
 
   useEffect(() => {
-    setTrains(getActiveTrains());
-    const interval = setInterval(() => setTrains(getActiveTrains()), 1000);
-    return () => clearInterval(interval);
-  }, []);
+    if (!map) return;
 
-  const visibleTrains = trains.filter((t) => activeLines.has(t.line));
+    const renderer = new TrainRenderer(activeLines);
+    renderer.addTo(map);
+    rendererRef.current = renderer;
 
-  return (
-    <>
-      {visibleTrains.map((train) => {
-        const color = LINE_COLORS[train.line] || '#666';
-        return (
-          <Marker
-            key={train.id}
-            position={trainLatLng(train)}
-            icon={trainIcon(color)}
-            zIndexOffset={1000}
-          >
-            <Tooltip direction="top" offset={[0, -10]} className="vignelli-label">
-              <div style={{ lineHeight: 1.4 }}>
-                <div style={{ fontWeight: 700, color }}>
-                  {train.direction}
-                  <span style={{
-                    marginLeft: 6, fontSize: '0.7em', fontWeight: 800,
-                    letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.55,
-                  }}>
-                    Simulated
-                  </span>
-                </div>
-                <div style={{ fontSize: '0.75em', opacity: 0.75 }}>
-                  {train.fromStationName} → {train.toStationName}
-                </div>
-              </div>
-            </Tooltip>
-          </Marker>
-        );
-      })}
-    </>
-  );
+    return () => {
+      if (rendererRef.current) {
+        map.removeLayer(rendererRef.current);
+      }
+    };
+  }, [map, activeLines]);
+
+  return null;
 }
