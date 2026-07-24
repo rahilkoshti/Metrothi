@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, X, MapPin, Navigation, History, Star, Loader2 } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { MapPin, Navigation, History, Star } from 'lucide-react';
 import {
   STATIONS,
   haversineKm,
@@ -11,6 +12,8 @@ import {
 import { GeocodingService } from '../../../services/GeocodingService';
 import { fuzzySearch } from '../utils/fuzzySearch';
 import { LineBadge } from '../../../components/LineBadge';
+import { LineStatusPills } from './LineStatusPills';
+import { SearchBar } from './SearchBar';
 import { LINE_BADGE_BG, LINE_NAMES } from '../constants';
 
 const SEARCHABLE = STATIONS.filter((s) => s.operational !== false);
@@ -67,7 +70,19 @@ function Row({
         onClick={onClick}
         className="flex items-center gap-3 flex-1 min-w-0 text-left py-3 min-h-[52px]"
       >
-        <div className="w-7 flex justify-center shrink-0">{badge ?? icon}</div>
+        {/* Line badges keep their own shape; bare glyph icons get a circular
+            grey container so Recent/Saved/Landmark rows read like the Maps
+            reference. */}
+        {badge ? (
+          <div className="w-9 flex justify-center shrink-0">{badge}</div>
+        ) : (
+          <div
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: 'var(--c-card-alt)' }}
+          >
+            {icon}
+          </div>
+        )}
         <div className="flex flex-col min-w-0">
           {eyebrow && (
             <span
@@ -103,19 +118,37 @@ function Row({
 
 export function HomeSearch({
   onClose,
+  onSettings,
   onSelectStation,
   onPlanTo,
   focusLine,
+  nearestId,
 }: {
   onClose: () => void;
+  onSettings: () => void;
   onSelectStation: (id: string) => void;
   onPlanTo: (item: StationRecord | PlaceNode) => void;
   focusLine?: string | null;
+  nearestId?: string | null;
 }) {
   const [query, setQuery] = useState('');
   const [places, setPlaces] = useState<PlaceNode[]>([]);
   const [loadingPlaces, setLoadingPlaces] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const savedRef = useRef<HTMLDivElement>(null);
+
+  // Scroll a target into view by moving ONLY the inner scroller — never
+  // `scrollIntoView`, which walks up and scrolls ancestors (and the document),
+  // shoving the fixed overlay's own header off-screen.
+  const scrollToEl = (el: HTMLElement | null | undefined) => {
+    const scroller = scrollerRef.current;
+    if (!scroller || !el) return;
+    scroller.scrollTop +=
+      el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+  };
+  const scrollToLine = (line: string) =>
+    scrollToEl(scrollerRef.current?.querySelector<HTMLElement>(`[data-line-group="${line}"]`));
 
   const [recentTrips, setRecentTrips] = useState<any[]>([]);
   const [savedJourneys, setSavedJourneys] = useState<any[]>([]);
@@ -163,49 +196,59 @@ export function HomeSearch({
 
   return (
     <div
-      className="absolute inset-0 z-[1200] flex flex-col animate-in fade-in duration-150"
+      className="fixed inset-0 z-[1200] flex flex-col animate-in fade-in duration-150"
       style={{ background: 'var(--c-bg)' }}
     >
-      {/* Search bar */}
-      <div className="shrink-0 px-3 pt-3 pb-2" style={{ borderBottom: '1px solid var(--c-border)' }}>
-        <div
-          className="flex items-center gap-2 rounded-full px-2 py-2"
-          style={{ background: 'var(--c-card)' }}
-        >
-          <button
-            onClick={onClose}
-            aria-label="Close search"
-            className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-          >
-            <ArrowLeft size={18} style={{ color: 'var(--c-text)' }} />
-          </button>
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
+      {/* Search bar — the exact same shared pill as the home screen, in its
+          'active' state, so nothing about its shape changes when the overlay
+          opens. */}
+      <div className="shrink-0 pt-3 pb-2" style={{ borderBottom: '1px solid var(--c-border)' }}>
+        <div className="px-4">
+          <SearchBar
+            variant="active"
             placeholder="Search stations and landmarks"
-            aria-label="Search stations and landmarks"
-            className="flex-1 min-w-0 bg-transparent border-none outline-none text-[16px] font-medium py-2"
-            style={{ color: 'var(--c-text)' }}
+            value={query}
+            onChange={setQuery}
+            onClose={onClose}
+            onSettings={onSettings}
+            loading={loadingPlaces}
+            inputRef={inputRef}
           />
-          {loadingPlaces && <Loader2 size={15} className="animate-spin shrink-0" style={{ color: 'var(--c-text-4)' }} />}
-          {query && (
-            <button
-              onClick={() => setQuery('')}
-              aria-label="Clear search"
-              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-            >
-              <X size={16} style={{ color: 'var(--c-text-3)' }} />
-            </button>
-          )}
         </div>
+
+        {/* Quick actions — mirror the home screen: live line-status pills first
+            (right under the search bar), then the metro quick-chips. Only
+            meaningful when browsing. */}
+        {showEmptyState && (
+          <div className="pt-2 flex flex-col gap-2">
+            <LineStatusPills onSelectLine={scrollToLine} />
+            {(nearestId || savedJourneys.length > 0) && (
+              <div className="flex gap-2 overflow-x-auto no-scrollbar px-4">
+                {nearestId && (
+                  <Chip
+                    icon={<Navigation size={14} style={{ color: 'var(--c-accent)' }} />}
+                    label="Nearest station"
+                    onClick={() => onSelectStation(nearestId)}
+                  />
+                )}
+                {savedJourneys.length > 0 && (
+                  <Chip
+                    icon={<Star size={14} style={{ color: 'var(--c-accent)' }} />}
+                    label="Saved"
+                    onClick={() => scrollToEl(savedRef.current)}
+                  />
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto overscroll-contain">
+      <div ref={scrollerRef} className="flex-1 overflow-y-auto overscroll-contain">
         {showEmptyState ? (
           <>
             {savedJourneys.length > 0 && (
-              <>
+              <div ref={savedRef}>
                 <SectionLabel icon={<Star size={12} style={{ color: 'var(--c-accent)' }} />} text="Saved" />
                 {savedJourneys.map((j: any) => (
                   <Row
@@ -216,7 +259,7 @@ export function HomeSearch({
                     onClick={() => onSelectStation(j.destId)}
                   />
                 ))}
-              </>
+              </div>
             )}
             {recentTrips.length > 0 && (
               <>
@@ -240,7 +283,12 @@ export function HomeSearch({
             <AllStations onSelectStation={onSelectStation} onPlanTo={onPlanTo} focusLine={focusLine} />
           </>
         ) : (
-          <>
+          // Suggestions slide down out from under the search bar as they appear.
+          <motion.div
+            initial={{ opacity: 0, y: -14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+          >
             {stationResults.length > 0 && <SectionLabel text="Stations" />}
             {stationResults.map((s) => (
               <Row
@@ -273,11 +321,10 @@ export function HomeSearch({
                   }
                   meta={
                     near
-                      ? `${
-                          near.km < 1
-                            ? `${Math.round(near.km * 1000)} m`
-                            : `${near.km.toFixed(1)} km`
-                        } · ${formatDuration(walkMinsForKm(near.km))} walk`
+                      ? `${near.km < 1
+                        ? `${Math.round(near.km * 1000)} m`
+                        : `${near.km.toFixed(1)} km`
+                      } · ${formatDuration(walkMinsForKm(near.km))} walk`
                       : 'No station nearby'
                   }
                   onClick={() => near && onSelectStation(near.station.id)}
@@ -291,7 +338,7 @@ export function HomeSearch({
                 Nothing found for “{query}”.
               </p>
             )}
-          </>
+          </motion.div>
         )}
       </div>
     </div>
@@ -329,7 +376,7 @@ function AllStations({
         const stns = STATIONS_BY_LINE[line];
         if (!stns?.length) return null;
         return (
-          <div key={line} ref={line === focusLine ? focusRef : undefined}>
+          <div key={line} data-line-group={line} ref={line === focusLine ? focusRef : undefined}>
             <div className="flex items-center gap-3 px-4 pt-3 pb-2">
               <LineBadge line={line} size="md" />
               <span className="text-sm font-bold" style={{ color: 'var(--c-text)' }}>
@@ -367,6 +414,29 @@ function AllStations({
         );
       })}
     </>
+  );
+}
+
+function Chip({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-2 rounded-full px-4 min-h-[44px] shrink-0 whitespace-nowrap active:scale-95 transition-transform"
+      style={{ background: 'var(--c-card)', border: '1px solid var(--c-border)' }}
+    >
+      {icon}
+      <span className="text-[13px] font-semibold" style={{ color: 'var(--c-text)' }}>
+        {label}
+      </span>
+    </button>
   );
 }
 

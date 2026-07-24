@@ -16,32 +16,28 @@ an entry once it's fixed.
       for every interchange. PRD §5.1 calls this out explicitly: "Must be
       upgraded to per-station walking matrixes before v2.0 launch."
 
+- [ ] **Failing test: "segment time shares are proportional to inter-station
+      distance"** (`journeyEngine.test.ts:276`). `toBeCloseTo(..., 6)` expects
+      ~5e-7 precision but the actual ratio differs by ~3.4e-3, so it fails. The
+      assertion tolerance looks too tight for the distance-weighted split.
+      Pre-existing (engine untouched by the journey-sheet work). Found 2026-07-25.
+
+- [ ] **Station-to-station journeys render phantom "Walk 1 min" rows.** When a
+      route is planned from a station (not a place), the live recompute in
+      `HomeScreen` (and previously `ResultsScreen`) passes the `sourceStation`/
+      `destStation` object — not its id — to `planJourney`. The engine's source
+      branch (`journeyEngine.ts:971`) treats any non-string as a place and runs
+      `findNearestStation`, so the station is re-tagged as a `sourcePlace`/
+      `destPlace` with a ~0-distance walk, producing "Walk 1 min to/from X" rows
+      in the timeline. Pre-existing behavior (visible in the old results page);
+      preserved as-is by the sheet redesign. Fix by passing `.id` when there is
+      no real place. Found 2026-07-25.
+
 
 
 
 ## Map rendering (`app/src/features/map/components/HomeMap.tsx`, `map/geometry/trackGeometry.ts`)
 
-
-## Routing / dead code (`app/src/App.tsx`, `map/components/MapScreen.tsx`, `journey/components/StationsDirectory.tsx`)
-
-- [ ] **`MapScreen` and `StationsDirectory` are dead code** — neither is imported
-      anywhere. They are the only in-app components that link to the
-      `/stations/:id` route (via `navigate` / `<Link>`); with them unused, that
-      route is now reached only by direct URL (SEO/deep-link). Safe to delete
-      both files once confirmed no external entry point relies on them. Found
-      2026-07-23 while auditing overlay-vs-page navigation.
-
-- [ ] **`StationDetail` SEO page's "From here" / "To here" buttons are no-ops.**
-      As of the 2026-07-23 overlay work, both buttons dispatch a `home-plan-trip`
-      event that only `HomeScreen` listens for. Inside the home sheet that opens
-      the planner overlay correctly (source for "From here", dest for "To here");
-      on the standalone `/stations/:id` page no `HomeScreen` is mounted, so the
-      event is silently dropped. Previously the single button navigated to `/go`,
-      which never existed as a route and fell through to `HomeScreen` without
-      opening the planner either — so no behavioural regression, but the
-      standalone page still needs its own way to start a plan (e.g. navigate to
-      `/` carrying the plan intent in router state, and have `HomeScreen` open the
-      planner from it on mount).
 
 ## Template for new entries
 
@@ -66,7 +62,7 @@ an entry once it's fixed.
       saved-journey data outgrows localStorage's ~5 MB budget.
 
 - [ ] **Full-viewport screens still hardcode an 80px tab-bar offset**
-      (`MapScreen.tsx:124`, `Planner.tsx:154`, `App.tsx` `MapFallback`).
+      (`Planner.tsx:154`, `App.tsx` `MapFallback`).
       The tab bar is ~68px intrinsically and grows by
       `env(safe-area-inset-bottom)` on notched phones, so these leave a ~12px
       dead gap on most devices and overlap the bar on iPhones. `App.tsx` now
@@ -85,6 +81,20 @@ an entry once it's fixed.
 ---
 
 ## Resolved / Fixed
+
+- **[Fixed 2026-07-25]** Dead-code components removed. `MapScreen` and
+  `StationsDirectory` were imported nowhere; deleted both, plus
+  `StationBottomSheet` (used only by `MapScreen`, so orphaned by its removal).
+  `LiveTrainsLayer` was kept — it's shared with `HomeMap`. Stale `MapScreen`
+  references in a `HomeMap` comment and a PWA-section note were also cleaned up.
+
+- **[Fixed 2026-07-25]** `StationDetail` SEO page's "From here"/"To here"
+  buttons now work. `StationDetailBody` gained an optional `onPlanIntent` — the
+  home sheet still falls back to the `home-plan-trip` event, while the standalone
+  `/stations/:id` page passes a handler that navigates to `/` with the plan
+  intent in router state (`{ planTrip: { source | dest } }`). `HomeScreen` reads
+  that state once on mount, opens the planner with the prefill, then clears the
+  state (`replace`) so a refresh/back-nav doesn't reopen it.
 
 - **[Added 2026-07-23]** Home-map viewport is now fenced to the metro area. Set
   `maxBounds` (network box padded ~25%), `maxBoundsViscosity: 1.0` (hard fence —
@@ -137,3 +147,4 @@ an entry once it's fixed.
 - **[Fixed 2026-07-20]** Journey progress state no longer resets on minimize/maximize; `useJourneySession` was lifted up to `MainApp` in `App.tsx`.
 - **[Fixed 2026-07-20]** Fare calculation rebuilt on real GMRC distance data (`fareEngine.ts`) instead of the guessed station-count slabs in the old `fares.json`; see PRD §5.4.
 - **[Fixed 2026-07-20]** Cross-phase ticket rule ("only NCMC works between Phase 1 and Phase 2") and the CSC/NCMC 10% discount are now confirmed against GMRC's `fare-rules` page and recorded in `app/src/data/metroInfo.json`. The discount is display-only and intentionally not applied to any fare.
+- **[Found 2026-07-25, not fixed]** Dead `animate-in` / `fade-in` / `slide-in-from-top-*` classes across the app (e.g. the `HomeSearch` overlay root, `Planner.tsx:195` dropdown, other overlays). The project is on **Tailwind v4 with no `tailwindcss-animate` / `tw-animate-css`**, so these utilities generate **no CSS** (`getComputedStyle` → `animation-name: none`) and the intended entrance animations simply don't happen for real users. Fix options: add `tw-animate-css` and `@import` it, or replace with framer-motion / hand-written `@keyframes`. (The search-suggestions entrance was done with framer-motion instead.) Out of scope for the UI-parity search work.

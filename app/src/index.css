@@ -97,10 +97,12 @@ html, body, #root {
   transition: none;
 }
 
-/* When a route is active, mute the basemap so the route owns the screen */
+/* When a route is active, mute the basemap so the route owns the screen.
+   No transition: the home map animates continuously (live trains), which keeps
+   a filter transition perpetually "running" so it never reaches its target —
+   the mute is applied instantly instead. */
 .map-routing .leaflet-tile-pane {
   filter: grayscale(1) brightness(1.06) contrast(0.92);
-  transition: filter 0.3s ease;
 }
 :root[data-theme="dark"] .map-routing .leaflet-tile-pane {
   filter: grayscale(1) brightness(0.75) contrast(0.95);

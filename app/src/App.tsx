@@ -1,9 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { HomeScreen } from './features/journey/components/HomeScreen';
-import { ResultsScreen } from './features/journey/components/ResultsScreen';
 import { LiveJourneyScreen } from './features/journey/components/LiveJourneyScreen';
-import { MinimizedJourneyBar } from './features/journey/components/MinimizedJourneyBar';
 import { LocationService, type LocationErrorKind } from './services/LocationService';
 import { STATIONS, haversineKm, planJourney, STATION_BY_ID } from './features/journey/engine/journeyEngine';
 import { StationDetail } from './features/journey/components/StationDetail';
@@ -71,8 +69,8 @@ function MainApp() {
     setResult(r);
     setActiveJourney(false);
     setIsJourneyMinimized(false);
-    // No route navigation needed — ResultsScreen is rendered inline when
-    // result is set. Ensure we're on "/" so the back flow is clean.
+    // No route navigation needed — the planned route renders in HomeScreen's
+    // sheet and on its map. Ensure we're on "/" so the map is mounted.
     if (location.pathname !== "/") navigate("/");
   }
   function handleBack() { setResult(null); setActiveJourney(false); setIsJourneyMinimized(false); }
@@ -82,55 +80,61 @@ function MainApp() {
     document.documentElement.style.setProperty('--nav-h', '0px');
   }, []);
 
+  // The map + sheet stay mounted through planning and (minimized) live journeys,
+  // so HomeScreen always hosts them and reflects journey state in its sheet.
+  const homeProps = {
+    coords,
+    nearest: nearestOrFallback,
+    locStatus,
+    onRetryLocation: requestLocation,
+    onPlan: handlePlan,
+    result,
+    activeJourney,
+    session: journeySession,
+    onStartJourney: (idx: number, currentResult: any) => {
+      setResult(currentResult);
+      setActiveJourney(true);
+      setActiveJourneyOptionIdx(idx);
+      // Land on the sheet's live summary over the map; the user expands it to
+      // open the full-screen live view.
+      setIsJourneyMinimized(true);
+    },
+    onClearResult: handleBack,
+    onMaximizeLive: () => setIsJourneyMinimized(false),
+  };
+
+  // The rich live view overlays the still-mounted map when maximized.
+  const showLive = activeJourney && !isJourneyMinimized;
+
   return (
     <div
-      className="min-h-screen w-full flex flex-col transition-colors duration-300"
+      className="min-h-[100dvh] w-full flex flex-col transition-colors duration-300"
       style={{ background: 'var(--c-bg)', color: 'var(--c-text)', fontFamily: "'Space Grotesk', sans-serif" }}
     >
       <div className="w-full flex-1 relative flex flex-col">
         <main className="flex-1 overflow-y-auto">
-        {result ? (
-          activeJourney ? (
-            !isJourneyMinimized ? (
-              <LiveJourneyScreen 
-                result={result} 
-                activeOptionIdx={activeJourneyOptionIdx}
-                onEnd={() => { setActiveJourney(false); setResult(null); setIsJourneyMinimized(false); }} 
-                onMinimize={() => setIsJourneyMinimized(true)}
-                session={journeySession}
-              />
-            ) : (
-              <>
-                <div className="animate-in fade-in duration-300">
-                  <Routes>
-                    <Route path="/" element={<HomeScreen coords={coords} nearest={nearestOrFallback} locStatus={locStatus} onRetryLocation={requestLocation} onPlan={handlePlan} />} />
-                    <Route path="/stations/:id" element={<StationDetail />} />
-                    <Route path="/you" element={<YouScreen />} />
-                    <Route path="*" element={<HomeScreen coords={coords} nearest={nearestOrFallback} locStatus={locStatus} onRetryLocation={requestLocation} onPlan={handlePlan} />} />
-                  </Routes>
-                </div>
-                <MinimizedJourneyBar result={result} onMaximize={() => setIsJourneyMinimized(false)} session={journeySession} />
-              </>
-            )
-          ) : (
-            <ResultsScreen result={result} onBack={handleBack} onStartJourney={(idx, currentResult) => { setResult(currentResult); setActiveJourney(true); setActiveJourneyOptionIdx(idx); setIsJourneyMinimized(false); }} />
-          )
-        ) : (
           <div className="animate-in fade-in duration-300">
             <Routes>
-              <Route path="/" element={
-                <HomeScreen coords={coords} nearest={nearestOrFallback} locStatus={locStatus} onRetryLocation={requestLocation} onPlan={handlePlan} />
-              } />
+              <Route path="/" element={<HomeScreen {...homeProps} />} />
               <Route path="/stations/:id" element={<StationDetail />} />
               <Route path="/you" element={<YouScreen />} />
-              <Route path="*" element={
-                <HomeScreen coords={coords} nearest={nearestOrFallback} locStatus={locStatus} onRetryLocation={requestLocation} onPlan={handlePlan} />
-              } />
+              <Route path="*" element={<HomeScreen {...homeProps} />} />
             </Routes>
           </div>
-        )}
-      </main>
+        </main>
       </div>
+
+      {showLive && result && (
+        <div className="fixed inset-0 z-[1200] overflow-y-auto" style={{ background: 'var(--c-bg)' }}>
+          <LiveJourneyScreen
+            result={result}
+            activeOptionIdx={activeJourneyOptionIdx}
+            onEnd={() => { setActiveJourney(false); setResult(null); setIsJourneyMinimized(false); }}
+            onMinimize={() => setIsJourneyMinimized(true)}
+            session={journeySession}
+          />
+        </div>
+      )}
     </div>
   );
 }

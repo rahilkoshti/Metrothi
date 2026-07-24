@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { ArrowUpDown, ArrowRight, MapPin } from "lucide-react";
+import { ArrowUpDown, ArrowRight, MapPin, History, Clock, ChevronDown, X } from "lucide-react";
 import { StationInput } from "./StationInput";
 import { STATIONS, estimateLine, nextDepartureFromStation, formatDuration, walkMinsForKm } from "../engine/journeyEngine";
 import type { PlaceNode } from "../engine/journeyEngine";
@@ -39,11 +39,34 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
   const online = useOnlineStatus();
 
   const [timeMode, setTimeMode] = useState<'now' | 'depart' | 'arrive'>('now');
+  const [timeExpanded, setTimeExpanded] = useState(false);
   const [timeStr, setTimeStr] = useState<string>(() => {
     const d = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   });
+
+  const [recentTrips, setRecentTrips] = useState<any[]>([]);
+  useEffect(() => {
+    try {
+      setRecentTrips(JSON.parse(localStorage.getItem('metrothi-recent-trips') || '[]'));
+    } catch { /* ignore */ }
+  }, []);
+
+  function fillFromTrip(trip: any) {
+    if (trip.source) { setSource(trip.source); setSourceQuery(trip.source.name ?? ''); setSourceIsAuto(false); }
+    if (trip.dest) { setDestination(trip.dest); setDestQuery(trip.dest.name ?? ''); }
+    setActiveField(null);
+  }
+
+  function removeTrip(e: React.MouseEvent, key: string) {
+    e.stopPropagation();
+    setRecentTrips(prev => {
+      const next = prev.filter(t => t.key !== key);
+      try { localStorage.setItem('metrothi-recent-trips', JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }
 
   // Reset focusedIndex when query or active field changes
   useEffect(() => {
@@ -162,29 +185,47 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
         style={{ background: 'var(--c-card)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-2">
-          <StationInput
-            label="From" value={sourceQuery} isAuto={sourceIsAuto}
-            onFocus={() => setActiveField("source")}
-            onChange={(v) => { setSourceQuery(v); setSourceIsAuto(false); setActiveField("source"); if (source && v !== source.name) setSource(null); }}
-            onClear={() => { setSourceQuery(""); setSource(null); setSourceIsAuto(false); setActiveField("source"); }}
-            onKeyDown={handleKeyDown}
-          />
-          <div style={{ height: '1px', background: 'var(--c-border)', margin: '0 4px' }} />
-          <StationInput
-            label="To" value={destQuery}
-            onFocus={() => setActiveField("destination")}
-            onChange={(v) => { setDestQuery(v); setActiveField("destination"); if (destination && v !== destination.name) setDestination(null); }}
-            onClear={() => { setDestQuery(""); setDestination(null); setActiveField("destination"); }}
-            onKeyDown={handleKeyDown}
-          />
+        <div className="flex px-1">
+          {/* Connector rail: origin dot → dotted line → destination pin. Two
+              equal-height halves keep each node centred on its input row. */}
+          <div className="shrink-0 w-8 flex flex-col self-stretch" aria-hidden="true">
+            <div className="flex-1 relative flex items-center justify-center">
+              <span className="absolute left-1/2 -translate-x-1/2 top-1/2 bottom-0 border-l-2 border-dotted" style={{ borderColor: 'var(--c-border-2)' }} />
+              <span className="relative w-3.5 h-3.5 rounded-full flex items-center justify-center" style={{ background: 'var(--c-accent)' }}>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--c-accent-fg)' }} />
+              </span>
+            </div>
+            <div style={{ height: '1px' }} />
+            <div className="flex-1 relative flex items-center justify-center">
+              <span className="absolute left-1/2 -translate-x-1/2 top-0 bottom-1/2 border-l-2 border-dotted" style={{ borderColor: 'var(--c-border-2)' }} />
+              <MapPin size={18} strokeWidth={2.5} className="relative text-red-500 fill-red-500/15" />
+            </div>
+          </div>
+
+          <div className="flex-1 min-w-0 px-1">
+            <StationInput
+              label="From" value={sourceQuery} isAuto={sourceIsAuto} hideIcon
+              onFocus={() => setActiveField("source")}
+              onChange={(v) => { setSourceQuery(v); setSourceIsAuto(false); setActiveField("source"); if (source && v !== source.name) setSource(null); }}
+              onClear={() => { setSourceQuery(""); setSource(null); setSourceIsAuto(false); setActiveField("source"); }}
+              onKeyDown={handleKeyDown}
+            />
+            <div style={{ height: '1px', background: 'var(--c-border)' }} />
+            <StationInput
+              label="To" value={destQuery} hideIcon
+              onFocus={() => setActiveField("destination")}
+              onChange={(v) => { setDestQuery(v); setActiveField("destination"); if (destination && v !== destination.name) setDestination(null); }}
+              onClear={() => { setDestQuery(""); setDestination(null); setActiveField("destination"); }}
+              onKeyDown={handleKeyDown}
+            />
+          </div>
         </div>
 
         <button
           onClick={handleSwap}
           disabled={!source && !destination}
           aria-label="Swap"
-          className="absolute right-5 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center transition-all disabled:opacity-30 hover:scale-110 active:scale-95"
+          className="absolute right-4 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center transition-all disabled:opacity-30 hover:scale-110 active:scale-95"
           style={{ background: 'var(--c-card-alt)', color: 'var(--c-text-2)' }}
         >
           <ArrowUpDown size={16} strokeWidth={2.5} />
@@ -205,7 +246,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
                   key={s.id}
                   onClick={() => pickResult(s)}
                   className="flex items-center justify-between w-full p-4 text-left transition-colors"
-                  style={{ 
+                  style={{
                     borderBottom: '1px solid var(--c-border)',
                     background: isFocused ? 'var(--c-card-alt)' : 'transparent'
                   }}
@@ -235,7 +276,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
                   key={p.id}
                   onClick={() => pickResult(p)}
                   className="flex items-center gap-3 w-full p-4 text-left transition-colors"
-                  style={{ 
+                  style={{
                     borderBottom: '1px solid var(--c-border)',
                     background: isFocused ? 'var(--c-card-alt)' : 'transparent'
                   }}
@@ -296,44 +337,93 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
         )}
       </div>
 
-      <div className="mb-6 relative z-10">
-        <div className="flex items-center gap-1 mb-3 p-1 rounded-xl" style={{ background: 'var(--c-card)' }}>
-          {(['now', 'depart', 'arrive'] as const).map(mode => (
+      {!activeField && recentTrips.length > 0 && (
+        <div className="mb-6 -mx-1">
+          <div className="text-[11px] font-bold uppercase tracking-widest mb-1 px-2" style={{ color: 'var(--c-text-3)' }}>Recent</div>
+          {recentTrips.map((trip) => (
             <button
-              key={mode}
-              onClick={() => {
-                 setTimeMode(mode);
-                 if (mode !== 'now') {
-                   const d = new Date();
-                   const pad = (n: number) => String(n).padStart(2, '0');
-                   setTimeStr(`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
-                 }
-              }}
-              className="flex-1 py-2 text-[11px] font-bold uppercase tracking-widest rounded-lg transition-all duration-200"
-              style={{
-                background: timeMode === mode ? 'var(--c-accent)' : 'transparent',
-                color: timeMode === mode ? 'var(--c-accent-fg)' : 'var(--c-text-3)',
-                boxShadow: timeMode === mode ? '0 2px 10px rgba(0,0,0,0.1)' : 'none'
-              }}
+              key={trip.key}
+              onClick={() => fillFromTrip(trip)}
+              className="flex items-center gap-3 w-full px-2 py-3 text-left rounded-xl transition-colors active:bg-black/5 dark:active:bg-white/5"
             >
-              {mode === 'now' ? 'Leave Now' : mode === 'depart' ? 'Depart At' : 'Arrive By'}
+              <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: 'var(--c-card-alt)' }}>
+                <History size={16} style={{ color: 'var(--c-text-3)' }} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[15px] font-semibold truncate" style={{ color: 'var(--c-text)' }}>{trip.dest?.name ?? 'Trip'}</div>
+                <div className="text-[12px] truncate" style={{ color: 'var(--c-text-3)' }}>from {trip.source?.name ?? '—'}</div>
+              </div>
+              <div
+                role="button"
+                tabIndex={0}
+                aria-label="Remove recent trip"
+                onClick={(e) => removeTrip(e, trip.key)}
+                className="shrink-0 w-9 h-9 -mr-1 rounded-full flex items-center justify-center transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                style={{ color: 'var(--c-text-3)' }}
+              >
+                <X size={16} strokeWidth={2.5} />
+              </div>
             </button>
           ))}
         </div>
-        {timeMode !== 'now' && (
-          <div className="animate-in fade-in slide-in-from-top-1 duration-200">
-            <input 
-              type="datetime-local" 
-              value={timeStr}
-              onChange={e => setTimeStr(e.target.value)}
-              className="w-full border-none rounded-xl px-4 py-3 text-[15px] font-semibold transition-shadow duration-200 focus:outline-none focus:ring-2"
-              style={{ 
-                background: 'var(--c-card)', 
-                color: 'var(--c-text)',
-                outlineColor: 'var(--c-accent)',
-                boxShadow: '0 2px 12px rgba(0,0,0,0.05)'
-              }}
-            />
+      )}
+
+      <div className="mb-6 relative z-10">
+        <button
+          onClick={() => setTimeExpanded(v => !v)}
+          className="inline-flex items-center gap-2 px-4 rounded-full min-h-[44px] text-[14px] font-semibold transition-colors"
+          style={{ background: 'var(--c-card)', color: 'var(--c-text)' }}
+        >
+          <Clock size={16} style={{ color: 'var(--c-text-3)' }} />
+          <span>
+            {timeMode === 'now'
+              ? 'Leave now'
+              : `${timeMode === 'depart' ? 'Depart' : 'Arrive'} ${new Date(timeStr).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`}
+          </span>
+          <ChevronDown size={16} style={{ color: 'var(--c-text-3)', transform: timeExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+        </button>
+
+        {timeExpanded && (
+          <div className="mt-3 animate-in fade-in slide-in-from-top-1 duration-200">
+            <div className="flex items-center gap-1 mb-3 p-1 rounded-xl" style={{ background: 'var(--c-card)' }}>
+              {(['now', 'depart', 'arrive'] as const).map(mode => (
+                <button
+                  key={mode}
+                  onClick={() => {
+                    setTimeMode(mode);
+                    if (mode !== 'now') {
+                      const d = new Date();
+                      const pad = (n: number) => String(n).padStart(2, '0');
+                      setTimeStr(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+                    }
+                  }}
+                  className="flex-1 py-2.5 text-[11px] font-bold uppercase tracking-widest rounded-lg transition-all duration-200"
+                  style={{
+                    background: timeMode === mode ? 'var(--c-accent)' : 'transparent',
+                    color: timeMode === mode ? 'var(--c-accent-fg)' : 'var(--c-text-3)',
+                    boxShadow: timeMode === mode ? '0 2px 10px rgba(0,0,0,0.1)' : 'none'
+                  }}
+                >
+                  {mode === 'now' ? 'Leave Now' : mode === 'depart' ? 'Depart At' : 'Arrive By'}
+                </button>
+              ))}
+            </div>
+            {timeMode !== 'now' && (
+              <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                <input
+                  type="datetime-local"
+                  value={timeStr}
+                  onChange={e => setTimeStr(e.target.value)}
+                  className="w-full border-none rounded-xl px-4 py-3 text-[15px] font-semibold transition-shadow duration-200 focus:outline-none focus:ring-2"
+                  style={{
+                    background: 'var(--c-card)',
+                    color: 'var(--c-text)',
+                    outlineColor: 'var(--c-accent)',
+                    boxShadow: '0 2px 12px rgba(0,0,0,0.05)'
+                  }}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -156,6 +156,50 @@ function PanTo({ target, bottomInset }: { target: { lat: number; lng: number } |
   return null;
 }
 
+/**
+ * Fits the map to a freshly planned route, leaving room for the sheet at the
+ * bottom and the search chrome at the top. Keyed on a route signature so it
+ * fires once per new plan, not on every pan.
+ */
+function RouteFrame({
+  routeLegs,
+  routeKey,
+  bottomPad,
+}: {
+  routeLegs: { line: string; coords: [number, number][] }[] | null;
+  routeKey: string | null;
+  bottomPad: number;
+}) {
+  const map = useMap();
+  useEffect(() => {
+    if (!routeLegs?.length) return;
+    const all = routeLegs.flatMap((l) => l.coords);
+    if (!all.length) return;
+    map.fitBounds(L.latLngBounds(all), {
+      paddingTopLeft: [40, 96],
+      paddingBottomRight: [40, bottomPad],
+      animate: true,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeKey, map]);
+  return null;
+}
+
+/**
+ * Toggles the `map-routing` class on the Leaflet container. Done imperatively
+ * because react-leaflet fixes MapContainer's className at mount — a reactive
+ * prop wouldn't update it when a route is planned after the map is already up.
+ */
+function RoutingClass({ active }: { active: boolean }) {
+  const map = useMap();
+  useEffect(() => {
+    const el = map.getContainer();
+    el.classList.toggle('map-routing', active);
+    return () => el.classList.remove('map-routing');
+  }, [map, active]);
+  return null;
+}
+
 function DynamicMinZoom({ areaBounds }: { areaBounds: L.LatLngBounds }) {
   const map = useMapEvents({
     resize: () => {
@@ -177,6 +221,10 @@ export function HomeMap({
   selectedStationId,
   onSelectStation,
   panTo,
+  routeLegs = null,
+  routeKey = null,
+  routeEndpoints = null,
+  routeBottomPad = 320,
 }: {
   coords: { lat: number; lng: number } | null;
   nearest: any;
@@ -184,8 +232,22 @@ export function HomeMap({
   selectedStationId: string | null;
   onSelectStation: (id: string) => void;
   panTo: { lat: number; lng: number } | null;
+  /** Per-leg track polylines for the planned route (routeLegSlices output). */
+  routeLegs?: { line: string; coords: [number, number][] }[] | null;
+  /** Stable id for the current route so the fit effect fires once per plan. */
+  routeKey?: string | null;
+  /** Origin/destination pins + optional place walk-dash geometry. */
+  routeEndpoints?: {
+    origin: [number, number] | null;
+    dest: [number, number] | null;
+    originWalk?: [number, number][] | null;
+    destWalk?: [number, number][] | null;
+  } | null;
+  /** Bottom padding (px) reserved for the sheet when framing a route. */
+  routeBottomPad?: number;
 }) {
   const { theme } = useTheme();
+  const routeActive = !!routeLegs?.length;
   const [walkingRoute, setWalkingRoute] = useState<[number, number][] | null>(null);
 
   // Fetch walking route from OSRM when location or nearest station changes
@@ -256,8 +318,10 @@ export function HomeMap({
       />
 
       <DynamicMinZoom areaBounds={AREA_BOUNDS} />
+      <RoutingClass active={routeActive} />
       <HomeFrame coords={coords} nearest={nearest} bottomInset={bottomInset} />
       <PanTo target={panTo} bottomInset={bottomInset} />
+      <RouteFrame routeLegs={routeLegs} routeKey={routeKey} bottomPad={routeBottomPad} />
 
       {polylines.map((line) => (
         <Polyline
@@ -266,13 +330,79 @@ export function HomeMap({
           smoothFactor={0}
           pathOptions={{
             color: LINE_COLORS[line.lineId] ?? '#666',
-            weight: 5,
-            opacity: 0.9,
+            weight: routeActive ? 4 : 5,
+            // Fade the network back when a route is highlighted so the chosen
+            // path reads as the foreground.
+            opacity: routeActive ? 0.2 : 0.9,
             lineJoin: 'round',
             lineCap: 'round',
           }}
         />
       ))}
+
+      {/* Highlighted route: dark casing beneath, line-colored legs on top. */}
+      {routeActive && routeLegs!.map((leg, i) => (
+        <Polyline
+          key={`route-casing-${i}`}
+          positions={leg.coords}
+          pathOptions={{
+            color: theme === 'dark' ? '#000' : '#fff',
+            weight: 11,
+            opacity: 0.9,
+            lineJoin: 'round',
+            lineCap: 'round',
+          }}
+          interactive={false}
+        />
+      ))}
+      {routeActive && routeLegs!.map((leg, i) => (
+        <Polyline
+          key={`route-${i}`}
+          positions={leg.coords}
+          pathOptions={{
+            color: LINE_COLORS[leg.line] ?? '#666',
+            weight: 6,
+            opacity: 1,
+            lineJoin: 'round',
+            lineCap: 'round',
+          }}
+          interactive={false}
+        />
+      ))}
+
+      {/* Walk-to-station / walk-from-station dashes when routing from a place. */}
+      {routeActive && routeEndpoints?.originWalk && routeEndpoints.originWalk.length > 1 && (
+        <Polyline
+          positions={routeEndpoints.originWalk}
+          pathOptions={{ color: '#3b82f6', weight: 2.5, opacity: 0.7, dashArray: '4, 7', lineCap: 'round' }}
+          interactive={false}
+        />
+      )}
+      {routeActive && routeEndpoints?.destWalk && routeEndpoints.destWalk.length > 1 && (
+        <Polyline
+          positions={routeEndpoints.destWalk}
+          pathOptions={{ color: '#3b82f6', weight: 2.5, opacity: 0.7, dashArray: '4, 7', lineCap: 'round' }}
+          interactive={false}
+        />
+      )}
+
+      {/* Origin / destination endpoint pins for the route. */}
+      {routeActive && routeEndpoints?.origin && (
+        <CircleMarker
+          center={routeEndpoints.origin}
+          radius={7}
+          pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#111', fillOpacity: 1 }}
+          interactive={false}
+        />
+      )}
+      {routeActive && routeEndpoints?.dest && (
+        <CircleMarker
+          center={routeEndpoints.dest}
+          radius={8}
+          pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#F97316', fillOpacity: 1 }}
+          interactive={false}
+        />
+      )}
 
       {stations.map((s) => {
         const isSelected = s.id === selectedStationId;

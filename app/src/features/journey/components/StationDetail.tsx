@@ -275,6 +275,7 @@ export function StationDetailBody({
   openLine,
   openDirDest,
   showHero = true,
+  onPlanIntent,
 }: {
   stationId: string;
   openLine?: string;
@@ -282,6 +283,12 @@ export function StationDetailBody({
   /** The home sheet already names the station in its header, so it hides the
    *  hero to avoid repeating the identity. The standalone page keeps it. */
   showHero?: boolean;
+  /** How to start a trip from the "From here" / "To here" buttons. When omitted
+   *  (the home sheet), falls back to the `home-plan-trip` event that the mounted
+   *  `HomeScreen` listens for. The standalone `/stations/:id` page — where no
+   *  `HomeScreen` is mounted to catch that event — passes its own handler that
+   *  navigates home carrying the intent. */
+  onPlanIntent?: (detail: { source?: string } | { dest?: string }) => void;
 }) {
   const station = STATION_BY_ID[stationId];
 
@@ -299,24 +306,28 @@ export function StationDetailBody({
 
   const lines = [station.line, ...(station.secondLine ? [station.secondLine] : [])];
 
-  // Open the home planner overlay (map stays mounted beneath) rather than
-  // navigating to a route. HomeScreen listens for this event. "From here"
+  // Start a trip from the "From here" / "To here" buttons. In the home sheet the
+  // default fires the `home-plan-trip` event the mounted HomeScreen catches to
+  // open its planner overlay (map stays mounted beneath). The standalone page has
+  // no HomeScreen to catch it, so it supplies `onPlanIntent` instead. "From here"
   // seeds the trip source, "To here" the destination.
-  const planWith = (detail: { source?: string } | { dest?: string }) =>
-    document.dispatchEvent(new CustomEvent("home-plan-trip", { detail }));
+  const planWith = (detail: { source?: string } | { dest?: string }) => {
+    if (onPlanIntent) onPlanIntent(detail);
+    else document.dispatchEvent(new CustomEvent("home-plan-trip", { detail }));
+  };
 
   const actions = (
     <div className="flex gap-2.5">
       <button
         onClick={() => planWith({ source: station.id })}
-        className="flex-1 py-3.5 rounded-2xl text-[14px] font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+        className="flex-1 py-4 rounded-2xl text-[14px] font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
         style={{ background: "var(--c-accent)", color: "#000" }}
       >
         <ArrowUpRight size={16} strokeWidth={2.5} /> From here
       </button>
       <button
         onClick={() => planWith({ dest: station.id })}
-        className="flex-1 py-3.5 rounded-2xl text-[14px] font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+        className="flex-1 py-4 rounded-2xl text-[14px] font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
         style={{ background: "transparent", color: "var(--c-accent)", border: "1px solid var(--c-accent)" }}
       >
         <MapPin size={16} strokeWidth={2.5} /> To here
@@ -436,7 +447,7 @@ export function StationDetail() {
   const deepLinkState = (location.state as { openLine?: string; openDirDest?: string } | null) ?? {};
 
   return (
-    <div className="min-h-screen pb-28 animate-in fade-in slide-in-from-right-4 duration-300">
+    <div className="min-h-[100dvh] pb-28 animate-in fade-in slide-in-from-right-4 duration-300">
       {/* Sticky top bar */}
       <div
         className="sticky top-0 z-30 px-4 py-3 flex items-center gap-3 transition-colors"
@@ -462,6 +473,7 @@ export function StationDetail() {
         stationId={id}
         openLine={deepLinkState.openLine}
         openDirDest={deepLinkState.openDirDest}
+        onPlanIntent={(detail) => navigate("/", { state: { planTrip: detail } })}
       />
     </div>
   );

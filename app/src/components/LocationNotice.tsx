@@ -50,7 +50,7 @@ export function LocationNotice({
       </div>
       <button
         onClick={(e) => { e.stopPropagation(); onRetry(); }}
-        className="flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg shrink-0 active:opacity-70 transition-opacity text-yellow-600"
+        className="flex items-center justify-center gap-1 text-[11px] font-bold px-3 min-h-[44px] rounded-lg shrink-0 active:opacity-70 transition-opacity text-yellow-600"
         style={{ border: '1px solid rgba(250,204,21,0.35)' }}
       >
         <RotateCw size={11} /> Retry

@@ -8,14 +8,18 @@ interface StationInputProps {
   onClear: () => void;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   isAuto?: boolean;
+  /** Hide the built-in leading glyph — the parent owns the connector rail gutter. */
+  hideIcon?: boolean;
 }
 
-export function StationInput({ label, value, onFocus, onChange, onClear, onKeyDown, isAuto }: StationInputProps) {
+export function StationInput({ label, value, onFocus, onChange, onClear, onKeyDown, isAuto, hideIcon }: StationInputProps) {
   return (
     <div className="flex items-center gap-3 py-3.5 group relative transition-colors">
-      <div className="shrink-0 w-8 flex justify-center transition-colors" style={{ color: 'var(--c-text-3)' }}>
-        {isAuto ? <LocateFixed size={17} /> : <MapPin size={17} />}
-      </div>
+      {!hideIcon && (
+        <div className="shrink-0 w-8 flex justify-center transition-colors" style={{ color: 'var(--c-text-3)' }}>
+          {isAuto ? <LocateFixed size={17} /> : <MapPin size={17} />}
+        </div>
+      )}
       <div className="flex-1 min-w-0">
         <div className="text-[9px] uppercase tracking-widest font-bold mb-0.5" style={{ color: 'var(--c-text-3)' }}>{label}</div>
         <input
