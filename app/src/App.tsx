@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { HomeScreen } from './features/journey/components/HomeScreen';
-import { LiveJourneyScreen } from './features/journey/components/LiveJourneyScreen';
 import { LocationService, type LocationErrorKind } from './services/LocationService';
 import { STATIONS, haversineKm, planJourney, STATION_BY_ID } from './features/journey/engine/journeyEngine';
 import { StationDetail } from './features/journey/components/StationDetail';
@@ -17,8 +16,6 @@ export type LocStatus = "locating" | "granted" | LocationErrorKind;
 function MainApp() {
   const [result, setResult] = useState<any>(null);
   const [activeJourney, setActiveJourney] = useState(false);
-  const [activeJourneyOptionIdx, setActiveJourneyOptionIdx] = useState(0);
-  const [isJourneyMinimized, setIsJourneyMinimized] = useState(false);
   const [coords, setCoords] = useState<{ lat: number, lng: number } | null>(null);
   const [locStatus, setLocStatus] = useState<LocStatus>("locating");
 
@@ -68,20 +65,21 @@ function MainApp() {
     const r = planJourney(srcArg, destArg, config);
     setResult(r);
     setActiveJourney(false);
-    setIsJourneyMinimized(false);
     // No route navigation needed — the planned route renders in HomeScreen's
     // sheet and on its map. Ensure we're on "/" so the map is mounted.
     if (location.pathname !== "/") navigate("/");
   }
-  function handleBack() { setResult(null); setActiveJourney(false); setIsJourneyMinimized(false); }
+  function handleBack() { setResult(null); setActiveJourney(false); }
 
   // No tab bar — --nav-h is always 0.
   useEffect(() => {
     document.documentElement.style.setProperty('--nav-h', '0px');
   }, []);
 
-  // The map + sheet stay mounted through planning and (minimized) live journeys,
-  // so HomeScreen always hosts them and reflects journey state in its sheet.
+  // The map + sheet stay mounted through planning and live journeys, so
+  // HomeScreen always hosts them and reflects journey state in its sheet — the
+  // live journey now lives inside the sheet too, expanding in place rather than
+  // taking over the screen.
   const homeProps = {
     coords,
     nearest: nearestOrFallback,
@@ -91,20 +89,12 @@ function MainApp() {
     result,
     activeJourney,
     session: journeySession,
-    onStartJourney: (idx: number, currentResult: any) => {
+    onStartJourney: (_idx: number, currentResult: any) => {
       setResult(currentResult);
       setActiveJourney(true);
-      setActiveJourneyOptionIdx(idx);
-      // Land on the sheet's live summary over the map; the user expands it to
-      // open the full-screen live view.
-      setIsJourneyMinimized(true);
     },
     onClearResult: handleBack,
-    onMaximizeLive: () => setIsJourneyMinimized(false),
   };
-
-  // The rich live view overlays the still-mounted map when maximized.
-  const showLive = activeJourney && !isJourneyMinimized;
 
   return (
     <div
@@ -123,18 +113,6 @@ function MainApp() {
           </div>
         </main>
       </div>
-
-      {showLive && result && (
-        <div className="fixed inset-0 z-[1200] overflow-y-auto" style={{ background: 'var(--c-bg)' }}>
-          <LiveJourneyScreen
-            result={result}
-            activeOptionIdx={activeJourneyOptionIdx}
-            onEnd={() => { setActiveJourney(false); setResult(null); setIsJourneyMinimized(false); }}
-            onMinimize={() => setIsJourneyMinimized(true)}
-            session={journeySession}
-          />
-        </div>
-      )}
     </div>
   );
 }

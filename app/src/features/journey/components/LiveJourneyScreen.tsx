@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  X, Bookmark, Share2, Clock, ChevronDown, Footprints,
+  Bookmark, Share2, Clock, ChevronDown, Footprints,
   ArrowLeftRight, Flag, FastForward, Check, Train,
 } from "lucide-react";
 import { fullDayStationSchedule, LINE_PATHS, clockTimeAfter } from "../engine/journeyEngine";
@@ -24,18 +25,6 @@ const CURRENT_TEXT: Record<string, string> = {
 };
 
 const fmtMins = (m: number) => `${m} min${m === 1 ? "" : "s"}`;
-
-const STATE_LABEL: Record<JourneyState, string> = {
-  NOT_STARTED: "Starting",
-  WALKING_TO_STATION: "Walking",
-  WAITING_FOR_TRAIN: "Waiting",
-  ON_TRAIN: "On train",
-  APPROACHING_TRANSFER: "Transfer soon",
-  TRANSFERRING: "Transferring",
-  APPROACHING_DESTINATION: "Arriving",
-  FINAL_WALK: "Arrived",
-  COMPLETED: "Completed",
-};
 
 const STATE_PILL: Record<JourneyState, { bg: string; fg: string }> = {
   NOT_STARTED: { bg: "#3B82F6", fg: "#fff" },
@@ -150,11 +139,10 @@ interface LiveJourneyScreenProps {
   result: any;
   activeOptionIdx?: number;
   onEnd: () => void;
-  onMinimize: () => void;
   session: ReturnType<typeof useJourneySession>;
 }
 
-export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, onMinimize, session }: LiveJourneyScreenProps) {
+export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session }: LiveJourneyScreenProps) {
   const { currentState, currentStopIndex, fastForward, elapsedMins, stopTimeline } = session;
   useNow(1000); // re-render every second so countdowns and the glow head stay live
 
@@ -318,7 +306,7 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, onMinimize, 
       <div key={k} className="flex gap-3.5">
         {/* Line badge column — sticks below the header while its leg scrolls */}
         <div className="w-10 shrink-0">
-          <div className="sticky z-10" style={{ top: "calc(env(safe-area-inset-top, 0px) + 148px)" }}>
+          <div className="sticky z-10" style={{ top: 8 }}>
             <LineBadge line={leg.line} size="lg" />
           </div>
         </div>
@@ -413,71 +401,61 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, onMinimize, 
   const walkPassed = !["NOT_STARTED", "WALKING_TO_STATION", "WAITING_FOR_TRAIN"].includes(currentState);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 28 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", damping: 26, stiffness: 240 }}
-      className="relative min-h-full"
-    >
-      {/* ── Sticky header: title + action pills ── */}
-      <div
-        className="sticky top-0 z-30"
-        style={{ background: "var(--c-blur)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", paddingTop: "env(safe-area-inset-top, 0px)" }}
-      >
-        <div className="max-w-[var(--layout-max-width)] mx-auto px-5 pt-4 pb-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h1 className="text-[26px] font-bold leading-tight truncate" style={{ color: "var(--c-text)" }}>
-                {dest.name}
-              </h1>
-              <div className="text-[12px] font-medium mt-0.5 flex items-center gap-1.5" style={{ color: "var(--c-text-3)" }}>
-                from {result.source.name}{result.fare == null ? "" : ` · ₹${result.fare}`}
-                <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border" style={{ borderColor: "var(--c-border-2)", color: "var(--c-text-4)" }}>
-                  Simulated
-                </span>
-              </div>
+    <div className="relative">
+      {/* ── Route title + live-state pill ── */}
+      <div className="px-5 pt-1 pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-[20px] font-bold leading-tight truncate" style={{ color: "var(--c-text)" }}>
+              {dest.name}
+            </h2>
+            <div className="text-[12px] font-medium mt-0.5 flex items-center gap-1.5 truncate" style={{ color: "var(--c-text-3)" }}>
+              from {result.source.name}{result.fare == null ? "" : ` · ₹${result.fare}`}
+              <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border shrink-0" style={{ borderColor: "var(--c-border-2)", color: "var(--c-text-4)" }}>
+                Simulated
+              </span>
             </div>
-            <button
-              onClick={onMinimize}
-              aria-label="Minimize journey"
-              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-transform"
-              style={{ background: "var(--c-card)", border: "1px solid var(--c-border)" }}
-            >
-              <X size={18} strokeWidth={2.5} style={{ color: "var(--c-text)" }} />
-            </button>
           </div>
+          <div
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold transition-colors duration-500"
+            style={{ background: pill.bg, color: pill.fg }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: pill.fg }} />
+            {currentState === "COMPLETED" ? "Done" : `${totalMinsLeft} min`}
+          </div>
+        </div>
 
-          <div className="flex gap-2 mt-3 overflow-x-auto no-scrollbar -mx-5 px-5">
-            <ActionPill danger onClick={onEnd}>
-              <span className="w-3.5 h-3.5 rounded-full border-2 border-current flex items-center justify-center">
-                <span className="w-1.5 h-1.5 rounded-[2px] bg-current" />
-              </span>
-              End
-            </ActionPill>
-            <ActionPill onClick={toggleSave} active={isSaved}>
-              <Bookmark size={14} fill={isSaved ? "currentColor" : "none"} /> {isSaved ? "Saved" : "Save"}
-            </ActionPill>
-            <ActionPill onClick={share}>
-              {justShared ? <Check size={14} /> : <Share2 size={14} />} {justShared ? "Copied" : "Share"}
-            </ActionPill>
-            <ActionPill onClick={() => setIsSimulating(s => !s)}>
-              Simulate
-              <span className="w-8 h-[18px] rounded-full relative transition-colors" style={{ background: isSimulating ? "#22C55E" : "var(--c-border-2)" }}>
-                <span
-                  className="absolute top-[2px] w-3.5 h-3.5 rounded-full bg-white shadow transition-all"
-                  style={{ left: isSimulating ? 18 : 2 }}
-                />
-              </span>
-            </ActionPill>
-            <ActionPill onClick={() => fastForward(5)}>
-              <FastForward size={14} /> +5 min
-            </ActionPill>
-          </div>
+        {/* Action pills */}
+        <div className="flex gap-2 mt-3 overflow-x-auto no-scrollbar -mx-5 px-5">
+          <ActionPill danger onClick={onEnd}>
+            <span className="w-3.5 h-3.5 rounded-full border-2 border-current flex items-center justify-center">
+              <span className="w-1.5 h-1.5 rounded-[2px] bg-current" />
+            </span>
+            End
+          </ActionPill>
+          <ActionPill onClick={toggleSave} active={isSaved}>
+            <Bookmark size={14} fill={isSaved ? "currentColor" : "none"} /> {isSaved ? "Saved" : "Save"}
+          </ActionPill>
+          <ActionPill onClick={share}>
+            {justShared ? <Check size={14} /> : <Share2 size={14} />} {justShared ? "Copied" : "Share"}
+          </ActionPill>
+          <ActionPill onClick={() => setIsSimulating(s => !s)}>
+            Simulate
+            <span className="w-8 h-[18px] rounded-full relative transition-colors" style={{ background: isSimulating ? "#22C55E" : "var(--c-border-2)" }}>
+              <span
+                className="absolute top-[2px] w-3.5 h-3.5 rounded-full bg-white shadow transition-all"
+                style={{ left: isSimulating ? 18 : 2 }}
+              />
+            </span>
+          </ActionPill>
+          <ActionPill onClick={() => fastForward(5)}>
+            <FastForward size={14} /> +5 min
+          </ActionPill>
         </div>
       </div>
 
       {/* ── Timeline ── */}
-      <div className="max-w-[var(--layout-max-width)] mx-auto px-5 pt-5 pb-36">
+      <div className="px-5 pt-2 pb-8">
         {/* Walk to the source station */}
         <ConnectorRow icon={<Footprints size={14} />} passed={walkPassed}>
           <div className="text-[14px] font-semibold leading-snug" style={{ color: "var(--c-text)" }}>
@@ -523,33 +501,8 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, onMinimize, 
         )}
       </div>
 
-      {/* ── Floating status pills ── */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-        className="fixed bottom-0 left-0 right-0 z-40 pointer-events-none"
-        style={{ paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 20px)" }}
-      >
-        <div className="max-w-[var(--layout-max-width)] mx-auto px-5 flex items-center justify-between">
-          <div
-            className="pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-full text-[13px] font-bold shadow-lg"
-            style={{ background: "var(--c-card)", border: "1px solid var(--c-border)", color: "var(--c-text)" }}
-          >
-            <Clock size={14} style={{ color: "var(--c-text-3)" }} />
-            {currentState === "COMPLETED" ? "Done" : `${totalMinsLeft} min${totalMinsLeft === 1 ? "" : "s"} left`}
-          </div>
-          <div
-            className="pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-full text-[13px] font-bold shadow-lg transition-colors duration-500"
-            style={{ background: pill.bg, color: pill.fg }}
-          >
-            <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: pill.fg }} />
-            {STATE_LABEL[currentState]}
-          </div>
-        </div>
-      </motion.div>
-
-      {/* ── Per-leg schedule sheet ── */}
+      {/* ── Per-leg schedule sheet ── portaled to the body so its fixed
+          positioning escapes the draggable sheet's transform. ── */}
       {showScheduleLegIdx !== null && (() => {
         const legIdx = showScheduleLegIdx;
         const leg = legs[legIdx];
@@ -569,7 +522,7 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, onMinimize, 
           train = dir.trains.find((t: any) => t.isNext && !t.departed) || dir.trains.find((t: any) => !t.departed) || dir.trains[0];
         }
 
-        return (
+        return createPortal(
           <TrainRouteSheet
             stationId={legOriginId}
             line={leg.line}
@@ -577,10 +530,11 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, onMinimize, 
             train={train}
             now={new Date()}
             onClose={() => setShowScheduleLegIdx(null)}
-          />
+          />,
+          document.body
         );
       })()}
-    </motion.div>
+    </div>
   );
 }
 

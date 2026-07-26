@@ -1,5 +1,5 @@
 import { Info, AlertOctagon, Play } from "lucide-react";
-import { formatDuration } from "../../engine/journeyEngine";
+import { formatDuration, formatLeaveIn } from "../../engine/journeyEngine";
 
 /**
  * Mid-snap summary for a planned journey, shown inside the home sheet in place
@@ -38,6 +38,9 @@ export function JourneySummary({
             {upcoming.map((opt: any, i: number) => {
               const isSel = i === selected;
               const optFeasible = opt.feasible !== false;
+              // Catchable, but only if you're already walking - dimmed and
+              // dashed so it never reads as the recommended departure.
+              const isTight = !!opt.isTight;
               return (
                 <button
                   key={i}
@@ -45,15 +48,18 @@ export function JourneySummary({
                   className="shrink-0 rounded-xl px-3 py-2 text-left transition-all duration-200 active:scale-95"
                   style={{
                     background: isSel ? 'var(--c-accent)' : 'var(--c-card)',
-                    border: isSel ? 'none' : '1px solid var(--c-border)',
-                    opacity: optFeasible ? 1 : 0.4,
+                    border: isSel ? 'none' : isTight ? '1px dashed var(--c-border-2)' : '1px solid var(--c-border)',
+                    opacity: !optFeasible ? 0.4 : isTight && !isSel ? 0.6 : 1,
                   }}
                 >
                   <div className="text-[16px] font-bold leading-none tabular-nums" style={{ color: isSel ? 'var(--c-accent-fg)' : 'var(--c-text)' }}>
                     {opt.leaveClockTime}
                   </div>
-                  <div className="text-[10px] font-semibold mt-1 whitespace-nowrap" style={{ color: isSel ? 'rgba(255,255,255,0.75)' : 'var(--c-text-4)' }}>
-                    in {formatDuration(opt.leaveInMins)}
+                  <div
+                    className="text-[10px] font-semibold mt-1 whitespace-nowrap"
+                    style={{ color: isSel ? 'rgba(255,255,255,0.75)' : isTight ? '#f59e0b' : 'var(--c-text-4)' }}
+                  >
+                    {isTight ? 'Tight connection' : `Leave ${formatLeaveIn(opt.leaveInMins)}`}
                   </div>
                 </button>
               );

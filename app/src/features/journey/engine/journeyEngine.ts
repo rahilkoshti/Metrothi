@@ -113,6 +113,12 @@ export interface JourneyOption {
   arriveTimeMs: number | null;
   leaveClockTime: string;
   leaveInMins: number;
+  /**
+   * The train is still catchable but the walk to the platform should already
+   * have started (`leaveInMins < 0`). Surfaced as a tight connection rather
+   * than a negative countdown, and never chosen as the default.
+   */
+  isTight: boolean;
 }
 
 export interface PlanResult {
@@ -141,6 +147,11 @@ export interface PlanResult {
   numTransfers: number;
   warnings: string[];
   options: JourneyOption[];
+  /**
+   * Index into `options` of the departure the rider can comfortably make - the
+   * first one whose walk hasn't already started. 0 when nothing qualifies.
+   */
+  recommendedOptionIdx: number;
   queryTime: Date;
   arriveBy: boolean;
   isLeaveNow: boolean;
@@ -755,6 +766,17 @@ export function formatDuration(mins: number | null | undefined) {
   return `${h}h ${String(rem).padStart(2, "0")}m`;
 }
 
+/**
+ * Lead time before a departure, as a phrase that follows "leave" - "now" or
+ * "in 12 min". Never prints a negative: a walk that should already have started
+ * reads as "now", because the train is still catchable and "-1 min" is not
+ * something a rider can act on.
+ */
+export function formatLeaveIn(mins: number | null | undefined) {
+  if (mins == null || Number.isNaN(mins)) return "—";
+  return Math.round(mins) <= 0 ? "now" : `in ${formatDuration(mins)}`;
+}
+
 export function clockTimeAfter(now: Date, offsetMins: number) {
   const d = new Date(now.getTime() + offsetMins * 60000);
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Kolkata" });
@@ -952,11 +974,20 @@ export interface PlanConfig {
   queryTime?: Date;
   actualNow?: Date;
   arriveBy?: boolean;
+  /**
+   * Whether the plan is anchored to the wall clock rather than to a time the
+   * rider picked. Inferred from the absence of `queryTime`, but a caller that
+   * re-plans on a tick must pass its own `queryTime` and so has to say so
+   * explicitly - it decides whether "already departed" and "too late to walk"
+   * mean anything for this plan.
+   */
+  isLeaveNow?: boolean;
 }
 
 export function planJourney(sourceInput: string | PlaceNode, destInput: string | PlaceNode, config: PlanConfig = {}): PlanResult | null {
   const queryTime = config.queryTime || new Date();
   const actualNow = config.actualNow || new Date();
+  const isLeaveNow = config.isLeaveNow ?? !config.queryTime;
   const arriveBy = config.arriveBy || false;
   const searchTime = arriveBy ? new Date(queryTime.getTime() - 120 * 60000) : queryTime;
 
@@ -1025,7 +1056,8 @@ export function planJourney(sourceInput: string | PlaceNode, destInput: string |
       numTransfers: legs.length - 1,
       warnings: [`${LINE_META[firstLeg.line].name} has finished service for the day \u2014 no trains from ${source.name} right now.`],
       options: [],
-      queryTime, arriveBy, isLeaveNow: !config.queryTime
+      recommendedOptionIdx: 0,
+      queryTime, arriveBy, isLeaveNow
     };
   }
 
@@ -1066,17 +1098,29 @@ export function planJourney(sourceInput: string | PlaceNode, destInput: string |
       arriveTimeMs,
       leaveClockTime: clockTimeAfter(new Date(leaveTimeMs), 0),
       leaveInMins: Math.round((leaveTimeMs - actualNow.getTime()) / 60000),
+      isTight: isLeaveNow && leaveTimeMs < actualNow.getTime() && departTimeMs > actualNow.getTime(),
     };
   });
+
+  // A train that has already pulled out is not an option. The plan is recomputed
+  // on a clock tick, so without this the head of the list goes stale in place.
+  // Only for a leave-now plan - a plan anchored to a time the rider picked is
+  // measured against that time, not against the wall clock.
+  if (isLeaveNow) options = options.filter(o => o.departTimeMs > actualNow.getTime());
 
   if (arriveBy) {
     options = options.filter(o => o.feasible && o.arriveTimeMs! <= queryTime.getTime());
     options = options.slice(-5).reverse();
   }
 
-  // Prefer the first concrete departure option; fall back to the "leave now"
-  // simulation when no options survive (e.g. arrive-by filtered them all out).
-  const chosen: JourneyOption | null = options[0] ?? null;
+  // Recommend the first departure the rider can still walk to on time; a tight
+  // one stays in the list (it is catchable at a run) but is never the default.
+  const firstComfortable = options.findIndex(o => !o.isTight);
+  const recommendedOptionIdx = firstComfortable >= 0 ? firstComfortable : 0;
+
+  // Fall back to the "leave now" simulation when no options survive (e.g.
+  // arrive-by filtered them all out).
+  const chosen: JourneyOption | null = options[recommendedOptionIdx] ?? null;
   const chosenLegs = chosen ? chosen.legs : sim.legs;
   const chosenTotalMins = chosen ? chosen.totalMins : sim.totalMins;
 
@@ -1104,6 +1148,7 @@ export function planJourney(sourceInput: string | PlaceNode, destInput: string |
     numTransfers: legs.length - 1,
     warnings: [...leadWarnings, ...(chosen ? chosen.warnings : sim.warnings)],
     options,
+    recommendedOptionIdx,
     queryTime, arriveBy, isLeaveNow: !config.queryTime
   };
 }

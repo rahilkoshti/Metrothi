@@ -5,6 +5,7 @@ import {
   estimateLine,
   estimateLineAtStation,
   formatDuration,
+  formatLeaveIn,
   walkMinsForKm,
   hourOf,
   istDayStartMs,
@@ -365,6 +366,92 @@ describe("formatDuration", () => {
     [125, "2h 05m"],
   ])("%s → %s", (mins, label) => {
     expect(formatDuration(mins)).toBe(label);
+  });
+});
+
+// ─── Departure options: never surface a train the rider cannot take ──────────
+
+describe("departure options are never already gone", () => {
+  // A few hundred metres from Vastral Gam, so the plan carries a real walk to
+  // the platform and `leaveInMins` can fall behind `departInMins`.
+  const nearVastral = {
+    isPlace: true as const,
+    id: "test-place",
+    name: "Somewhere near Vastral Gam",
+    lat: 22.997249 + 0.006,
+    lng: 72.667317,
+  };
+
+  it("drops departures that left before the wall clock on a leave-now plan", () => {
+    // What HomeScreen does on its 15s tick: same query time, later real time.
+    const plan = planJourney("vastral-gam", "thaltej-gam", {
+      queryTime: ist(9),
+      actualNow: ist(9.25),
+      isLeaveNow: true,
+    });
+    expect(plan).not.toBeNull();
+    expect(plan!.options.length).toBeGreaterThan(0);
+    for (const opt of plan!.options) {
+      expect(opt.departTimeMs).toBeGreaterThan(ist(9.25).getTime());
+    }
+  });
+
+  it("keeps its options when the plan is anchored to a time the rider picked", () => {
+    // The query time is hours behind the wall clock, but it is the clock the
+    // rider chose - the schedule for it still stands.
+    const plan = planJourney("vastral-gam", "thaltej-gam", {
+      queryTime: ist(9),
+      actualNow: ist(14),
+      isLeaveNow: false,
+    });
+    expect(plan).not.toBeNull();
+    expect(plan!.options.length).toBeGreaterThan(0);
+    expect(plan!.options.every((o) => !o.isTight)).toBe(true);
+  });
+
+  it("recommends a departure whose walk has not already started", () => {
+    const plan = planJourney(nearVastral, "thaltej-gam", {
+      queryTime: ist(9),
+      actualNow: ist(9),
+      isLeaveNow: true,
+    });
+    expect(plan).not.toBeNull();
+    expect(plan!.sourceWalkMins).toBeGreaterThan(0);
+
+    const recommended = plan!.options[plan!.recommendedOptionIdx];
+    expect(recommended).toBeDefined();
+    expect(recommended.isTight).toBe(false);
+    expect(recommended.leaveInMins).toBeGreaterThanOrEqual(0);
+  });
+
+  it("marks a still-catchable train with a passed walk as tight, not as negative", () => {
+    const plan = planJourney(nearVastral, "thaltej-gam", {
+      queryTime: ist(9),
+      actualNow: ist(9),
+      isLeaveNow: true,
+    });
+    for (const opt of plan!.options) {
+      if (opt.leaveInMins < 0) expect(opt.isTight).toBe(true);
+      if (opt.isTight) expect(opt.departTimeMs).toBeGreaterThan(ist(9).getTime());
+      // Whatever the sign, nothing that reaches the screen reads as negative.
+      expect(formatLeaveIn(opt.leaveInMins)).not.toContain("-");
+    }
+  });
+});
+
+describe("formatLeaveIn", () => {
+  it.each([
+    [-12, "now"],
+    [-1, "now"],
+    [0, "now"],
+    [1, "in 1 min"],
+    [90, "in 1h 30m"],
+  ])("%i → %s", (mins, label) => {
+    expect(formatLeaveIn(mins)).toBe(label);
+  });
+
+  it("shows a dash rather than a number it does not have", () => {
+    expect(formatLeaveIn(null)).toBe("—");
   });
 });
 

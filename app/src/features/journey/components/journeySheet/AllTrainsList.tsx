@@ -1,5 +1,5 @@
 import { AlertOctagon } from "lucide-react";
-import { formatDuration } from "../../engine/journeyEngine";
+import { formatDuration, formatLeaveIn } from "../../engine/journeyEngine";
 
 /**
  * The day's departure options for a planned journey. Selecting a row lifts the
@@ -32,6 +32,8 @@ export function AllTrainsList({
           {options.map((opt: any, i: number) => {
             const isSelected = i === selected;
             const optFeasible = opt.feasible !== false;
+            // Still catchable, but the walk should already have started.
+            const isTight = !!opt.isTight;
             return (
               <button
                 key={i}
@@ -39,8 +41,8 @@ export function AllTrainsList({
                 className="w-full text-left rounded-2xl transition-all duration-200 overflow-hidden"
                 style={{
                   background: isSelected ? 'var(--c-accent)' : 'var(--c-card)',
-                  border: isSelected ? 'none' : '1px solid var(--c-border)',
-                  opacity: !optFeasible ? 0.4 : 1,
+                  border: isSelected ? 'none' : isTight ? '1px dashed var(--c-border-2)' : '1px solid var(--c-border)',
+                  opacity: !optFeasible ? 0.4 : isTight && !isSelected ? 0.6 : 1,
                 }}
               >
                 <div className="flex items-center justify-between p-4">
@@ -52,8 +54,11 @@ export function AllTrainsList({
                   </div>
                   <div className="text-right">
                     <div className="text-[15px] font-bold" style={{ color: isSelected ? 'var(--c-accent-fg)' : 'var(--c-text)' }}>{optFeasible ? formatDuration(opt.totalMins) : "—"}</div>
-                    <div className="text-[11px] font-semibold mt-0.5 uppercase tracking-wide" style={{ color: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--c-text-4)' }}>
-                      leave in {formatDuration(opt.leaveInMins)}
+                    <div
+                      className="text-[11px] font-semibold mt-0.5 uppercase tracking-wide"
+                      style={{ color: isSelected ? 'rgba(255,255,255,0.7)' : isTight ? '#f59e0b' : 'var(--c-text-4)' }}
+                    >
+                      {isTight ? 'tight connection' : `leave ${formatLeaveIn(opt.leaveInMins)}`}
                     </div>
                   </div>
                 </div>
