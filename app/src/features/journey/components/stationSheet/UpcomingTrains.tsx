@@ -1,14 +1,13 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Rss, TrainFront } from 'lucide-react';
+import { ChevronRight, Rss } from 'lucide-react';
 import {
   STATION_BY_ID,
   fullDayStationSchedule,
   estimateLine,
-  formatDuration,
 } from '../../engine/journeyEngine';
 import { useNow } from '../../hooks/useNow';
-import { LINE_COLORS } from '../../constants';
+import { DepartureRow } from '../DepartureRow';
 
 /** The next departure in one direction, flattened out of the day schedule. */
 interface NextDeparture {
@@ -91,48 +90,16 @@ export function UpcomingTrains({ stationId }: { stationId: string }) {
       ) : (
         <div className="flex flex-col gap-2">
           {departures.map((d) => (
-            <div
+            <DepartureRow
               key={d.key}
-              className="flex items-center gap-3 rounded-2xl px-3.5 py-3"
-              style={{ background: 'var(--c-card)', border: '1px solid var(--c-border)' }}
-            >
-              <span
-                className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
-                style={{ background: `${LINE_COLORS[d.line]}1f` }}
-              >
-                <TrainFront size={18} strokeWidth={2.2} style={{ color: LINE_COLORS[d.line] }} />
-              </span>
-
-              <div className="flex-1 min-w-0">
-                <div className="text-[14px] font-bold truncate" style={{ color: 'var(--c-text)' }}>
-                  Towards {d.destinationName}
-                </div>
-                <div className="text-[12px] font-semibold" style={{ color: 'var(--c-text-4)' }}>
-                  Next · {d.clockTime}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                <div className="text-right leading-none">
-                  {/* Bare minutes get the big number + "min" stack of the
-                      reference; anything over an hour reads better as one
-                      formatted string. */}
-                  <div className="text-[20px] font-bold tabular-nums" style={{ color: 'var(--c-text)' }}>
-                    {d.waitMins === 0
-                      ? 'Due'
-                      : d.waitMins >= 60
-                      ? formatDuration(d.waitMins)
-                      : Math.round(d.waitMins)}
-                  </div>
-                  {d.waitMins > 0 && d.waitMins < 60 && (
-                    <div className="text-[11px] font-semibold mt-0.5" style={{ color: 'var(--c-text-4)' }}>
-                      min
-                    </div>
-                  )}
-                </div>
-                {anyRunning && <Rss size={15} strokeWidth={2.4} className="text-green-500" />}
-              </div>
-            </div>
+              line={d.line}
+              destinationName={d.destinationName}
+              clockTime={d.clockTime}
+              waitMins={d.waitMins}
+              primary="countdown"
+              label="Next"
+              trailing={anyRunning ? <Rss size={15} strokeWidth={2.4} className="text-green-500" /> : null}
+            />
           ))}
         </div>
       )}

@@ -1,5 +1,5 @@
 import { AlertOctagon } from "lucide-react";
-import { formatDuration, formatLeaveIn } from "../../engine/journeyEngine";
+import { formatDuration, formatLeaveIn, rideMinsOf } from "../../engine/journeyEngine";
 
 /**
  * The day's departure options for a planned journey. Selecting a row lifts the
@@ -47,13 +47,18 @@ export function AllTrainsList({
               >
                 <div className="flex items-center justify-between p-4">
                   <div className="flex-1 min-w-0">
-                    <div className="text-[18px] font-bold leading-none" style={{ color: isSelected ? 'var(--c-accent-fg)' : 'var(--c-text)' }}>{opt.leaveClockTime}</div>
+                    {/* The train's own departure time, matching the picker in
+                        the summary above. A door-to-door plan's leave time is a
+                        minute or two earlier, and showing that here made the
+                        same train read as two different departures. */}
+                    <div className="text-[18px] font-bold leading-none" style={{ color: isSelected ? 'var(--c-accent-fg)' : 'var(--c-text)' }}>{opt.departClockTime ?? opt.leaveClockTime}</div>
                     <div className="text-[11px] font-semibold mt-0.5 uppercase tracking-wide" style={{ color: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--c-text-4)' }}>
                       {optFeasible ? `arrive ${opt.arriveClockTime}` : `stuck at ${opt.strandedAtLine}`}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-[15px] font-bold" style={{ color: isSelected ? 'var(--c-accent-fg)' : 'var(--c-text)' }}>{optFeasible ? formatDuration(opt.totalMins) : "—"}</div>
+                    {/* Ride time, not `totalMins` — see rideMinsOf. */}
+                    <div className="text-[15px] font-bold" style={{ color: isSelected ? 'var(--c-accent-fg)' : 'var(--c-text)' }}>{optFeasible ? formatDuration(rideMinsOf(opt) ?? opt.totalMins) : "—"}</div>
                     <div
                       className="text-[11px] font-semibold mt-0.5 uppercase tracking-wide"
                       style={{ color: isSelected ? 'rgba(255,255,255,0.7)' : isTight ? '#f59e0b' : 'var(--c-text-4)' }}

@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { motion, useDragControls, useMotionValue, animate, type PanInfo } from 'framer-motion';
+import {
+  motion,
+  useDragControls,
+  useMotionValue,
+  useMotionValueEvent,
+  animate,
+  type PanInfo,
+} from 'framer-motion';
 
 export type SheetSnap = 'collapsed' | 'mid' | 'full';
 
@@ -12,6 +19,11 @@ const SPRING = { type: 'spring', stiffness: 420, damping: 42, mass: 0.9 } as con
 // Past this speed the gesture is a flick: honour its direction instead of
 // snapping to whichever point happens to be nearest.
 const FLICK_VELOCITY = 500; // px/s, framer's units
+
+// The sheet is exactly as tall as its parent, so y ≈ 0 means it hides all of
+// it. A hair of slack absorbs the spring's sub-pixel rest and the elastic
+// overshoot past the top constraint.
+const COVERED_EPSILON = 1; // px
 
 /**
  * Bottom sheet with three snap points. Sits inside a
@@ -34,6 +46,7 @@ export function DraggableSheet({
   midContentHeight,
   header,
   children,
+  onCoverageChange,
   className = '',
 }: {
   snap: SheetSnap;
@@ -47,6 +60,11 @@ export function DraggableSheet({
   midContentHeight?: number;
   header: React.ReactNode;
   children: React.ReactNode;
+  /** Called when the sheet starts or stops hiding its parent entirely. Tracks
+   *  the live position rather than the snap prop, so it only reports "covered"
+   *  once the sheet has actually arrived — whatever is behind stays visible for
+   *  the whole drag or spring up. */
+  onCoverageChange?: (covered: boolean) => void;
   className?: string;
 }) {
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -59,7 +77,10 @@ export function DraggableSheet({
 
   const pointsFor = useCallback(
     (h: number, headerH: number) => {
-      const collapsed = Math.max(0, h - collapsedHeight);
+      // The peek is never shorter than the header, or a header that grew past
+      // the caller's constant — a chip row wrapping to a second line — would be
+      // cut off at the fold with no way to see it but expanding the sheet.
+      const collapsed = Math.max(0, h - Math.max(collapsedHeight, headerH));
       // Never let a content fit swallow the whole screen — keep a strip of the
       // parent visible — nor rise above the collapsed peek. Content taller than
       // that caps here and scrolls once expanded.
@@ -80,6 +101,23 @@ export function DraggableSheet({
   const snapRef = useRef(snap);
   snapRef.current = snap;
 
+  // Held in a ref so the callback's identity can't retrigger the measurement
+  // effect below, which owns the ResizeObserver.
+  const coverageCb = useRef(onCoverageChange);
+  coverageCb.current = onCoverageChange;
+  const covered = useRef(false);
+  const reportCoverage = useCallback((position: number) => {
+    // Before the first measurement y is a meaningless 0, which would read as
+    // "covering everything" — the exact opposite of where the sheet parks.
+    if (!initialised.current) return;
+    const next = position <= COVERED_EPSILON;
+    if (next === covered.current) return;
+    covered.current = next;
+    coverageCb.current?.(next);
+  }, []);
+
+  useMotionValueEvent(y, 'change', reportCoverage);
+
   useLayoutEffect(() => {
     const el = sheetRef.current;
     if (!el) return;
@@ -96,13 +134,16 @@ export function DraggableSheet({
         initialised.current = true;
         y.set(pointsFor(h, headerH)[snapRef.current]);
       }
+      // Setting y to a value it already holds doesn't notify, so a sheet that
+      // parks at `full` would never announce itself. Report explicitly.
+      reportCoverage(y.get());
     };
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     if (grabRef.current) ro.observe(grabRef.current);
     measure();
     return () => ro.disconnect();
-  }, [y, pointsFor]);
+  }, [y, pointsFor, reportCoverage]);
 
   // Re-park whenever the snap changes from outside (selecting a station,
   // closing search) — but never on the very first measurement.

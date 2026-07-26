@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, ArrowRight, ArrowUpRight, MapPin, Navigation2, AlertTriangle, Clock } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, MapPin, Navigation2, AlertTriangle, Clock } from "lucide-react";
 import {
   STATION_BY_ID,
   fullDayStationSchedule,
@@ -13,8 +13,9 @@ import { useNow } from "../hooks/useNow";
 import type { DayScheduleDirection, DayTrain } from "../engine/journeyEngine";
 
 import { LineBadge } from "../../../components/LineBadge";
-import { LINE_COLORS, LINE_NAMES } from "../constants";
+import { LINE_NAMES } from "../constants";
 import { TrainRouteSheet } from "./TrainRouteSheet";
+import { DepartureRow } from "./DepartureRow";
 
 // ─── Merged schedule list (both directions, time-sorted) ─────────────
 type MergedTrain = DayTrain & { dir: DayScheduleDirection };
@@ -33,9 +34,8 @@ function MergedTrainList({
 }) {
   const now = useNow();
   const listRef = useRef<HTMLDivElement>(null);
-  const nextRef = useRef<HTMLButtonElement>(null);
+  const nextRef = useRef<HTMLElement>(null);
   const [selectedTrain, setSelectedTrain] = useState<MergedTrain | null>(null);
-  const color = LINE_COLORS[line];
 
   // The earliest still-upcoming train — the scroll anchor and the point where
   // the list transitions from departed (greyed) to upcoming.
@@ -58,103 +58,54 @@ function MergedTrainList({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Keep the upcoming trains in view as departures roll past.
+  // Park the first upcoming train at the top of the list, and keep it there as
+  // departures roll past. `offsetTop` is measured from the nearest positioned
+  // ancestor — not this scroller — so the offset is derived from the rects
+  // instead, which stays correct however the sheet above is laid out.
+  const didAnchor = useRef(false);
   useEffect(() => {
     const el = nextRef.current;
-    if (!el || !listRef.current) return;
     const container = listRef.current;
-    const rowH = el.offsetHeight;
-    container.scrollTo({ top: Math.max(0, el.offsetTop - rowH * 2), behavior: "smooth" });
+    if (!el || !container) return;
+    const top =
+      el.getBoundingClientRect().top -
+      container.getBoundingClientRect().top +
+      container.scrollTop;
+    // The first anchor is a jump — smooth-scrolling from an arbitrary start
+    // position on mount is what reads as "the list loaded mid-scroll".
+    container.scrollTo({
+      top: Math.max(0, top),
+      behavior: didAnchor.current ? "smooth" : "auto",
+    });
+    didAnchor.current = true;
   }, [firstUpcomingId]);
 
   return (
     <>
+      {/* The rows are cards, so the scroller carries the page background to sit
+          them on — same treatment as the home sheet's departure board. */}
       <div
         ref={listRef}
-        className="overflow-y-auto"
-        style={{ maxHeight: 360, scrollbarWidth: "none" }}
+        className="overflow-y-auto flex flex-col gap-2 px-3 py-3"
+        style={{ maxHeight: 360, scrollbarWidth: "none", background: "var(--c-bg)" }}
       >
-        {trains.map((train, i) => {
-          const isNext = train.isNext;
-          const isDep = train.departed;
-          const absMins = Math.abs(train.waitMins);
+        {trains.map((train) => (
+          <DepartureRow
+            key={train.id}
+            ref={train.id === firstUpcomingId ? nextRef : undefined}
+            line={line}
+            destinationName={train.dir.destinationName}
+            clockTime={train.clockTime}
+            waitMins={train.waitMins}
+            primary="time"
+            label={train.isNext ? "Next" : undefined}
+            highlight={train.isNext}
+            departed={train.departed}
+            onClick={() => setSelectedTrain(train)}
+          />
+        ))}
 
-          return (
-            <button
-              key={train.id}
-              ref={train.id === firstUpcomingId ? nextRef : undefined}
-              onClick={() => setSelectedTrain(train)}
-              className="w-full flex items-center justify-between px-4 text-left transition-colors active:opacity-70"
-              style={{
-                paddingTop: isNext ? 13 : 9,
-                paddingBottom: isNext ? 13 : 9,
-                borderBottom: i !== trains.length - 1 ? "1px solid var(--c-border)" : "none",
-                background: isNext ? `${color}12` : "transparent",
-              }}
-            >
-              {/* Left: destination + time */}
-              <div className="flex items-center gap-3">
-                {isNext && (
-                  <div className="w-1 h-10 rounded-full shrink-0" style={{ background: color }} />
-                )}
-                <div>
-                  {/* Destination label */}
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <ArrowRight size={11} strokeWidth={2.5} style={{ color: isDep ? "var(--c-text-4)" : color }} />
-                    <span
-                      className="text-[11px] font-bold"
-                      style={{ color: isDep ? "var(--c-text-4)" : "var(--c-text-2)" }}
-                    >
-                      {train.dir.destinationName}
-                    </span>
-                    {isNext && (
-                      <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color }}>
-                        · Next
-                      </span>
-                    )}
-                  </div>
-                  {/* Clock time */}
-                  <div
-                    className={`font-bold tabular-nums ${
-                      isNext ? "text-xl" : isDep ? "text-[13px] line-through" : "text-[15px]"
-                    }`}
-                    style={{
-                      color: isNext
-                        ? "var(--c-text)"
-                        : isDep
-                        ? "var(--c-text-4)"
-                        : "var(--c-text-2)",
-                    }}
-                  >
-                    {train.clockTime}
-                  </div>
-                </div>
-              </div>
-
-              {/* Right: wait / departed */}
-              <div className="text-right shrink-0">
-                {isDep ? (
-                  <span
-                    className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full"
-                    style={{ background: "var(--c-card-alt)", color: "var(--c-text-4)" }}
-                  >
-                    {absMins > 0 ? `${absMins}m ago` : "Departed"}
-                  </span>
-                ) : isNext ? (
-                  <div className="text-2xl font-bold leading-none tabular-nums" style={{ color }}>
-                    {train.waitMins === 0 ? "Due" : formatDuration(train.waitMins)}
-                  </div>
-                ) : (
-                  <span className="text-[13px] font-semibold tabular-nums" style={{ color: "var(--c-text-3)" }}>
-                    {formatDuration(train.waitMins)}
-                  </span>
-                )}
-              </div>
-            </button>
-          );
-        })}
-
-        <div className="px-4 py-5 text-center">
+        <div className="py-4 text-center">
           <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--c-text-4)" }}>
             End of service
           </span>

@@ -7,3 +7,7 @@
 
 # Large reference screen recordings kept locally, not in history
 files/*.mp4
+
+# Vitest writes its cache to a repo-root node_modules even though the app is
+# the only package; there are no root dependencies.
+node_modules/

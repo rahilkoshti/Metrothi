@@ -47,7 +47,7 @@ an entry once it's fixed.
 
 - [ ] **Plan-route FAB and Recentre button are unreachable at the sheet's
       resting position.** Both render only when `snap === 'collapsed'`
-      (`HomeScreen.tsx:579`, `:599` — `opacity: snap === 'collapsed' ? 1 : 0`
+      (`HomeScreen.tsx:651`, `:671` — `opacity: snap === 'collapsed' ? 1 : 0`
       with `pointerEvents` to match), and as of 2026-07-26 the sheet *opens* at
       mid. They also sit at `bottom: COLLAPSED_H + 16 / + 72`, i.e. underneath
       the sheet at any snap above the peek, so simply un-gating them isn't
@@ -64,12 +64,15 @@ an entry once it's fixed.
       the fitted mid snap may grow, or let a tap on the search-row background
       count as a map tap. Deferred pending a call on which.
 
-- [ ] **"View all →" is the only control in the sheet that still routes away.**
-      `UpcomingTrains.tsx:79` navigates to `/stations/:id`, while the adjacent
-      "Station Details" button expands the sheet to its full snap instead — and
-      the full snap already contains the same full-day schedule the station page
-      shows. Either point "View all" at the same expand, or accept the split and
-      make the difference legible. Found 2026-07-26.
+- [ ] **"View all →" is the only control in the sheet that routes away.**
+      `UpcomingTrains.tsx:78` navigates to `/stations/:id`, but the sheet's own
+      **full snap already contains the same full-day schedule** that page shows,
+      so the sheet has two routes to one piece of content and only one of them
+      keeps the map mounted. Either point "View all" at the full snap, or accept
+      the split and make the difference legible. Found 2026-07-26; updated
+      2026-07-27 — the "Station Details" button this entry originally contrasted
+      it against was removed when the action pair collapsed to a single **Start
+      Journey** CTA, so "View all" is now the sole exit.
 
 - [ ] **Sheet surface uses `--c-bg`, not a card colour.** The design reference
       shows a white sheet with grey inset chips and cards; the implementation
@@ -84,11 +87,11 @@ an entry once it's fixed.
 
 - [ ] **Accent foreground is hardcoded black in three places, against the
       token.** `--c-accent-fg` is `#ffffff` (`index.css:22`) and `--c-accent` is
-      `#f97316`, but `HomeScreen.tsx:577` (Plan-route FAB),
-      `Planner.tsx:445` (primary CTA) and `StationDetail.tsx:328`
+      `#f97316`, but `HomeScreen.tsx:649` (Plan-route FAB),
+      `Planner.tsx:445` (primary CTA) and `StationDetail.tsx:279`
       ("From here") all set `color: '#000'` directly. So the same accent button
       renders black-on-orange in some places and white-on-orange in others
-      (`StationSheetActions`, `JourneySummary.tsx:112`, `ErrorBoundary.tsx:44`
+      (`StationSheetActions`, `JourneySummary.tsx:219`, `ErrorBoundary.tsx:44`
       use the token). Pick one and route all of them through `--c-accent-fg`.
       Note the two are not equivalent for contrast: black on #f97316 is ~7.6:1,
       white ~2.8:1 — so the token itself may be the thing that's wrong, and
@@ -204,3 +207,12 @@ an entry once it's fixed.
 - **[Fixed 2026-07-20]** Fare calculation rebuilt on real GMRC distance data (`fareEngine.ts`) instead of the guessed station-count slabs in the old `fares.json`; see PRD §5.4.
 - **[Fixed 2026-07-20]** Cross-phase ticket rule ("only NCMC works between Phase 1 and Phase 2") and the CSC/NCMC 10% discount are now confirmed against GMRC's `fare-rules` page and recorded in `app/src/data/metroInfo.json`. The discount is display-only and intentionally not applied to any fare.
 - **[Found 2026-07-25, not fixed]** Dead `animate-in` / `fade-in` / `slide-in-from-top-*` classes across the app (e.g. the `HomeSearch` overlay root, `Planner.tsx:195` dropdown, other overlays). The project is on **Tailwind v4 with no `tailwindcss-animate` / `tw-animate-css`**, so these utilities generate **no CSS** (`getComputedStyle` → `animation-name: none`) and the intended entrance animations simply don't happen for real users. Fix options: add `tw-animate-css` and `@import` it, or replace with framer-motion / hand-written `@keyframes`. (The search-suggestions entrance was done with framer-motion instead.) Out of scope for the UI-parity search work.
+
+- **[Found 2026-07-27, not fixed]** `journeyEngine.test.ts` → "distance-weighted
+  segment times > segment time shares are proportional to inter-station
+  distance" fails on `develop`: the mins ratio (1.20200) and the km ratio
+  (1.19857) differ by 3.4e-3, well past the test's `toBeCloseTo(…, 6)`
+  tolerance. So either `travelMinsBetween` rounds/quantises somewhere the test
+  doesn't model, or the tolerance is unrealistically tight for the real
+  distance table. Pre-existing and unrelated to the station-sheet UI work that
+  surfaced it (77 other tests in the file pass); out of scope there.

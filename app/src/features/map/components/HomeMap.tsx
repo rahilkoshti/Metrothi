@@ -236,6 +236,7 @@ export function HomeMap({
   routeKey = null,
   routeEndpoints = null,
   routeBottomPad = 320,
+  paused = false,
 }: {
   coords: { lat: number; lng: number } | null;
   nearest: any;
@@ -258,6 +259,10 @@ export function HomeMap({
   } | null;
   /** Bottom padding (px) reserved for the sheet when framing a route. */
   routeBottomPad?: number;
+  /** The map is completely hidden — behind a fully raised sheet or a
+   *  full-screen overlay. Stops the live-train ticker; the caller is expected
+   *  to also take the map out of the paint path. */
+  paused?: boolean;
 }) {
   const { theme } = useTheme();
   const routeActive = !!routeLegs?.length;
@@ -449,7 +454,7 @@ export function HomeMap({
         );
       })}
 
-      <LiveTrainsLayer activeLines={ALL_LINES} />
+      <LiveTrainsLayer activeLines={ALL_LINES} paused={paused} />
 
       {walkingRoute && walkingRoute.length > 0 && (
         <Polyline

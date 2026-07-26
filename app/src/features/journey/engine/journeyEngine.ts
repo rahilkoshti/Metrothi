@@ -757,6 +757,26 @@ export function fullDayStationSchedule(stationId: string, line: string, now: Dat
 }
 
 
+/**
+ * Time from boarding to arrival, in minutes.
+ *
+ * Deliberately not `totalMins`: that is the platform wait plus the ride, so a
+ * plan made at 4am for the 6:23 train reports an 8-minute hop as "2h 17m". The
+ * wait is already expressed as a countdown wherever it matters, and doubling it
+ * into the trip's own duration is what made the summary read as a two-hour
+ * journey. The first leg's wait is the platform wait and is excluded; every
+ * later leg's wait is interchange time, which you do spend on the trip.
+ *
+ * Takes anything carrying legs, so it works on a JourneyOption or on the plan.
+ */
+export function rideMinsOf(x: { legs?: { travelMins?: number | null; waitMins?: number | null }[] } | null | undefined) {
+  const legs = x?.legs;
+  if (!legs?.length) return null;
+  return Math.round(
+    legs.reduce((s, l, i) => s + (l.travelMins ?? 0) + (i > 0 ? l.waitMins ?? 0 : 0), 0)
+  );
+}
+
 export function formatDuration(mins: number | null | undefined) {
   if (mins == null || Number.isNaN(mins)) return "\u2014";
   const m = Math.round(mins);
