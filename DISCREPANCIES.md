@@ -17,10 +17,14 @@ an entry once it's fixed.
       upgraded to per-station walking matrixes before v2.0 launch."
 
 - [ ] **Failing test: "segment time shares are proportional to inter-station
-      distance"** (`journeyEngine.test.ts:276`). `toBeCloseTo(..., 6)` expects
+      distance"** (`journeyEngine.test.ts:277`). `toBeCloseTo(..., 6)` expects
       ~5e-7 precision but the actual ratio differs by ~3.4e-3, so it fails. The
       assertion tolerance looks too tight for the distance-weighted split.
-      Pre-existing (engine untouched by the journey-sheet work). Found 2026-07-25.
+      Pre-existing (engine untouched by the journey-sheet work). Found
+      2026-07-25. **Still failing 2026-07-26** — `1.2019970314397534` vs
+      `1.1985712552604897`, delta `3.4258e-3`. This is the only red test in the
+      suite (235 pass / 1 fail); every other assertion, including the 156-pair
+      fare fixture, is green.
 
 - [ ] **Station-to-station journeys render phantom "Walk 1 min" rows.** When a
       route is planned from a station (not a place), the live recompute in
@@ -38,6 +42,58 @@ an entry once it's fixed.
 
 ## Map rendering (`app/src/features/map/components/HomeMap.tsx`, `map/geometry/trackGeometry.ts`)
 
+
+## Home station sheet (`HomeScreen.tsx`, `components/DraggableSheet.tsx`, `components/stationSheet/*`)
+
+- [ ] **Plan-route FAB and Recentre button are unreachable at the sheet's
+      resting position.** Both render only when `snap === 'collapsed'`
+      (`HomeScreen.tsx:579`, `:599` — `opacity: snap === 'collapsed' ? 1 : 0`
+      with `pointerEvents` to match), and as of 2026-07-26 the sheet *opens* at
+      mid. They also sit at `bottom: COLLAPSED_H + 16 / + 72`, i.e. underneath
+      the sheet at any snap above the peek, so simply un-gating them isn't
+      enough. To reach either control the user must first drag the sheet down or
+      tap the map. Fix by floating them above the sheet's *resting* edge
+      (`sheetInset` is already computed for the map's `bottomInset`) rather than
+      pinning them to the collapsed peek. Found while repositioning the sheet.
+
+- [ ] **The exposed map strip at the mid snap is thin, and mostly covered.**
+      With a 4-card interchange the map band is roughly the top ~124px of a
+      812px viewport, and the floating search pill and line-status strip already
+      occupy most of it. Since a map tap is now the gesture that collapses the
+      sheet (§4.1), there is little bare map left to tap. Options: cap how tall
+      the fitted mid snap may grow, or let a tap on the search-row background
+      count as a map tap. Deferred pending a call on which.
+
+- [ ] **"View all →" is the only control in the sheet that still routes away.**
+      `UpcomingTrains.tsx:79` navigates to `/stations/:id`, while the adjacent
+      "Station Details" button expands the sheet to its full snap instead — and
+      the full snap already contains the same full-day schedule the station page
+      shows. Either point "View all" at the same expand, or accept the split and
+      make the difference legible. Found 2026-07-26.
+
+- [ ] **Sheet surface uses `--c-bg`, not a card colour.** The design reference
+      shows a white sheet with grey inset chips and cards; the implementation
+      keeps the sheet at `--c-bg` (#f4f4f5 light) with white cards — the same
+      contrast, inverted. Flipping `DraggableSheet`'s background to `--c-card`
+      would also change the plan and live-journey sheets, where every inner card
+      (`JourneySummary`, `AllTrainsList`, `RouteTimeline`) is `--c-card` and
+      would go white-on-white. Needs a token pass across all three sheet modes,
+      not a one-line change. Found 2026-07-26.
+
+## Design tokens
+
+- [ ] **Accent foreground is hardcoded black in three places, against the
+      token.** `--c-accent-fg` is `#ffffff` (`index.css:22`) and `--c-accent` is
+      `#f97316`, but `HomeScreen.tsx:577` (Plan-route FAB),
+      `Planner.tsx:445` (primary CTA) and `StationDetail.tsx:328`
+      ("From here") all set `color: '#000'` directly. So the same accent button
+      renders black-on-orange in some places and white-on-orange in others
+      (`StationSheetActions`, `JourneySummary.tsx:112`, `ErrorBoundary.tsx:44`
+      use the token). Pick one and route all of them through `--c-accent-fg`.
+      Note the two are not equivalent for contrast: black on #f97316 is ~7.6:1,
+      white ~2.8:1 — so the token itself may be the thing that's wrong, and
+      changing it is a visual decision, not a mechanical rename. Found
+      2026-07-26.
 
 ## Template for new entries
 

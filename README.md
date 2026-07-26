@@ -11,7 +11,7 @@ Metrothi is the ultimate, fully-functional companion application for the Ahmedab
 - **Blazing Fast Routing:** Offline-capable journey planning using a deterministic ordered-array engine.
 - **Honest Live Estimates:** Simulates live departures from actual GMRC timetables (no fake vehicle tracking).
 - **Multimodal Ready:** Architecture supports geolocation resolving (search for "Stadium", route to "Motera Stadium").
-- **Local-First:** Designed to work entirely in airplane mode using PWA technologies and IndexedDB caching.
+- **Local-First:** Works entirely in airplane mode. The transit graph and timetables are bundled at build time and precached by the service worker; user data lives in `localStorage`.
 
 ---
 
@@ -27,9 +27,12 @@ This is the single most important document in the project.
 
 ### 2. Key Architectural Rules
 - **Engine/UI Separation:** The core routing logic lives in `app/src/features/journey/engine/journeyEngine.ts`. This file is pure TypeScript with **zero React imports**. UI components (in `components/`) only call functions from this engine and render the results.
-- **Design System:** The app uses a dark editorial aesthetic. All colors should use the CSS custom properties defined in `index.css` (e.g., `var(--c-bg)`, `var(--c-text)`, `var(--c-card)`) rather than hardcoded hex values to support the Light/Dark mode toggle.
+- **Design System:** Light and dark are both first-class — light is the default. All colors must use the CSS custom properties defined in `index.css` (e.g., `var(--c-bg)`, `var(--c-text)`, `var(--c-card)`, `var(--c-accent)` / `var(--c-accent-fg)`) rather than hardcoded hex values, so the theme toggle works. The four line colors (`LINE_COLORS`) are the exception — they map to real-world signage and stay fixed across themes.
 - **No Real-time API (yet):** GMRC does not provide a live vehicle feed. We simulate "live" data using the static timetable logic inside `journeyEngine.ts`. **Never fake real-time tracking.**
-- **Local-first Sync Strategy:** All data must be written to IndexedDB (Dexie) first for immediate UI response, then synced to Supabase if the user is authenticated.
+- **Local-first Storage:** Transit data is bundled JSON, precached by the service worker; user data (saved stations, saved journeys, recent trips, theme) is written synchronously to `localStorage`. **Dexie/IndexedDB is deliberately not used** — see PRD §5.2. Supabase sync for authenticated users is still a future addition.
+
+### 3. Log What You Don't Fix: `DISCREPANCIES.md`
+When you spot a bug or inconsistency that is **out of scope for the task you're on**, do not fix it inline and do not silently drop it — append it to `DISCREPANCIES.md` at the repo root, with the file path, line number, and enough context to act on later. Move an entry to the "Resolved / Fixed" section when it's actually fixed.
 
 ---
 
