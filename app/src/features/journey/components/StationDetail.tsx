@@ -275,6 +275,7 @@ export function StationDetailBody({
   openLine,
   openDirDest,
   showHero = true,
+  showActions = true,
   onPlanIntent,
 }: {
   stationId: string;
@@ -283,6 +284,9 @@ export function StationDetailBody({
   /** The home sheet already names the station in its header, so it hides the
    *  hero to avoid repeating the identity. The standalone page keeps it. */
   showHero?: boolean;
+  /** The home sheet renders its own Get Directions / Station Details pair above
+   *  this body, so it suppresses the From here / To here buttons. */
+  showActions?: boolean;
   /** How to start a trip from the "From here" / "To here" buttons. When omitted
    *  (the home sheet), falls back to the `home-plan-trip` event that the mounted
    *  `HomeScreen` listens for. The standalone `/stations/:id` page — where no
@@ -395,7 +399,7 @@ export function StationDetailBody({
         </div>
         ) : null}
 
-        {actions}
+        {showActions ? actions : null}
 
         {/* Schedule */}
         <div>

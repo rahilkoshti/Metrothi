@@ -1,13 +1,12 @@
 import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LocateFixed, ChevronUp, Compass, X, MapPin, Footprints, ArrowRight } from 'lucide-react';
+import { LocateFixed, Compass, X, MapPin, Clock, Star, ArrowRight } from 'lucide-react';
 import {
   STATION_BY_ID,
   formatDuration,
   walkMinsForKm,
   estimateLine,
   planJourney,
-  LINE_PATHS,
   type StationRecord,
   type PlaceNode,
 } from '../engine/journeyEngine';
@@ -26,6 +25,10 @@ import { JourneySummary } from './journeySheet/JourneySummary';
 import { RouteTimeline } from './journeySheet/RouteTimeline';
 import { AllTrainsList } from './journeySheet/AllTrainsList';
 import { LiveJourneySummary } from './journeySheet/LiveJourneySummary';
+import { LiveJourneyScreen } from './LiveJourneyScreen';
+import { StationSheetActions } from './stationSheet/StationSheetActions';
+import { UpcomingTrains } from './stationSheet/UpcomingTrains';
+import { useSavedStations } from '../hooks/useSavedStations';
 import type { useJourneySession } from '../hooks/useJourneySession';
 import type { LocStatus } from '../../../App';
 
@@ -109,10 +112,8 @@ interface HomeScreenProps {
   session?: ReturnType<typeof useJourneySession>;
   /** Start the currently selected departure. */
   onStartJourney?: (idx: number, currentResult: any) => void;
-  /** Clear the planned route and return to the station sheet. */
+  /** Clear the planned route (or end the live journey) and return to the station sheet. */
   onClearResult?: () => void;
-  /** Open the full-screen live journey view. */
-  onMaximizeLive?: () => void;
 }
 
 export function HomeScreen({
@@ -126,11 +127,13 @@ export function HomeScreen({
   session,
   onStartJourney,
   onClearResult,
-  onMaximizeLive,
 }: HomeScreenProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [snap, setSnap] = useState<SheetSnap>('collapsed');
+  const { isSaved, toggle: toggleSaved } = useSavedStations();
+  // Opens at the mid snap: the station sheet is the screen's primary content,
+  // so its actions and next departures should be readable without a drag.
+  const [snap, setSnap] = useState<SheetSnap>('mid');
   const [searchOpen, setSearchOpen] = useState(false);
   const [focusLine, setFocusLine] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -138,29 +141,11 @@ export function HomeScreen({
   const [plannerOpen, setPlannerOpen] = useState(false);
   const [prefillDest, setPrefillDest] = useState<any>(null);
   const [prefillSource, setPrefillSource] = useState<any>(null);
-  const [selectedOptionIdx, setSelectedOptionIdx] = useState(0);
+  const [selectedDepartMs, setSelectedDepartMs] = useState<number | null>(null);
 
-  // How far short of the top the sheet stops when fully open: just below the
-  // search row. Measured rather than hardcoded so it survives font scaling and
-  // safe-area insets.
   const containerRef = useRef<HTMLDivElement>(null);
-  const searchRowRef = useRef<HTMLDivElement>(null);
-  const [topInset, setTopInset] = useState(68);
-
-  useLayoutEffect(() => {
-    const row = searchRowRef.current;
-    const box = containerRef.current;
-    if (!row || !box) return;
-    const measure = () =>
-      setTopInset(
-        Math.round(row.getBoundingClientRect().bottom - box.getBoundingClientRect().top + 8)
-      );
-    const ro = new ResizeObserver(measure);
-    ro.observe(row);
-    ro.observe(box);
-    measure();
-    return () => ro.disconnect();
-  }, []);
+  // Wraps everything the station sheet shows above the fold at its mid snap.
+  const stationBlockRef = useRef<HTMLDivElement>(null);
 
   // The nearest station lands asynchronously; adopt it until the user picks.
   useEffect(() => {
@@ -217,7 +202,7 @@ export function HomeScreen({
       planJourney(
         result.sourcePlace || result.sourceStation,
         result.destPlace || result.destStation,
-        { queryTime: result.queryTime, actualNow: now, arriveBy: result.arriveBy }
+        { queryTime: result.queryTime, actualNow: now, arriveBy: result.arriveBy, isLeaveNow: result.isLeaveNow }
       ) || result
     );
   }, [result, now]);
@@ -227,17 +212,32 @@ export function HomeScreen({
   const routeKey = result ? `${result.sourceStation?.id}->${result.destStation?.id}@${result.queryTime}` : null;
 
   const options: any[] = plan?.options ?? [];
-  const activeOption = options[selectedOptionIdx] ?? plan;
+
+  // The departure is held as its timestamp, not as an index: the option list is
+  // rebuilt on every 15s tick and loses its head as trains pull out, so an index
+  // would quietly slide onto a different train. A live journey resolves against
+  // the frozen result it was started from.
+  const selectionOptions: any[] = journeyMode === 'live' ? (result?.options ?? []) : options;
+  const selectedOptionIdx = useMemo(() => {
+    const fallback = (journeyMode === 'live' ? result : plan)?.recommendedOptionIdx ?? 0;
+    if (selectedDepartMs == null) return fallback;
+    const i = selectionOptions.findIndex((o: any) => o.departTimeMs === selectedDepartMs);
+    return i >= 0 ? i : fallback;
+  }, [selectionOptions, selectedDepartMs, journeyMode, result, plan]);
+  const selectOption = (idx: number) => setSelectedDepartMs(options[idx]?.departTimeMs ?? null);
+
+  const activeOption = selectionOptions[selectedOptionIdx] ?? plan;
 
   // Reset the selected departure and pop the sheet to mid whenever a new route
   // is planned. Return to the collapsed station peek when the route is cleared.
   const prevRouteKey = useRef<string | null>(null);
   useEffect(() => {
     if (routeKey && routeKey !== prevRouteKey.current) {
-      setSelectedOptionIdx(0);
+      setSelectedDepartMs(null);
       setSnap('mid');
     } else if (!routeKey && prevRouteKey.current) {
-      setSnap('collapsed');
+      // Clearing a route returns to the station sheet at its resting snap.
+      setSnap('mid');
     }
     prevRouteKey.current = routeKey;
   }, [routeKey]);
@@ -270,16 +270,6 @@ export function HomeScreen({
 
   const routeBottomPad = Math.round((containerRef.current?.clientHeight ?? window.innerHeight) * 0.46);
 
-  // Position of the selected station along its line, for the "Stop N of M" chip.
-  const stopPos = useMemo(() => {
-    if (!station) return null;
-    const path = LINE_PATHS[station.line];
-    if (!path) return null;
-    const idx = path.indexOf(station.id);
-    if (idx === -1) return null;
-    return { idx, total: path.length - 1 };
-  }, [station]);
-
   function selectStation(id: string) {
     const s = STATION_BY_ID[id];
     setSelectedId(id);
@@ -305,11 +295,47 @@ export function HomeScreen({
   const collapsedHeight =
     journeyMode === 'plan' ? PLAN_COLLAPSED_H : journeyMode === 'live' ? LIVE_COLLAPSED_H : COLLAPSED_H;
 
+  // The station sheet rests lower than the route sheets: its mid snap is tuned
+  // so the fold lands just under the departures preview, leaving more map.
+  const midRatio = journeyMode === 'station' ? 0.48 : 0.42;
+
+  // The station sheet's mid snap fits its own content instead of a fixed
+  // fraction: it rests exactly at the end of the departures block, so an
+  // interchange's four cards all fit and "Today's Schedule" stays below the
+  // fold. Measured rather than derived from constants because the card count,
+  // the chip row's wrapping and the location notice all move it.
+  const [stationBlockH, setStationBlockH] = useState(0);
+  useLayoutEffect(() => {
+    const el = stationBlockRef.current;
+    if (journeyMode !== 'station' || !el) {
+      setStationBlockH(0);
+      return;
+    }
+    const measure = () => setStationBlockH(el.offsetHeight);
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    measure();
+    return () => ro.disconnect();
+  }, [journeyMode, station, locFailed]);
+
+  // How much of the viewport the sheet covers at rest. The map nudges its centre
+  // up by half of this, so it has to track the resting snap — feeding it the
+  // collapsed peek would frame the nearest station against the sheet's edge.
+  const containerH = containerRef.current?.clientHeight ?? window.innerHeight;
+  const sheetInset =
+    journeyMode === 'station' && stationBlockH > 0
+      ? Math.min(Math.round(containerH * 0.88), COLLAPSED_H + stationBlockH)
+      : Math.round(containerH * (1 - midRatio));
+
   // ── Sheet header per mode ─────────────────────────────────────────────────────
   let sheetHeader: ReactNode;
   if (journeyMode === 'live' && session && result) {
     sheetHeader = (
-      <LiveJourneySummary result={result} session={session} onMaximize={() => onMaximizeLive?.()} />
+      <LiveJourneySummary
+        result={result}
+        session={session}
+        onMaximize={() => setSnap(snap === 'collapsed' ? 'full' : 'collapsed')}
+      />
     );
   } else if (journeyMode === 'plan' && plan) {
     sheetHeader = (
@@ -343,70 +369,73 @@ export function HomeScreen({
     sheetHeader = station ? (
       <div
         className="flex flex-col gap-3 px-4 pb-3"
-        onClick={() => setSnap(snap === 'collapsed' ? 'full' : 'collapsed')}
+        // A tap opens the sheet up a step rather than dismissing it; only the
+        // handle drag and a tap on the map collapse it. Same ladder the planned
+        // route's header uses.
+        onClick={() => setSnap(snap === 'full' ? 'mid' : snap === 'mid' ? 'full' : 'mid')}
       >
-        {/* Top row: line badge, name, chevron */}
+        {/* Top row: line badge, name, favourite toggle */}
         <div className="flex items-center gap-3">
           <LineBadge line={station.line} size="lg" />
           <div className="flex-1 min-w-0">
+            {/* Label only — an inline Interchange tag here wraps to a second
+                line on a 375px screen and shoves the chip row below the
+                collapsed fold. It lives in the chip row instead. */}
             <div
-              className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2"
-              style={{ color: 'var(--c-text-4)' }}
+              className="text-[10px] font-bold uppercase tracking-widest truncate"
+              style={{ color: 'var(--c-accent)' }}
             >
               {isNearest ? (locFailed ? 'Default station' : 'Nearest station') : 'Station'}
-              {station.interchange && (
-                <span
-                  className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded"
-                  style={{ background: 'var(--c-card)', color: 'var(--c-text)' }}
-                >
-                  Interchange
-                </span>
-              )}
             </div>
-            <div className="text-[19px] font-bold truncate leading-tight" style={{ color: 'var(--c-text)' }}>
+            <div className="text-[22px] font-bold truncate leading-tight" style={{ color: 'var(--c-text)' }}>
               {station.name}
             </div>
           </div>
-          <ChevronUp
-            size={16}
-            className="shrink-0 transition-transform duration-200"
+          {/* Stops the tap from also toggling the sheet snap. */}
+          <button
+            onClick={(e) => { e.stopPropagation(); toggleSaved(station.id); }}
+            aria-pressed={isSaved(station.id)}
+            aria-label={isSaved(station.id) ? 'Remove from favourites' : 'Add to favourites'}
+            className="shrink-0 h-9 px-3 rounded-full flex items-center gap-1.5 text-[13px] font-semibold transition-transform active:scale-95"
             style={{
-              color: 'var(--c-text-4)',
-              transform: snap === 'collapsed' ? 'none' : 'rotate(180deg)',
+              background: 'var(--c-card)',
+              border: '1px solid var(--c-border)',
+              color: isSaved(station.id) ? 'var(--c-accent)' : 'var(--c-text-2)',
             }}
-          />
+          >
+            <Star size={15} strokeWidth={2.2} fill={isSaved(station.id) ? 'currentColor' : 'none'} />
+            {isSaved(station.id) ? 'Saved' : 'Favorite'}
+          </button>
         </div>
 
-        {/* Chip row. Collapsed shows proximity (line, distance, walk);
-            expanded shows structure (line, phase, stop) plus a status
-            chip when the line isn't running. */}
+        {/* Chip row. Proximity (line, distance, walk) stays visible at every
+            snap; expanding appends the structural chips and a status chip for
+            when the line isn't running. */}
         <div className="flex items-center gap-2 flex-wrap">
           <Chip>
             <span className="w-2 h-2 rounded-full shrink-0" style={{ background: LINE_COLORS[station.line] }} />
             {LINE_NAMES[station.line] ?? station.line}
           </Chip>
 
-          {snap === 'collapsed'
-            ? isNearest && nearest?.distanceKm != null && (
-                <>
-                  <Chip>
-                    <MapPin size={12} strokeWidth={2.4} style={{ color: 'var(--c-text-4)' }} />
-                    {formatDistance(nearest.distanceKm)}
-                  </Chip>
-                  <Chip>
-                    <Footprints size={12} strokeWidth={2.4} style={{ color: 'var(--c-text-4)' }} />
-                    {formatDuration(walkMinsForKm(nearest.distanceKm))}
-                  </Chip>
-                </>
-              )
-            : (
-                <>
-                  {station.phase != null && <Chip>Phase {station.phase}</Chip>}
-                  {stopPos && <Chip>Stop {stopPos.idx + 1} of {stopPos.total + 1}</Chip>}
-                  {station.interchange && <Chip>Interchange</Chip>}
-                  <StatusChip line={station.line} />
-                </>
-              )}
+          {isNearest && nearest?.distanceKm != null && (
+            <>
+              <Chip>
+                <MapPin size={12} strokeWidth={2.4} style={{ color: 'var(--c-text-4)' }} />
+                {formatDistance(nearest.distanceKm)}
+              </Chip>
+              <Chip>
+                <Clock size={12} strokeWidth={2.4} style={{ color: 'var(--c-text-4)' }} />
+                {formatDuration(walkMinsForKm(nearest.distanceKm))} walk
+              </Chip>
+            </>
+          )}
+
+          {snap !== 'collapsed' && (
+            <>
+              {station.interchange && <Chip>Interchange</Chip>}
+              <StatusChip line={station.line} />
+            </>
+          )}
         </div>
       </div>
     ) : (
@@ -419,17 +448,14 @@ export function HomeScreen({
 
   // ── Sheet body per mode ───────────────────────────────────────────────────────
   let sheetBody: ReactNode;
-  if (journeyMode === 'live' && result) {
+  if (journeyMode === 'live' && result && session) {
     sheetBody = (
-      <div className="px-5 pt-2 pb-6">
-        <button
-          onClick={() => onMaximizeLive?.()}
-          className="w-full py-3.5 rounded-xl font-bold text-[14px] active:scale-[0.98] transition-transform"
-          style={{ background: 'var(--c-card)', color: 'var(--c-text)', border: '1px solid var(--c-border)' }}
-        >
-          Open full journey view
-        </button>
-      </div>
+      <LiveJourneyScreen
+        result={result}
+        activeOptionIdx={selectedOptionIdx}
+        session={session}
+        onEnd={() => onClearResult?.()}
+      />
     );
   } else if (journeyMode === 'plan' && plan) {
     sheetBody = (
@@ -439,7 +465,7 @@ export function HomeScreen({
           active={activeOption}
           options={options}
           selected={selectedOptionIdx}
-          onSelect={setSelectedOptionIdx}
+          onSelect={selectOption}
           onStart={() => onStartJourney?.(selectedOptionIdx, plan)}
         />
         <div className="px-5 pb-8 flex flex-col gap-6">
@@ -447,7 +473,7 @@ export function HomeScreen({
           <AllTrainsList
             options={options}
             selected={selectedOptionIdx}
-            onSelect={setSelectedOptionIdx}
+            onSelect={selectOption}
             sourceName={plan.source.name}
           />
         </div>
@@ -456,12 +482,29 @@ export function HomeScreen({
   } else {
     sheetBody = (
       <>
-        {locFailed && (
-          <div className="px-5 pt-4">
-            <LocationNotice status={locStatus} onRetry={onRetryLocation} />
-          </div>
-        )}
-        {station && <StationDetailBody stationId={station.id} showHero={false} />}
+        {/* Everything down to the last departure card. The sheet's mid snap is
+            sized to this block's height, so its bottom edge is the fold. */}
+        <div ref={stationBlockRef}>
+          {locFailed && (
+            <div className="px-5 pt-4">
+              <LocationNotice status={locStatus} onRetry={onRetryLocation} />
+            </div>
+          )}
+          {station && (
+            <div className="p-5 pb-4 max-w-[var(--layout-max-width)] mx-auto flex flex-col gap-6">
+              <StationSheetActions
+                stationId={station.id}
+                isNearest={isNearest}
+                coords={coords}
+                onExpand={() => setSnap('full')}
+              />
+              <UpcomingTrains stationId={station.id} />
+            </div>
+          )}
+        </div>
+        {/* The full day's schedule continues below the preview; its own action
+            pair is suppressed since the sheet supplies one above. */}
+        {station && <StationDetailBody stationId={station.id} showHero={false} showActions={false} />}
         <div style={{ height: 24 }} />
       </>
     );
@@ -486,9 +529,10 @@ export function HomeScreen({
         <HomeMap
           coords={coords}
           nearest={nearest}
-          bottomInset={COLLAPSED_H}
+          bottomInset={sheetInset}
           selectedStationId={selectedId}
           onSelectStation={selectStation}
+          onMapTap={() => setSnap('collapsed')}
           panTo={panTo}
           routeLegs={routeLegs}
           routeKey={routeKey}
@@ -498,10 +542,10 @@ export function HomeScreen({
       </Suspense>
 
       {/* Floating chrome — search then live line status, over the map. The
-          search row stays put at every snap; the sheet rises to just under it
-          and covers the status pills. */}
+          sheet sits at z-[900] above this, so at its full snap it rises over
+          the whole map and covers both the status pills and the search row. */}
       <div className="absolute top-0 inset-x-0 z-[600] pt-3 flex flex-col gap-2 pointer-events-none">
-        <div ref={searchRowRef} className="px-4 pointer-events-auto">
+        <div className="px-4 pointer-events-auto">
           <SearchBar
             variant="idle"
             placeholder="Search stations and landmarks"
@@ -567,8 +611,8 @@ export function HomeScreen({
         snap={snap}
         onSnapChange={setSnap}
         collapsedHeight={collapsedHeight}
-        midRatio={0.42}
-        topInset={topInset}
+        midRatio={midRatio}
+        midContentHeight={journeyMode === 'station' && stationBlockH > 0 ? stationBlockH : undefined}
         header={sheetHeader}
       >
         {sheetBody}

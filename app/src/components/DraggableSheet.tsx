@@ -31,7 +31,7 @@ export function DraggableSheet({
   onSnapChange,
   collapsedHeight,
   midRatio = 0.45,
-  topInset = 0,
+  midContentHeight,
   header,
   children,
   className = '',
@@ -40,28 +40,39 @@ export function DraggableSheet({
   onSnapChange: (snap: SheetSnap) => void;
   collapsedHeight: number;
   midRatio?: number;
-  /** Gap left above the sheet when fully open — how far short of the top it stops. */
-  topInset?: number;
+  /** How much of the scrollable content the mid snap should reveal, in px.
+   *  Overrides `midRatio` so the sheet can rest exactly at the end of a block
+   *  rather than at an arbitrary fraction — no half-cropped row, nothing from
+   *  the next section peeking. Falls back to `midRatio` when undefined. */
+  midContentHeight?: number;
   header: React.ReactNode;
   children: React.ReactNode;
   className?: string;
 }) {
   const sheetRef = useRef<HTMLDivElement>(null);
+  const grabRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const dragControls = useDragControls();
   const y = useMotionValue(0);
   const [height, setHeight] = useState(0);
+  const [headerHeight, setHeaderHeight] = useState(0);
 
   const pointsFor = useCallback(
-    (h: number) => ({
-      collapsed: Math.max(0, h - collapsedHeight),
-      mid: Math.round(h * midRatio),
-      full: 0,
-    }),
-    [collapsedHeight, midRatio]
+    (h: number, headerH: number) => {
+      const collapsed = Math.max(0, h - collapsedHeight);
+      // Never let a content fit swallow the whole screen — keep a strip of the
+      // parent visible — nor rise above the collapsed peek. Content taller than
+      // that caps here and scrolls once expanded.
+      const fitted =
+        midContentHeight != null && headerH > 0
+          ? Math.min(collapsed, Math.max(Math.round(h * 0.12), h - (headerH + midContentHeight)))
+          : Math.round(h * midRatio);
+      return { collapsed, mid: fitted, full: 0 };
+    },
+    [collapsedHeight, midRatio, midContentHeight]
   );
 
-  const snapY = useMemo(() => pointsFor(height), [pointsFor, height]);
+  const snapY = useMemo(() => pointsFor(height, headerHeight), [pointsFor, height, headerHeight]);
 
   const initialised = useRef(false);
   // Read inside the layout effect for the initial park only, so a later snap
@@ -74,26 +85,39 @@ export function DraggableSheet({
     if (!el) return;
     const measure = () => {
       const h = el.offsetHeight;
+      // The header is measured here rather than in its own effect so the first
+      // park below already knows it — a content-fitted mid snap needs both.
+      const headerH = grabRef.current?.offsetHeight ?? 0;
       setHeight(h);
+      setHeaderHeight(headerH);
       // Seed the position before the first paint. Without this the sheet
       // renders at y=0 for a frame — covering the whole map — then slides down.
       if (!initialised.current && h > 0) {
         initialised.current = true;
-        y.set(pointsFor(h)[snapRef.current]);
+        y.set(pointsFor(h, headerH)[snapRef.current]);
       }
     };
     const ro = new ResizeObserver(measure);
     ro.observe(el);
+    if (grabRef.current) ro.observe(grabRef.current);
     measure();
     return () => ro.disconnect();
   }, [y, pointsFor]);
 
   // Re-park whenever the snap changes from outside (selecting a station,
   // closing search) — but never on the very first measurement.
+  const parkedSnap = useRef(snap);
   useEffect(() => {
     if (height === 0 || !initialised.current) return;
-    const controls = animate(y, snapY[snap], SPRING);
-    return () => controls.stop();
+    // Only a genuine snap change is worth a spring. When the geometry moves
+    // under a stationary sheet — a station with more departures, a rotation —
+    // jump straight to the new point instead of sliding for no reason.
+    if (parkedSnap.current !== snap) {
+      parkedSnap.current = snap;
+      const controls = animate(y, snapY[snap], SPRING);
+      return () => controls.stop();
+    }
+    y.set(snapY[snap]);
   }, [snap, snapY, height, y]);
 
   function handleDragEnd(_: PointerEvent, info: PanInfo) {
@@ -127,11 +151,10 @@ export function DraggableSheet({
       className={`absolute inset-x-0 flex flex-col rounded-t-[22px] overflow-hidden ${className}`}
       style={{
         y,
-        // Sized to the region it can occupy rather than the whole parent, so at
-        // full extension nothing overflows the clip — otherwise the tail of the
-        // scroll content sits below the cut and can never be reached.
-        top: topInset,
-        height: `calc(100% - ${topInset}px)`,
+        // Spans the full parent so its `full` snap (y = 0) rises over the whole
+        // map — covering the floating search row and status pills above it.
+        top: 0,
+        height: '100%',
         background: 'var(--c-bg)',
         boxShadow: '0 -8px 32px rgba(0,0,0,0.28)',
         border: '1px solid var(--c-border)',
@@ -148,6 +171,7 @@ export function DraggableSheet({
       {/* Grab area — `touch-action: none` here (and only here) so dragging the
           header doesn't also scroll the page on touch. */}
       <div
+        ref={grabRef}
         className="shrink-0 cursor-grab active:cursor-grabbing"
         style={{ touchAction: 'none' }}
         onPointerDown={(e) => dragControls.start(e)}

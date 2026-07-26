@@ -200,6 +200,16 @@ function RoutingClass({ active }: { active: boolean }) {
   return null;
 }
 
+/**
+ * Reports a tap on the map's own surface. Leaflet doesn't fire this for station
+ * markers (they don't bubble) and suppresses it after a pan, so it only means
+ * "the user reached past the sheet for the map".
+ */
+function MapTap({ onTap }: { onTap: () => void }) {
+  useMapEvents({ click: onTap });
+  return null;
+}
+
 function DynamicMinZoom({ areaBounds }: { areaBounds: L.LatLngBounds }) {
   const map = useMapEvents({
     resize: () => {
@@ -220,6 +230,7 @@ export function HomeMap({
   bottomInset,
   selectedStationId,
   onSelectStation,
+  onMapTap,
   panTo,
   routeLegs = null,
   routeKey = null,
@@ -231,6 +242,8 @@ export function HomeMap({
   bottomInset: number;
   selectedStationId: string | null;
   onSelectStation: (id: string) => void;
+  /** Tap on the map surface itself — not a station marker, not a pan. */
+  onMapTap?: () => void;
   panTo: { lat: number; lng: number } | null;
   /** Per-leg track polylines for the planned route (routeLegSlices output). */
   routeLegs?: { line: string; coords: [number, number][] }[] | null;
@@ -318,6 +331,7 @@ export function HomeMap({
       />
 
       <DynamicMinZoom areaBounds={AREA_BOUNDS} />
+      {onMapTap && <MapTap onTap={onMapTap} />}
       <RoutingClass active={routeActive} />
       <HomeFrame coords={coords} nearest={nearest} bottomInset={bottomInset} />
       <PanTo target={panTo} bottomInset={bottomInset} />
