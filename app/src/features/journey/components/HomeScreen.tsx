@@ -630,10 +630,24 @@ export function HomeScreen({
         </Suspense>
       </div>
 
+      {/* Scrim behind the translucent iOS status bar — the map's tiles vary
+          from near-black (dark theme) to light tan (light theme), and the
+          status bar's white time/battery text needs reliable contrast
+          against either. Fixed dark gradient regardless of theme, same
+          trick native map apps use over imagery. */}
+      <div
+        className="absolute top-0 inset-x-0 z-[500] pointer-events-none"
+        style={{
+          height: 'calc(env(safe-area-inset-top) + 24px)',
+          background: 'linear-gradient(to bottom, rgba(0,0,0,0.55), transparent)',
+        }}
+        aria-hidden
+      />
+
       {/* Floating chrome — search then live line status, over the map. The
           sheet sits at z-[900] above this, so at its full snap it rises over
           the whole map and covers both the status pills and the search row. */}
-      <div className="absolute top-0 inset-x-0 z-[600] pt-3 flex flex-col gap-2 pointer-events-none">
+      <div className="absolute top-0 inset-x-0 z-[600] pt-safe flex flex-col gap-2 pointer-events-none">
         <div className="px-4 pointer-events-auto">
           <SearchBar
             variant="idle"
@@ -734,7 +748,7 @@ export function HomeScreen({
           }}
         >
           {/* Close button */}
-          <div className="flex items-center justify-end px-4 pt-4 pb-0">
+          <div className="flex items-center justify-end px-4 pt-safe-4 pb-0">
             <button
               onClick={() => { setPlannerOpen(false); setPrefillSource(null); setPrefillDest(null); }}
               aria-label="Close planner"

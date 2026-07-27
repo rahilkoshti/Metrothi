@@ -5,6 +5,14 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
+    <!-- iOS home-screen install: run edge-to-edge with the map/content behind
+         a translucent status bar, matching native app conventions. iOS only
+         honors these Apple-specific tags for status-bar treatment — it
+         ignores the web manifest's `display` value for this. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
     <!--
       ============================================================
       SEO — production origin is https://metrothi.vercel.app
