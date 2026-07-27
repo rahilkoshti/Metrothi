@@ -202,7 +202,7 @@ export function HomeSearch({
       {/* Search bar — the exact same shared pill as the home screen, in its
           'active' state, so nothing about its shape changes when the overlay
           opens. */}
-      <div className="shrink-0 pt-safe pb-2" style={{ borderBottom: '1px solid var(--c-border)' }}>
+      <div className="shrink-0 pt-3 pb-2" style={{ borderBottom: '1px solid var(--c-border)' }}>
         <div className="px-4">
           <SearchBar
             variant="active"

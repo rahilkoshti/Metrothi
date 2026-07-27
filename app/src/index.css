@@ -44,19 +44,6 @@ html, body, #root {
   transition: background 0.25s ease;
 }
 
-/* Safe-area-aware top padding for chrome pinned to the very top of the
-   screen. Needed because the iOS status bar now overlays content
-   (apple-mobile-web-app-status-bar-style=black-translucent in index.html)
-   instead of reserving its own space — without this, fixed headers would
-   sit underneath the clock/battery. Falls back to the old fixed padding on
-   browsers with no safe-area inset (e.g. Android, desktop). */
-.pt-safe {
-  padding-top: max(0.75rem, env(safe-area-inset-top));
-}
-.pt-safe-4 {
-  padding-top: max(1rem, env(safe-area-inset-top));
-}
-
 /* App-like surface, not a document: the draggable sheet, map and swipeable
    rows all start their gesture with a mousedown/touchstart, which the
    browser treats as a text-selection drag unless told otherwise. Re-enabled

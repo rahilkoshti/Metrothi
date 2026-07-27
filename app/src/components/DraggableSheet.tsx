@@ -235,13 +235,7 @@ export function DraggableSheet({
       <div
         ref={grabRef}
         className="shrink-0 cursor-grab active:cursor-grabbing"
-        style={{
-          touchAction: 'none',
-          // Only the `full` snap reaches literal y=0, sliding the handle
-          // under the now-overlaid iOS status bar — inset it there only, so
-          // collapsed/mid aren't pushed down by dead space they don't need.
-          paddingTop: snap === 'full' ? 'env(safe-area-inset-top)' : 0,
-        }}
+        style={{ touchAction: 'none' }}
         onPointerDown={(e) => dragControls.start(e)}
       >
         <div className="flex justify-center pt-2.5 pb-1">
