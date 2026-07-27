@@ -22,6 +22,10 @@ export interface DepartureRowProps {
   /** Slotted after the primary figure (e.g. the live indicator). */
   trailing?: ReactNode;
   onClick?: () => void;
+  /** Set when the row sits directly on the sheet surface (--c-card) rather
+   *  than an already-grey scroller — renders as the grey inset card instead
+   *  of white-on-white. */
+  inset?: boolean;
 }
 
 /**
@@ -41,6 +45,7 @@ export const DepartureRow = forwardRef<HTMLElement, DepartureRowProps>(function 
     departed = false,
     trailing,
     onClick,
+    inset = false,
   },
   ref
 ) {
@@ -58,7 +63,7 @@ export const DepartureRow = forwardRef<HTMLElement, DepartureRowProps>(function 
         onClick ? ' active:opacity-70' : ''
       }`}
       style={{
-        background: 'var(--c-card)',
+        background: inset ? 'var(--c-bg)' : 'var(--c-card)',
         border: `1px solid ${highlight ? `${color}55` : 'var(--c-border)'}`,
         opacity: departed ? 0.55 : 1,
       }}

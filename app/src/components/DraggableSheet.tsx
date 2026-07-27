@@ -47,6 +47,7 @@ export function DraggableSheet({
   header,
   children,
   onCoverageChange,
+  onRestEdgeChange,
   className = '',
 }: {
   snap: SheetSnap;
@@ -65,6 +66,14 @@ export function DraggableSheet({
    *  once the sheet has actually arrived — whatever is behind stays visible for
    *  the whole drag or spring up. */
   onCoverageChange?: (covered: boolean) => void;
+  /** How tall the sheet stands at its current *snap*, in px from the parent's
+   *  bottom edge — what a caller needs to float its own chrome clear of the
+   *  sheet. Unlike `onCoverageChange` this tracks the snap rather than the live
+   *  position: it fires once per settled snap, not per frame, so controls
+   *  anchored to it don't re-render through a drag. The peek can exceed
+   *  `collapsedHeight` when the header outgrows it, which is exactly the case a
+   *  caller can't compute from its own constants. */
+  onRestEdgeChange?: (px: number) => void;
   className?: string;
 }) {
   const sheetRef = useRef<HTMLDivElement>(null);
@@ -81,12 +90,14 @@ export function DraggableSheet({
       // the caller's constant — a chip row wrapping to a second line — would be
       // cut off at the fold with no way to see it but expanding the sheet.
       const collapsed = Math.max(0, h - Math.max(collapsedHeight, headerH));
-      // Never let a content fit swallow the whole screen — keep a strip of the
-      // parent visible — nor rise above the collapsed peek. Content taller than
-      // that caps here and scrolls once expanded.
+      // Never let a content fit swallow the whole screen — cap it at 60% of
+      // viewport height so a floor of map (and the floating controls that sit
+      // on it) stays clear even on a big interchange — nor rise above the
+      // collapsed peek. Content taller than that caps here and scrolls once
+      // expanded.
       const fitted =
         midContentHeight != null && headerH > 0
-          ? Math.min(collapsed, Math.max(Math.round(h * 0.12), h - (headerH + midContentHeight)))
+          ? Math.min(collapsed, Math.max(Math.round(h * 0.4), h - (headerH + midContentHeight)))
           : Math.round(h * midRatio);
       return { collapsed, mid: fitted, full: 0 };
     },
@@ -117,6 +128,13 @@ export function DraggableSheet({
   }, []);
 
   useMotionValueEvent(y, 'change', reportCoverage);
+
+  const restEdgeCb = useRef(onRestEdgeChange);
+  restEdgeCb.current = onRestEdgeChange;
+  useEffect(() => {
+    if (height === 0) return;
+    restEdgeCb.current?.(height - snapY[snap]);
+  }, [height, snapY, snap]);
 
   useLayoutEffect(() => {
     const el = sheetRef.current;
@@ -196,7 +214,10 @@ export function DraggableSheet({
         // map — covering the floating search row and status pills above it.
         top: 0,
         height: '100%',
-        background: 'var(--c-bg)',
+        // The sheet is the light surface (--c-card); everything inset inside
+        // it — chips, cards, pills — sits a shade darker at --c-bg. Matches
+        // the design reference: a white sheet with grey inset content.
+        background: 'var(--c-card)',
         boxShadow: '0 -8px 32px rgba(0,0,0,0.28)',
         border: '1px solid var(--c-border)',
         borderBottom: 'none',

@@ -50,7 +50,7 @@ function ActionPill({
       onClick={onClick}
       className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-semibold shrink-0 transition-all active:scale-95"
       style={{
-        background: danger ? "rgba(239,68,68,0.12)" : active ? "var(--c-text)" : "var(--c-card)",
+        background: danger ? "rgba(239,68,68,0.12)" : active ? "var(--c-text)" : "var(--c-bg)",
         color: danger ? "#EF4444" : active ? "var(--c-bg)" : "var(--c-text)",
         border: `1px solid ${danger ? "rgba(239,68,68,0.25)" : "var(--c-border)"}`,
       }}
@@ -327,14 +327,14 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session }: L
               <div className="flex items-center gap-2 mt-2 flex-wrap">
                 <span
                   className="inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full text-[12px] font-semibold"
-                  style={{ background: "var(--c-card)", border: "1px solid var(--c-border)", color: "var(--c-text-2)" }}
+                  style={{ background: "var(--c-bg)", border: "1px solid var(--c-border)", color: "var(--c-text-2)" }}
                 >
                   <LineBadge line={leg.line} size="xs" /> {leg.headingName}
                 </span>
                 <button
                   onClick={() => setShowScheduleLegIdx(k)}
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-semibold active:scale-95 transition-transform"
-                  style={{ background: "var(--c-card)", border: "1px solid var(--c-border)", color: "var(--c-text-2)" }}
+                  style={{ background: "var(--c-bg)", border: "1px solid var(--c-border)", color: "var(--c-text-2)" }}
                 >
                   <Train size={12} /> {departClock} <ChevronDown size={12} />
                 </button>
@@ -477,7 +477,7 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session }: L
                   <span className="text-[14px] font-semibold" style={{ color: "var(--c-text)" }}>Change to</span>
                   <span
                     className="inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full text-[12px] font-semibold"
-                    style={{ background: "var(--c-card)", border: "1px solid var(--c-border)", color: "var(--c-text-2)" }}
+                    style={{ background: "var(--c-bg)", border: "1px solid var(--c-border)", color: "var(--c-text-2)" }}
                   >
                     <LineBadge line={legs[k + 1].line} size="xs" /> {stops[legOffsets[k + 1]]?.name}
                   </span>

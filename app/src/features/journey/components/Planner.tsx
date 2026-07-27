@@ -140,6 +140,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
   }
 
   const combinedResults = useMemo(() => [...results, ...places], [results, places]);
+  const showSuggestions = !!activeField && (results.length > 0 || places.length > 0 || !!placesError);
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (!activeField || combinedResults.length === 0) return;
@@ -231,7 +232,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
           <ArrowUpDown size={16} strokeWidth={2.5} />
         </button>
 
-        {activeField && (results.length > 0 || places.length > 0 || placesError) && (
+        {showSuggestions && (
           <div
             className="absolute left-0 right-0 top-[calc(100%+8px)] rounded-2xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 z-50 max-h-[60vh] overflow-y-auto"
             style={{ background: 'var(--c-card)', border: '1px solid var(--c-border-2)' }}
@@ -337,7 +338,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
         )}
       </div>
 
-      {!activeField && recentTrips.length > 0 && (
+      {!showSuggestions && recentTrips.length > 0 && (
         <div className="mb-6 -mx-1">
           <div className="text-[11px] font-bold uppercase tracking-widest mb-1 px-2" style={{ color: 'var(--c-text-3)' }}>Recent</div>
           {recentTrips.map((trip) => (
@@ -442,7 +443,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
           }}
           className="w-full py-4 rounded-2xl text-[16px] font-bold flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.98]"
           style={canPlan
-            ? { background: 'var(--c-accent)', color: '#000' }
+            ? { background: 'var(--c-accent)', color: 'var(--c-accent-fg)' }
             : { background: 'var(--c-card)', color: 'var(--c-text-4)', cursor: 'not-allowed' }
           }
         >

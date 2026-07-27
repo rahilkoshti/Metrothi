@@ -25,16 +25,65 @@ function toPlaceNode(name: string, lat: number, lng: number): PlaceNode {
   return { isPlace: true, id: `place_${lat}_${lng}`, name, lat, lng };
 }
 
+// How many suggestions the caller actually renders.
+const MAX_RESULTS = 5;
+// Photon applies `limit` before we get to dedupe, so asking for exactly
+// MAX_RESULTS would let a cluster of duplicates collapse into two or three
+// rows. Over-fetch, dedupe, then trim.
+const FETCH_LIMIT = 15;
+// OSM routinely maps one real place as several objects — a node, a way and
+// another node metres apart, all identically tagged. Two entries this close
+// that also share a base name are the same place, not neighbours.
+const SAME_PLACE_KM = 0.05;
+
+function distanceKm(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number }
+): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * Collapse the several OSM objects that stand for one place. Photon returns
+ * them most-relevant first, so the first spelling of a place is the one kept.
+ *
+ * Two passes, because either alone leaks a duplicate: an exact label match
+ * catches the common case (identical `name` *and* locality), while the
+ * proximity check catches the same place tagged with different context — one
+ * object carrying `suburb`, its twin only `district` — which renders as two
+ * different strings for the same doorway.
+ */
+function dedupePlaces(candidates: { node: PlaceNode; baseName: string }[]): PlaceNode[] {
+  const kept: { node: PlaceNode; baseName: string }[] = [];
+  for (const c of candidates) {
+    const label = c.node.name.trim().toLowerCase();
+    const duplicate = kept.some(
+      (k) =>
+        k.node.name.trim().toLowerCase() === label ||
+        (k.baseName === c.baseName && distanceKm(k.node, c.node) <= SAME_PLACE_KM)
+    );
+    if (!duplicate) kept.push(c);
+  }
+  return kept.map((k) => k.node);
+}
+
 async function searchViaPhoton(q: string): Promise<PlaceNode[]> {
   // Ahmedabad/Gandhinagar bounding box: 72.4,22.9 to 72.7,23.3
   const url =
     `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}` +
-    `&bbox=72.4,22.9,72.7,23.3&limit=5&lang=en`;
+    `&bbox=72.4,22.9,72.7,23.3&limit=${FETCH_LIMIT}&lang=en`;
 
   const res = await fetch(url);
   if (!res.ok) throw new Error('Geocoding failed');
   const data = await res.json();
-  return ((data.features ?? []) as PhotonFeature[])
+  const candidates = ((data.features ?? []) as PhotonFeature[])
     .filter((f) => f.geometry?.coordinates && f.properties?.name)
     .map((f) => {
       const [lng, lat] = f.geometry!.coordinates!;
@@ -43,8 +92,10 @@ async function searchViaPhoton(q: string): Promise<PlaceNode[]> {
       const context = p.suburb || p.district || p.city || p.county;
       const name =
         context && context !== p.name ? `${p.name}, ${context}` : p.name!;
-      return toPlaceNode(name, lat, lng);
+      return { node: toPlaceNode(name, lat, lng), baseName: p.name!.trim().toLowerCase() };
     });
+
+  return dedupePlaces(candidates).slice(0, MAX_RESULTS);
 }
 
 export class GeocodingService {

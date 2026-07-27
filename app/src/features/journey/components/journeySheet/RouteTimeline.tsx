@@ -18,7 +18,7 @@ export function RouteTimeline({ result, active }: { result: any; active: any }) 
   } = result;
 
   return (
-    <div className="rounded-2xl p-5" style={{ background: 'var(--c-card)' }}>
+    <div className="rounded-2xl p-5" style={{ background: 'var(--c-bg)' }}>
       <h3 className="text-[9px] font-bold uppercase tracking-widest mb-6" style={{ color: 'var(--c-text-3)' }}>Route</h3>
       <div className="relative">
         {sourcePlace && (

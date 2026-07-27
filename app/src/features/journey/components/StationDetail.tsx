@@ -128,7 +128,21 @@ function MergedTrainList({
 }
 
 // ─── Per-line card ───────────────────────────────────────────────────
-function LineScheduleCard({ stationId, line, autoOpenDirDest }: { stationId: string; line: string; autoOpenDirDest?: string }) {
+function LineScheduleCard({
+  stationId,
+  line,
+  autoOpenDirDest,
+  surface = "page",
+}: {
+  stationId: string;
+  line: string;
+  autoOpenDirDest?: string;
+  /** "page" (default) sits on the standalone station page's grey --c-bg, so
+   *  the card is white (--c-card). "sheet" sits inside the home sheet, which
+   *  is itself --c-card, so the card goes grey (--c-bg) instead. */
+  surface?: "page" | "sheet";
+}) {
+  const cardBg = surface === "sheet" ? "var(--c-bg)" : "var(--c-card)";
   const now = useNow();
   const station = STATION_BY_ID[stationId];
 
@@ -154,7 +168,7 @@ function LineScheduleCard({ stationId, line, autoOpenDirDest }: { stationId: str
     return (
       <div
         className="rounded-2xl p-6 text-center flex flex-col items-center gap-3"
-        style={{ background: "var(--c-card)" }}
+        style={{ background: cardBg }}
       >
         <AlertTriangle size={22} style={{ color: "var(--c-text-3)" }} />
         <p className="font-semibold text-sm" style={{ color: "var(--c-text-3)" }}>
@@ -167,7 +181,7 @@ function LineScheduleCard({ stationId, line, autoOpenDirDest }: { stationId: str
   if (merged.length === 0) return null;
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: "var(--c-card)" }}>
+    <div className="rounded-2xl overflow-hidden" style={{ background: cardBg }}>
       {/* Line header */}
       <div
         className="flex items-center gap-3 px-4 py-3"
@@ -227,6 +241,7 @@ export function StationDetailBody({
   openDirDest,
   showHero = true,
   showActions = true,
+  surface = "page",
   onPlanIntent,
 }: {
   stationId: string;
@@ -238,6 +253,10 @@ export function StationDetailBody({
   /** The home sheet renders its own Get Directions / Station Details pair above
    *  this body, so it suppresses the From here / To here buttons. */
   showActions?: boolean;
+  /** "page" (default): the standalone /stations/:id page, grey (--c-bg)
+   *  behind a white schedule card. "sheet": the home sheet's full snap, which
+   *  is itself white (--c-card), so the schedule card goes grey instead. */
+  surface?: "page" | "sheet";
   /** How to start a trip from the "From here" / "To here" buttons. When omitted
    *  (the home sheet), falls back to the `home-plan-trip` event that the mounted
    *  `HomeScreen` listens for. The standalone `/stations/:id` page — where no
@@ -276,7 +295,7 @@ export function StationDetailBody({
       <button
         onClick={() => planWith({ source: station.id })}
         className="flex-1 py-4 rounded-2xl text-[14px] font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-        style={{ background: "var(--c-accent)", color: "#000" }}
+        style={{ background: "var(--c-accent)", color: "var(--c-accent-fg)" }}
       >
         <ArrowUpRight size={16} strokeWidth={2.5} /> From here
       </button>
@@ -370,6 +389,7 @@ export function StationDetailBody({
                 stationId={stationId}
                 line={line}
                 autoOpenDirDest={openLine === line ? openDirDest : undefined}
+                surface={surface}
               />
             ))}
           </div>

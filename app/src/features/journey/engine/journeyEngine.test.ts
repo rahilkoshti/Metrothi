@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import tracksData from "../../../data/tracks.json";
 import { fareForKm, routeKm, fareForRoute } from "./fareEngine";
 import {
   planJourney,
@@ -9,7 +10,6 @@ import {
   walkMinsForKm,
   hourOf,
   istDayStartMs,
-  haversineKm,
   travelMinsBetween,
   getActiveTrains,
   STATION_BY_ID,
@@ -263,15 +263,14 @@ describe("distance-weighted segment times", () => {
   });
 
   it("segment time shares are proportional to inter-station distance", () => {
-    // Two blue segments with very different straight-line lengths.
-    const shortKm = haversineKm(
-      STATION_BY_ID["sp-stadium"] as { lat: number; lng: number },
-      STATION_BY_ID["commerce-six-road"] as { lat: number; lng: number }
-    );
-    const longKm = haversineKm(
-      STATION_BY_ID["rabari-colony"] as { lat: number; lng: number },
-      STATION_BY_ID["amraivadi"] as { lat: number; lng: number }
-    );
+    // Two blue segments with very different lengths. The engine weights by
+    // along-track distance (tracks.json's stationKm), not straight-line
+    // haversine distance between the station pins — the two diverge wherever
+    // the real alignment curves, so the expectation has to use the same
+    // along-track metric the engine does.
+    const blueKm = (tracksData as any).lines["blue"].stationKm;
+    const shortKm = Math.abs(blueKm["sp-stadium"] - blueKm["commerce-six-road"]);
+    const longKm = Math.abs(blueKm["rabari-colony"] - blueKm["amraivadi"]);
     const shortMins = travelMinsBetween("blue", "sp-stadium", "commerce-six-road");
     const longMins = travelMinsBetween("blue", "rabari-colony", "amraivadi");
     expect(shortMins / longMins).toBeCloseTo(shortKm / longKm, 6);
@@ -462,5 +461,53 @@ describe("walkMinsForKm", () => {
     [5, 60],
   ])("%f km ≈ %i min at 5 km/h", (km, mins) => {
     expect(walkMinsForKm(km)).toBe(mins);
+  });
+});
+
+// ─── Station inputs must stay stations ─────────────────────────────────────────
+// A plan is recomputed on a timer while it sits on screen, and the recompute
+// feeds the previous result back in as `sourcePlace || sourceStation.id`. If a
+// caller passes the StationRecord instead of its id, the engine's non-string
+// branch runs findNearestStation on it and re-tags the station as a *place* a
+// few metres from itself — which surfaces as a phantom "Walk 1 min to X" row.
+
+describe("station-to-station journeys carry no walk", () => {
+  const cfg = { queryTime: ist(9), actualNow: ist(9), isLeaveNow: true };
+  const aPlace = {
+    isPlace: true as const,
+    id: "test-place",
+    name: "Somewhere near Vastral Gam",
+    lat: 22.997249 + 0.006,
+    lng: 72.667317,
+  };
+
+  it("a station id yields no place and no walk on either end", () => {
+    const plan = planJourney("vastral-gam", "thaltej-gam", cfg);
+    expect(plan).not.toBeNull();
+    expect(plan!.sourcePlace).toBeNull();
+    expect(plan!.destPlace).toBeNull();
+    expect(plan!.sourceWalkMins).toBe(0);
+    expect(plan!.destWalkMins).toBe(0);
+  });
+
+  it("survives the recompute round-trip the live plan does", () => {
+    const first = planJourney("vastral-gam", "thaltej-gam", cfg)!;
+    const again = planJourney(
+      first.sourcePlace || first.sourceStation.id,
+      first.destPlace || first.destStation.id,
+      cfg,
+    )!;
+    expect(again.sourcePlace).toBeNull();
+    expect(again.destPlace).toBeNull();
+    expect(again.sourceWalkMins).toBe(0);
+    expect(again.destWalkMins).toBe(0);
+    expect(again.sourceStation.id).toBe("vastral-gam");
+    expect(again.destStation.id).toBe("thaltej-gam");
+  });
+
+  it("a place source still walks, so the guard above is not vacuous", () => {
+    const plan = planJourney(aPlace, "thaltej-gam", cfg)!;
+    expect(plan.sourcePlace).not.toBeNull();
+    expect(plan.sourceWalkMins).toBeGreaterThan(0);
   });
 });

@@ -19,7 +19,10 @@
   --c-text-3:    #52525b;
   --c-text-4:    #71717a;
   --c-accent:    #f97316;
-  --c-accent-fg: #ffffff;
+  /* Black, not white: white-on-#f97316 is ~2.8:1, failing WCAG AA even for
+     large text/UI components. Black is ~7.6:1. The accent colour itself
+     doesn't change between themes, so neither does its foreground. */
+  --c-accent-fg: #000000;
   --layout-max-width: 768px;
 }
 
@@ -39,6 +42,20 @@
 html, body, #root {
   background: var(--c-bg);
   transition: background 0.25s ease;
+}
+
+/* App-like surface, not a document: the draggable sheet, map and swipeable
+   rows all start their gesture with a mousedown/touchstart, which the
+   browser treats as a text-selection drag unless told otherwise. Re-enabled
+   below for the handful of real text inputs, where selecting is expected. */
+html, body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+input, textarea {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 /* ─── Live journey screen ────────────────────────────────────────────────── */

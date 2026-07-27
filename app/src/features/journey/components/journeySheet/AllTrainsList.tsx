@@ -24,7 +24,7 @@ export function AllTrainsList({
       </h3>
 
       {options.length === 0 ? (
-        <div className="p-4 text-center text-sm font-medium rounded-xl" style={{ background: 'var(--c-card)', color: 'var(--c-text-3)' }}>
+        <div className="p-4 text-center text-sm font-medium rounded-xl" style={{ background: 'var(--c-bg)', color: 'var(--c-text-3)' }}>
           No more trains from {sourceName} today.
         </div>
       ) : (
@@ -40,7 +40,7 @@ export function AllTrainsList({
                 onClick={() => onSelect(i)}
                 className="w-full text-left rounded-2xl transition-all duration-200 overflow-hidden"
                 style={{
-                  background: isSelected ? 'var(--c-accent)' : 'var(--c-card)',
+                  background: isSelected ? 'var(--c-accent)' : 'var(--c-bg)',
                   border: isSelected ? 'none' : isTight ? '1px dashed var(--c-border-2)' : '1px solid var(--c-border)',
                   opacity: !optFeasible ? 0.4 : isTight && !isSelected ? 0.6 : 1,
                 }}

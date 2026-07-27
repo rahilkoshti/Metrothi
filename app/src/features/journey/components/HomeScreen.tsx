@@ -44,6 +44,11 @@ const PLAN_COLLAPSED_H = 104;
 // Peek height for the live-journey summary header.
 const LIVE_COLLAPSED_H = 96;
 
+// Vertical space the floating chrome (search pill, then the line-status strip)
+// claims at the top of the map. Floating controls have to clear it, or they'd
+// sit underneath the pills and quietly eat taps meant for them.
+const TOP_CHROME_H = 128;
+
 /** Format distance in km or meters based on value. */
 function formatDistance(km: number): string {
   if (km < 1) return `${Math.round(km * 1000)} m`;
@@ -58,7 +63,7 @@ function Chip({ children, tone = 'default' }: { children: ReactNode; tone?: 'def
     <span
       className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold tabular-nums whitespace-nowrap"
       style={{
-        background: 'var(--c-card)',
+        background: 'var(--c-bg)',
         color: alert ? '#f0997b' : 'var(--c-text-2)',
         border: `1px solid ${alert ? 'rgba(216,90,48,0.35)' : 'var(--c-border)'}`,
       }}
@@ -156,6 +161,11 @@ export function HomeScreen({
   // reported from the sheet's live position, not its snap, so the map stays
   // painted for the entire drag or spring.
   const [sheetCovers, setSheetCovers] = useState(false);
+  // How tall the sheet stands at its current snap. The floating controls ride
+  // above this instead of the collapsed peek, so they stay reachable wherever
+  // the sheet rests. Reported by the sheet because the real peek can exceed
+  // COLLAPSED_H when the header wraps.
+  const [sheetEdge, setSheetEdge] = useState(COLLAPSED_H);
 
   const containerRef = useRef<HTMLDivElement>(null);
   // Wraps everything the station sheet shows above the fold at its mid snap.
@@ -217,8 +227,12 @@ export function HomeScreen({
     if (!result) return null;
     return (
       planJourney(
-        result.sourcePlace || result.sourceStation,
-        result.destPlace || result.destStation,
+        // Pass the station *id* when there's no real place: the engine treats any
+        // non-string input as a place and runs findNearestStation on it, which
+        // would re-tag the station as a place with a ~0 km walk and add a phantom
+        // "Walk 1 min" row to the timeline.
+        result.sourcePlace || result.sourceStation.id,
+        result.destPlace || result.destStation.id,
         { queryTime: result.queryTime, actualNow: now, arriveBy: result.arriveBy, isLeaveNow: result.isLeaveNow }
       ) || result
     );
@@ -342,14 +356,17 @@ export function HomeScreen({
     return () => ro.disconnect();
   }, [journeyMode, station, locFailed]);
 
-  // How much of the viewport the sheet covers at rest. The map nudges its centre
-  // up by half of this, so it has to track the resting snap — feeding it the
-  // collapsed peek would frame the nearest station against the sheet's edge.
   const containerH = containerRef.current?.clientHeight ?? window.innerHeight;
-  const sheetInset =
-    journeyMode === 'station' && stationBlockH > 0
-      ? Math.min(Math.round(containerH * 0.88), COLLAPSED_H + stationBlockH)
-      : Math.round(containerH * (1 - midRatio));
+
+  // Whether a floating control of a given size still fits in the map strip the
+  // sheet leaves exposed. The station sheet's mid snap fits its content, so on a
+  // big interchange it can stand ~715px of an 812px viewport and there is simply
+  // nowhere on-screen to put a 56px FAB. Hide rather than park it off-screen or
+  // under the search pill.
+  const controlFits = (gap: number, size: number) =>
+    snap !== 'full' && containerH - (sheetEdge + gap + size) >= TOP_CHROME_H;
+  const fabFits = controlFits(72, 56);
+  const recentreFits = controlFits(16, 44);
 
   // ── Sheet header per mode ─────────────────────────────────────────────────────
   let sheetHeader: ReactNode;
@@ -386,7 +403,7 @@ export function HomeScreen({
           onClick={(e) => { e.stopPropagation(); onClearResult?.(); }}
           aria-label="Clear route"
           className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-transform"
-          style={{ background: 'var(--c-card)' }}
+          style={{ background: 'var(--c-bg)' }}
         >
           <X size={17} style={{ color: 'var(--c-text)' }} />
         </button>
@@ -448,7 +465,7 @@ export function HomeScreen({
               aria-label={`Walking directions to ${station.name}`}
               className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-transform active:scale-95"
               style={{
-                background: 'var(--c-card)',
+                background: 'var(--c-bg)',
                 border: '1px solid var(--c-border)',
                 color: 'var(--c-text-2)',
               }}
@@ -467,7 +484,7 @@ export function HomeScreen({
               isSaved(station.id) ? 'px-3' : 'w-9'
             }`}
             style={{
-              background: 'var(--c-card)',
+              background: 'var(--c-bg)',
               border: '1px solid var(--c-border)',
               color: isSaved(station.id) ? 'var(--c-accent)' : 'var(--c-text-2)',
             }}
@@ -555,14 +572,14 @@ export function HomeScreen({
           )}
           {station && (
             <div className="p-5 pb-4 max-w-[var(--layout-max-width)] mx-auto flex flex-col gap-6">
-              <UpcomingTrains stationId={station.id} />
+              <UpcomingTrains stationId={station.id} onViewAll={() => setSnap('full')} />
               <StationSheetActions stationId={station.id} isNearest={isNearest} />
             </div>
           )}
         </div>
         {/* The full day's schedule continues below the preview; its own action
             pair is suppressed since the sheet supplies one above. */}
-        {station && <StationDetailBody stationId={station.id} showHero={false} showActions={false} />}
+        {station && <StationDetailBody stationId={station.id} showHero={false} showActions={false} surface="sheet" />}
         <div style={{ height: 24 }} />
       </>
     );
@@ -599,7 +616,7 @@ export function HomeScreen({
           <HomeMap
             coords={coords}
             nearest={nearest}
-            bottomInset={sheetInset}
+            bottomInset={sheetEdge}
             selectedStationId={selectedId}
             onSelectStation={selectStation}
             onMapTap={() => setSnap('collapsed')}
@@ -637,6 +654,11 @@ export function HomeScreen({
         )}
       </div>
 
+      {/* Floating map controls — they ride on the sheet's resting edge rather
+          than the collapsed peek, so they stay above it at every snap. Only the
+          full snap hides them, and there they'd be off-screen anyway: the sheet
+          covers the map, so there is nothing left to recentre or plan against. */}
+
       {/* Plan Route FAB — only in the default station mode. */}
       {journeyMode === 'station' && (
         <button
@@ -644,12 +666,12 @@ export function HomeScreen({
           aria-label="Plan route"
           className="absolute right-4 z-[600] w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-all duration-200 active:scale-90"
           style={{
-            bottom: COLLAPSED_H + 72,
+            bottom: sheetEdge + 72,
             background: 'var(--c-accent)',
-            color: '#000',
+            color: 'var(--c-accent-fg)',
             boxShadow: '0 6px 24px rgba(0,0,0,0.35)',
-            opacity: snap === 'collapsed' ? 1 : 0,
-            pointerEvents: snap === 'collapsed' ? 'auto' : 'none',
+            opacity: fabFits ? 1 : 0,
+            pointerEvents: fabFits ? 'auto' : 'none',
           }}
         >
           <Compass size={24} strokeWidth={2.2} />
@@ -662,14 +684,14 @@ export function HomeScreen({
         aria-label="Recentre map"
         className="absolute right-4 z-[600] w-11 h-11 rounded-full flex items-center justify-center transition-opacity duration-200 active:scale-95"
         style={{
-          bottom: COLLAPSED_H + 16,
+          bottom: sheetEdge + 16,
           background: 'var(--c-blur)',
           backdropFilter: 'blur(18px)',
           WebkitBackdropFilter: 'blur(18px)',
           border: '1px solid var(--c-border-2)',
           boxShadow: '0 4px 18px rgba(0,0,0,0.22)',
-          opacity: snap === 'collapsed' ? 1 : 0,
-          pointerEvents: snap === 'collapsed' ? 'auto' : 'none',
+          opacity: recentreFits ? 1 : 0,
+          pointerEvents: recentreFits ? 'auto' : 'none',
         }}
       >
         <LocateFixed size={19} style={{ color: 'var(--c-text)' }} />
@@ -687,6 +709,7 @@ export function HomeScreen({
         midContentHeight={journeyMode === 'station' && stationBlockH > 0 ? stationBlockH : undefined}
         header={sheetHeader}
         onCoverageChange={setSheetCovers}
+        onRestEdgeChange={setSheetEdge}
       >
         {sheetBody}
       </DraggableSheet>

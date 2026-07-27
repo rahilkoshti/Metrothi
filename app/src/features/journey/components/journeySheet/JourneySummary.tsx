@@ -67,7 +67,7 @@ export function JourneySummary({
   return (
     <div className="px-5 pt-1 pb-4 flex flex-col gap-4">
       {isFeasible ? (
-        <div className="rounded-2xl p-4" style={{ background: 'var(--c-card)', border: '1px solid var(--c-border)' }}>
+        <div className="rounded-2xl p-4" style={{ background: 'var(--c-bg)', border: '1px solid var(--c-border)' }}>
           {/* Two columns on one row: what you do (leave in N) against what you
               get (depart → arrive). Stacking them cost ~70px and pushed Start
               Journey below the sheet's mid snap, so the trip's times ride
@@ -184,7 +184,7 @@ export function JourneySummary({
                   aria-pressed={isSel}
                   className="rounded-xl px-1 py-2.5 text-center transition-all duration-200 active:scale-95"
                   style={{
-                    background: isSel ? 'var(--c-accent)' : 'var(--c-card)',
+                    background: isSel ? 'var(--c-accent)' : 'var(--c-bg)',
                     border: `1px solid ${isSel ? 'var(--c-accent)' : 'var(--c-border)'}`,
                     boxShadow: isSel ? '0 4px 14px rgba(249,115,22,0.28)' : 'none',
                   }}
