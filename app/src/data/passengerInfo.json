@@ -1,0 +1,240 @@
+{
+  "_meta": {
+    "source": "Official GMRC Ahmedabad pages, scraped 2026-07-28",
+    "pages": {
+      "facilities": "https://www.gujaratmetrorail.com/ahmedabad/facilities-for-passenger/",
+      "dosAndDonts": "https://www.gujaratmetrorail.com/ahmedabad/dos-and-donts/",
+      "safetyAndSecurity": "https://www.gujaratmetrorail.com/ahmedabad/safety-and-security/",
+      "customerCare": "https://www.gujaratmetrorail.com/ahmedabad/customer-care/",
+      "lostAndFound": "https://www.gujaratmetrorail.com/ahmedabad/lost-and-found/",
+      "contactUs": "https://www.gujaratmetrorail.com/ahmedabad/contact-us/"
+    },
+    "rule": "Only facts stated on those pages appear here. Nothing is filled in from third-party sources. Fare, ticketing and card rules live in metroInfo.json; per-station gates, lifts and multi-modal interchange live in stationFacilities.json.",
+    "transcription": "GMRC publishes the Do's & Don'ts and the Prohibited Items lists only as poster images (uploads/2026/05/1.-Dos-and-Donts-1.jpg and 2.-List-of-Prohibited-Items.jpg). The English column of each poster is transcribed verbatim below. The posters also carry Gujarati and Hindi columns, not transcribed — the app is English-only.",
+    "notRecorded": [
+      "The facilities page presents each facility as an unlabelled photo tile; only the caption text is available, so there are no per-facility descriptions and no indication of which stations have which facility.",
+      "GMRC's lost-and-found page also lists individual found items with dates. That list changes weekly and is not baked into the app — link out to the page instead."
+    ]
+  },
+
+  "facilities": {
+    "note": "Offered across the network. GMRC does not state which stations have which, so do not render these as a per-station amenity list.",
+    "general": [
+      "Escalator",
+      "Guiding Signage",
+      "Contactless Smart Card",
+      "Token Vending & Card Recharge Machines",
+      "Drinking Water",
+      "First Aid Assistance",
+      "Passenger Seating Chair",
+      "Lifts",
+      "Passenger Information Display",
+      "Washrooms"
+    ],
+    "accessibility": [
+      "Wide Automatic Fare Gates",
+      "Tactile Path for Visually Impaired",
+      "Passenger Ramp",
+      "Availability of Wheelchair at Station",
+      "Braille Call Buttons & Handrails in Lifts",
+      "Reserved Space for Wheelchair in Train",
+      "Washrooms for Differently abled passengers",
+      "Ticket Counter at Low Height"
+    ]
+  },
+
+  "emergencyFacilities": [
+    {
+      "name": "Emergency Stop Plunger",
+      "description": "It is provided at platforms to stop trains approaching stations.",
+      "location": "platform"
+    },
+    {
+      "name": "Emergency Trip System",
+      "description": "It is provided at Platforms to cut off 750 V Power supply during emergency.",
+      "location": "platform"
+    },
+    {
+      "name": "Fire Alarm & Suppression System",
+      "description": "Fire Alarm & Suppression system is available to detect and deal with Fire.",
+      "location": "station"
+    },
+    {
+      "name": "Fire Extinguisher",
+      "description": "Portable Fire Extinguishers are available at Stations & inside trains to handle small fire.",
+      "location": "station-and-train"
+    },
+    {
+      "name": "Fire Hose Cabinet",
+      "description": "Fire Hose cabinet is available at stations to handle big fires.",
+      "location": "station"
+    },
+    {
+      "name": "Emergency Detrainment Ramp",
+      "description": "It is available in trains to evacuate passengers safely during emergency.",
+      "location": "train"
+    },
+    {
+      "name": "Emergency Exit Signage",
+      "description": "Lit Signage are provided to guide passengers towards exit during emergency.",
+      "location": "station"
+    },
+    {
+      "name": "Emergency Evacuation Map",
+      "description": "Evacuation Route map is provided at prominent location at stations.",
+      "location": "station"
+    },
+    {
+      "name": "Stretcher",
+      "description": "Stretcher is available at stations for emergency rescue of passengers.",
+      "location": "station"
+    },
+    {
+      "name": "Passenger Emergency Alarm & Passenger Helpline",
+      "description": "Passenger Emergency Alarm is provided in trains & Passenger helpline is provided at stations for passengers to communicate with officials during emergency.",
+      "location": "station-and-train"
+    },
+    {
+      "name": "Manual Call Point",
+      "description": "Manual Call Point is provided to trigger alarm in station in case of Fire.",
+      "location": "station"
+    }
+  ],
+
+  "dosAndDonts": {
+    "dos": [
+      "Stand in queue while waiting for trains at platform.",
+      "Let Passengers exit from the train before boarding.",
+      "Limit your baggage to 25 Kgs not exceeding 80 cm (Length) x 50 cm (Breadth) x 30 cm (Height) in size. Luggage exceeding such weight and/or dimensions are not allowed.",
+      "Avoid reading newspaper or crossing legs in crowded train as it leaves less space for fellow Passengers.",
+      "Abstain from drunken & unruly behavior in Metro Premises.",
+      "Watch the gap between the train & platform edge.",
+      "It is illegal to beg, solicit products or conduct group activities in the train and at the station. Please report such activities to the station staff.",
+      "Please be sure to take all your belongings with you when you get off the train. If you lose something within metro premises, contact GMRC Lost & Found Cell.",
+      "In case you hear or see something unusual, please inform Metro staff or security personnel inside trains or stations."
+    ],
+    "donts": [
+      "Do not eat or drink inside trains and paid area of stations.",
+      "Do not bring pets inside Metro Stations.",
+      "Never Squat on the train Floor.",
+      "Do not smoke inside Metro Premises.",
+      "Do not travel without valid ticket media.",
+      "Do not jump over the ticket barrier.",
+      "Do not share your ticket media with other person on the same journey.",
+      "Do not step onto the Metro Track. 3rd Rail is charged with 750 V DC.",
+      "Do not try to open the doors forcibly.",
+      "Do not deface or put posters inside Metro station or train.",
+      "Do not run or play games on the escalators.",
+      "Do not lean or put your hands on the train doors.",
+      "Do not rush on platforms or push other passengers to prevent accidents.",
+      "Do not spit or throw garbage within Metro Premises."
+    ]
+  },
+
+  "prohibitedItems": {
+    "legalBasis": "Metro Rail (O&M) Act, 2002",
+    "dangerous": {
+      "heading": "No person shall take or cause to be taken on the metro railway any of the following dangerous materials",
+      "items": [
+        "Explosive substances which possess risk of explosion or fire or both",
+        "Gases compressed, liquefied or dissolved under pressure",
+        "Petroleum and other inflammable liquids",
+        "Inflammable solids",
+        "Oxidizing substances",
+        "Poisonous (toxic) substances",
+        "Acids and other corrosives",
+        "Radioactive substances",
+        "Weapons, arms and ammunitions",
+        "Any Chemical, Biological, Radiological, Nuclear and Enhanced Conventional Weapons which possess risk to passengers or property"
+      ]
+    },
+    "offensive": {
+      "heading": "No person shall take or cause to be taken on the metro railway any of the following offensive materials",
+      "items": [
+        "Blood dried or coagulated or decomposed, whether human or animal",
+        "Corpses",
+        "Carcasses of dead animals or of dead birds",
+        "Bones excluding bleached and cleaned bones",
+        "Human skeleton",
+        "Parts of human body",
+        "Portable radio devices which possess risk to radio communication network & communication based traffic control signalling network"
+      ],
+      "exception": "Provided that a person duly authorised in this behalf by a hospital registered under the transplantation of human organs and tissues act, 1994 (42 of 1994), may take along, human organs or tissues or both, for the purpose of organ or tissue transplant."
+    },
+    "liveAnimals": {
+      "rule": "No person shall take or cause to be taken live animals or birds in Metro Railway",
+      "exception": "Provided that a security person on duty may take along sniffer dog for the purpose of security."
+    }
+  },
+
+  "contact": {
+    "customerCare": {
+      "label": "Passenger Correspondence",
+      "phone": "+91-79-22960123",
+      "email": "care@gujaratmetrorail.com",
+      "channels": [
+        "Phone",
+        "Email",
+        "Duly filled Complaint/Suggestion/Appreciation form by walk-in at an operational station"
+      ],
+      "scope": "Centralized Customer Care handles passenger-related operational matters of Ahmedabad Metro only. Non-operational queries go to the registered office."
+    },
+    "general": {
+      "label": "General Correspondence",
+      "phone": "+91-79-23248572",
+      "email": "info@gujaratmetrorail.com"
+    },
+    "registeredOffice": {
+      "operator": "Gujarat Metro Rail Corporation (GMRC) Limited",
+      "ownership": "SPV of Government of India and Government of Gujarat",
+      "cin": "U60200GJ2010SGC059407",
+      "address": "Block No. 1, First Floor, Karmayogi Bhavan, Sector 10/A, Gandhinagar - 382010"
+    },
+    "feedbackUrl": "https://www.gujaratmetrorail.com/ahmedabad/feedback/"
+  },
+
+  "lostAndFound": {
+    "office": "Lost & Found office, Apparel Park Depot",
+    "phone": "079-22960123",
+    "email": "care@gujaratmetrorail.com",
+    "officeHours": "10:30 to 18:10 hrs",
+    "unclaimedDisposalMonths": 6,
+    "howToReport": [
+      "Passengers who have lost an article in GMRCL premises or in trains can report at any station, or mail/call Customer Care directly with all details of the article plus their address and contact number.",
+      "All perishable food items and soiled items will be discarded at stations.",
+      "To claim an item at the Lost and Found office or at a station, bring a valid government ID showing your address.",
+      "Articles not claimed within six months will be disposed of."
+    ],
+    "listingUrl": "https://www.gujaratmetrorail.com/ahmedabad/lost-and-found/"
+  },
+
+  "social": {
+    "facebook": "https://www.facebook.com/MetroGMRC",
+    "youtube": "https://www.youtube.com/@MetroGMRC",
+    "x": "https://x.com/@MetroGMRC",
+    "instagram": "https://www.instagram.com/MetroGMRC/",
+    "linkedin": "https://www.linkedin.com/company/metrogmrc"
+  },
+
+  "officialApp": {
+    "name": "Ahmedabad Metro Official App",
+    "note": "GMRC's own app — the only place to buy mobile QR tickets. Metrothi does not sell tickets.",
+    "android": "https://play.google.com/store/apps/details?id=com.gujaratmetrorail.gmrcamddigitalticketing",
+    "ios": "https://apps.apple.com/in/app/ahmedabad-metro-official-app/id6670203895"
+  },
+
+  "officialLinks": {
+    "home": "https://www.gujaratmetrorail.com/ahmedabad/",
+    "routeAndFares": "https://www.gujaratmetrorail.com/ahmedabad/route-and-fares/",
+    "fareRules": "https://www.gujaratmetrorail.com/ahmedabad/fare-rules/",
+    "smartCards": "https://www.gujaratmetrorail.com/ahmedabad/smart-cards/",
+    "ncmc": "https://www.gujaratmetrorail.com/ahmedabad/national-common-mobility-card-ncmc/",
+    "facilities": "https://www.gujaratmetrorail.com/ahmedabad/facilities-for-passenger/",
+    "entryExitGates": "https://www.gujaratmetrorail.com/ahmedabad/information-of-entry-exit-gate-at-entrance/",
+    "dosAndDonts": "https://www.gujaratmetrorail.com/ahmedabad/dos-and-donts/",
+    "safetyAndSecurity": "https://www.gujaratmetrorail.com/ahmedabad/safety-and-security/",
+    "lostAndFound": "https://www.gujaratmetrorail.com/ahmedabad/lost-and-found/",
+    "customerCare": "https://www.gujaratmetrorail.com/ahmedabad/customer-care/",
+    "contactUs": "https://www.gujaratmetrorail.com/ahmedabad/contact-us/"
+  }
+}

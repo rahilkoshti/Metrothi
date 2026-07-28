@@ -8,7 +8,9 @@
       "trainInfo": "https://www.gujaratmetrorail.com/ahmedabad/train-information/"
     },
     "rule": "Only facts stated on those pages appear here. Anything GMRC does not state is recorded as null with a `_missing` note rather than filled in from elsewhere.",
-    "notInApp": "Service timings are published by GMRC only as timetable images (effective 18/05/2026) and could not be read as text, so they are NOT recorded here."
+    "notInApp": "Service timings are published by GMRC only as timetable images (effective 18/05/2026) and could not be read as text, so they are NOT recorded here.",
+    "reVerified": "2026-07-28 — fare-rules page re-read in full; `purchase`, `ticketConditions` and the overstepping penalties were added, everything already here still matched.",
+    "seeAlso": "Passenger conduct, facilities, safety and contact details are in passengerInfo.json. Per-station gates and lifts are in stationFacilities.json."
   },
 
   "discounts": {
@@ -33,10 +35,37 @@
     "QR Ticket (mobile app)",
     "Contactless Smart Token (CST)",
     "Contactless Smart Card (CSC)",
-    "NCMC"
+    "NCMC",
+    "Temporary Paper Ticket (issued only when the AFC system fails)",
+    "Special Paper Ticket (special events/occasions)"
   ],
 
   "fareProducts": ["Single Journey", "Return Journey", "Group Ticket (9+ passengers)"],
+
+  "purchase": {
+    "atStation": {
+      "where": "Ticket windows at all operational stations",
+      "payBy": ["Cash", "UPI", "POS (debit/credit card)"]
+    },
+    "online": {
+      "where": "Official GMRC Mobile App (QR tickets only)",
+      "payBy": ["UPI", "Debit card", "Credit card", "Net banking"],
+      "note": "Mobile QR tickets can only be bought within the prescribed scheduled timings."
+    }
+  },
+
+  "ticketConditions": [
+    "A QR ticket is valid for entry only through the fare gates of the station that issued it.",
+    "Keep your QR ticket intact until the journey is complete.",
+    "An expired or invalid QR ticket counts as travelling ticketless.",
+    "A screenshot, photo or photocopy of a QR ticket is not a valid ticket — using one counts as travelling ticketless.",
+    "A phone that hangs, is lost, runs out of battery, is switched off or has no network is not accepted as a reason for a missing mobile QR ticket; it counts as travelling ticketless.",
+    "A QR ticket damaged or lost during travel is not replaced.",
+    "Each QR ticket is itself a ticket-cum-receipt; no separate receipt is issued.",
+    "Travelling back in the reverse direction from the destination station is not allowed. Exit the paid area and re-enter, paying the full fare for the new journey.",
+    "Every valid entry must be followed by a valid exit; a mismatch is penalised at the Excess Fare Office, except where the exit was due to an emergency or incident.",
+    "If an NCMC's transit wallet balance is less than the fare travelled, the fare gate will not open. Failing to top up at that point counts as travelling ticketless."
+  ],
 
   "ticketValidity": {
     "paperQrMins": 30,
@@ -59,6 +88,8 @@
     { "reason": "Taking a token out of the system", "amountRs": 200 },
     { "reason": "Travelling without a ticket", "amountRs": 50, "plus": "maximum fare" },
     { "reason": "Overstaying in the paid area", "amountRs": 10, "per": "hour per person", "maxRs": 50 },
+    { "reason": "Travelling beyond your destination station", "amountRs": null, "note": "difference of fare only" },
+    { "reason": "Evading the gate after overstepping (tailgating, jumping the gate)", "amountRs": 50, "plus": "difference of fare overstepped" },
     { "reason": "Digital QR entry/exit mismatch", "amountRs": 150 },
     { "reason": "NCMC entry/exit mismatch", "amountRs": null, "note": "maximum fare from the last four transactions" }
   ],
@@ -90,6 +121,9 @@
       "priceRs": null,
       "_missing": "GMRC does not state a price; NCMC is issued by banks.",
       "purchase": "Through card-issuing banks. NCMC issued from any bank is accepted on the GMRC network.",
+      "alsoAtStations": true,
+      "alsoAtStationsQuote": "Commuters can purchase the National Common Mobility Card, available at every station. (GMRC's Multi Modal Integration page, Ahmedabad Phase-2 tab, https://www.gujaratmetrorail.com/mmi-2/#mmiahd2)",
+      "alsoAtStationsNote": "The fare-rules and NCMC pages describe NCMC only as a bank-issued product; the MMI page is the one place GMRC says stations sell it. Stated for Phase-2 in context, but written as 'every station'.",
       "topUp": "Online, through the issuing bank.",
       "minBalanceToEnter": "minimum fare of the system"
     }

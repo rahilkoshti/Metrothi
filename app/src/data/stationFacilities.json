@@ -1,0 +1,1357 @@
+{
+  "_meta": {
+    "sources": {
+      "gatesAndLifts": "https://www.gujaratmetrorail.com/ahmedabad/information-of-entry-exit-gate-at-entrance/",
+      "multiModal": "https://www.gujaratmetrorail.com/mmi-2/#mmiahd1 (Phase-1 table) and #mmiahd2 (Phase-2 prose)"
+    },
+    "scrapedOn": "2026-07-28",
+    "generatedBy": "scripts/fetch-station-facilities.mjs",
+    "rule": "Only per-station facts GMRC publishes appear here: station structure, which numbered gates are operational, which lift serves which gate, and which stations physically connect to another transport mode. GMRC does not publish gate landmarks, toilets, Wi-Fi, ATMs or feeder-bus routes per station, so none is recorded — and none should be filled in from third-party sources.",
+    "liftNote": "GMRC's lift numbering is per-station and not sequential with the gate numbers (e.g. Paldi has Lift 06 at Gate 02). The numbers are reproduced as printed so signage in the station matches the app.",
+    "multiModalNote": "`multiModal` is present only on the stations GMRC names — absence means \"GMRC lists no built interchange here\", not \"no bus stops nearby\". `connections[].gate` is the Entry-Exit number the transfer uses, so it lines up with `gates` and `lifts`; null where GMRC does not state one.",
+    "modes": {
+      "brts": "Ahmedabad BRTS (Janmarg)",
+      "gsrtc": "Gujarat State Road Transport Corporation buses",
+      "indian-railways": "Indian Railways",
+      "high-speed-rail": "NHSRCL — Mumbai–Ahmedabad high-speed rail (under construction)"
+    },
+    "phase2Standard": "GMRC states this for Phase-2 as a whole, not per station, so it is not copied onto individual stations: \"All Ahmedabad Phase II stations are universally accessible, at grade integration through footpaths, cycle track, PBS, drop-off bays, bus bays, and parking facilities.\" Every Phase-2 station is also designed with pedestrian crossings via entry/exit foot over bridges, pick-up and drop-off areas, dedicated GSRTC and city bus bays, bicycle and two-wheeler parking, and auto-rickshaw space.",
+    "coverage": "53 of 54 stations",
+    "notCovered": [
+      "sabarmati-railway-station"
+    ],
+    "multiModalCoverage": "10 stations with a published interchange",
+    "networkWideFacilities": "Facilities offered across the network (escalators, drinking water, wheelchairs, tactile paths…) are not per-station and live in app/src/data/passengerInfo.json."
+  },
+  "stations": {
+    "vastral-gam": {
+      "gmrcName": "Vastral Gam",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 2,
+          "gates": [
+            3
+          ]
+        }
+      ]
+    },
+    "nirant-cross-road": {
+      "gmrcName": "Nirant Cross Road",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        4
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            1
+          ]
+        }
+      ]
+    },
+    "vastral": {
+      "gmrcName": "Vastral",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        2,
+        3
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            2
+          ]
+        },
+        {
+          "lift": 2,
+          "gates": [
+            3
+          ]
+        }
+      ]
+    },
+    "rabari-colony": {
+      "gmrcName": "Rabari Colony",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        2,
+        3
+      ],
+      "lifts": [
+        {
+          "lift": 2,
+          "gates": [
+            3
+          ]
+        }
+      ]
+    },
+    "amraivadi": {
+      "gmrcName": "Amraiwadi",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        2,
+        3
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            2
+          ]
+        },
+        {
+          "lift": 2,
+          "gates": [
+            3
+          ]
+        }
+      ]
+    },
+    "apparel-park": {
+      "gmrcName": "Apparel Park",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        3
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            1
+          ]
+        }
+      ]
+    },
+    "kankaria-east": {
+      "gmrcName": "Kankaria East",
+      "structure": "underground",
+      "interchange": false,
+      "gates": [
+        2,
+        3
+      ],
+      "lifts": [
+        {
+          "lift": 2,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "kalupur": {
+      "gmrcName": "Kalupur Metro Station",
+      "structure": "underground",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            1
+          ]
+        }
+      ],
+      "multiModal": {
+        "summary": "Integration with Indian Railways and NHSRCL",
+        "modes": [
+          "indian-railways",
+          "high-speed-rail"
+        ],
+        "connections": [
+          {
+            "gate": null,
+            "text": "Subway constructed to connect with Kalupur High Speed Railway Station"
+          }
+        ]
+      }
+    },
+    "gheekanta": {
+      "gmrcName": "Gheekanta",
+      "structure": "underground",
+      "interchange": false,
+      "gates": [
+        1,
+        2,
+        3
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 2,
+          "gates": [
+            3
+          ]
+        }
+      ]
+    },
+    "shahpur": {
+      "gmrcName": "Shahpur",
+      "structure": "underground",
+      "interchange": false,
+      "gates": [
+        3,
+        4
+      ],
+      "lifts": [
+        {
+          "lift": 2,
+          "gates": [
+            3
+          ]
+        }
+      ]
+    },
+    "old-high-court": {
+      "gmrcName": "Old High Court",
+      "structure": "elevated",
+      "interchange": true,
+      "gates": [
+        1,
+        2,
+        4,
+        6,
+        7,
+        8
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            4
+          ]
+        },
+        {
+          "lift": 4,
+          "gates": [
+            7
+          ]
+        },
+        {
+          "lift": 5,
+          "gates": [
+            8
+          ]
+        }
+      ]
+    },
+    "sp-stadium": {
+      "gmrcName": "S P Stadium",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 2,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "commerce-six-road": {
+      "gmrcName": "Commerce Six Road",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        5
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            1
+          ]
+        }
+      ]
+    },
+    "gujarat-university": {
+      "gmrcName": "Gujarat University",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        4
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 2,
+          "gates": [
+            4
+          ]
+        }
+      ],
+      "multiModal": {
+        "summary": "Integration with BRTS",
+        "modes": [
+          "brts"
+        ],
+        "connections": [
+          {
+            "gate": 1,
+            "text": "Entry Exit 1 – Footpath connectivity to BRTS station"
+          }
+        ]
+      }
+    },
+    "gurukul-road": {
+      "gmrcName": "Gurukul Road",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        2,
+        3
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "doordarshan-kendra": {
+      "gmrcName": "Doordarshan Kendra",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        4
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            1
+          ]
+        }
+      ]
+    },
+    "thaltej": {
+      "gmrcName": "Thaltej",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            2
+          ]
+        },
+        {
+          "lift": 2,
+          "gates": [
+            4
+          ]
+        }
+      ]
+    },
+    "thaltej-gam": {
+      "gmrcName": "Thaltej Gam",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 2,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "apmc": {
+      "gmrcName": "APMC",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 2,
+          "gates": [
+            3
+          ]
+        }
+      ],
+      "multiModal": {
+        "summary": "Integration with GSRTC",
+        "modes": [
+          "gsrtc"
+        ],
+        "connections": [
+          {
+            "gate": 1,
+            "text": "Entry-Exit 1 – Footpath connectivity to Existing point of Gujarat State Road Transportation Corporation (GSRTC) bus terminal"
+          }
+        ]
+      }
+    },
+    "jivraj-park": {
+      "gmrcName": "Jivraj Park",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        2,
+        3
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "rajivnagar": {
+      "gmrcName": "Rajiv Nagar Metro Station",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        4
+      ],
+      "lifts": [
+        {
+          "lift": 2,
+          "gates": [
+            4
+          ]
+        }
+      ]
+    },
+    "shreyas": {
+      "gmrcName": "Shreyas",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        4
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 2,
+          "gates": [
+            4
+          ]
+        }
+      ]
+    },
+    "paldi": {
+      "gmrcName": "Paldi",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        2,
+        3
+      ],
+      "lifts": [
+        {
+          "lift": 2,
+          "gates": [
+            3
+          ]
+        },
+        {
+          "lift": 6,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "gandhigram": {
+      "gmrcName": "Gandhigram Metro Station",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        3
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            3
+          ]
+        }
+      ],
+      "multiModal": {
+        "summary": "Integration with Indian Railways",
+        "modes": [
+          "indian-railways"
+        ],
+        "connections": [
+          {
+            "gate": 3,
+            "text": "Entry-Exit 3 – Stair & Lift Connectivity for Integration with Railways"
+          }
+        ]
+      }
+    },
+    "usmanpura": {
+      "gmrcName": "Usmanpura Metro Station",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        2,
+        3
+      ],
+      "lifts": [
+        {
+          "lift": 2,
+          "gates": [
+            3
+          ]
+        }
+      ]
+    },
+    "vijaynagar": {
+      "gmrcName": "Vijay Nagar Metro Station",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        4
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            1
+          ]
+        }
+      ]
+    },
+    "vadaj": {
+      "gmrcName": "Vadaj Metro Station",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        4,
+        5
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 5,
+          "gates": [
+            5
+          ]
+        }
+      ],
+      "multiModal": {
+        "summary": "Integration with BRTS",
+        "modes": [
+          "brts"
+        ],
+        "connections": [
+          {
+            "gate": 5,
+            "text": "Entry-Exit 5 – Lift and Skywalk connecting BRTS"
+          }
+        ]
+      }
+    },
+    "ranip": {
+      "gmrcName": "Ranip",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        2,
+        3,
+        4
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            2
+          ]
+        },
+        {
+          "lift": 2,
+          "gates": [
+            3
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            4
+          ]
+        }
+      ],
+      "multiModal": {
+        "summary": "Integration with GSRTC and BRTS",
+        "modes": [
+          "gsrtc",
+          "brts"
+        ],
+        "connections": [
+          {
+            "gate": 2,
+            "text": "Entry-Exit 2 – Footpath with GSRTC"
+          },
+          {
+            "gate": 3,
+            "text": "Entry-Exit 3 - Lift and Skywalk connecting to BRTS"
+          }
+        ]
+      }
+    },
+    "aec": {
+      "gmrcName": "AEC",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 2,
+          "gates": [
+            3
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            5
+          ]
+        }
+      ],
+      "multiModal": {
+        "summary": "Integration with BRTS, Indian Railways and NHSRCL",
+        "modes": [
+          "brts",
+          "indian-railways",
+          "high-speed-rail"
+        ],
+        "connections": [
+          {
+            "gate": 5,
+            "text": "Entry-Exit 5 – Lift and Skywalk connecting BRTS"
+          },
+          {
+            "gate": null,
+            "text": "Skywalk connecting to Sabarmati High Speed Railway Station"
+          }
+        ]
+      }
+    },
+    "sabarmati": {
+      "gmrcName": "Sabarmati Metro Station",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            2
+          ]
+        },
+        {
+          "lift": 2,
+          "gates": [
+            3
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            5
+          ]
+        }
+      ],
+      "multiModal": {
+        "summary": "Integration with BRTS",
+        "modes": [
+          "brts"
+        ],
+        "connections": [
+          {
+            "gate": 3,
+            "text": "Entry-Exit 3 – Lift and Skywalk connecting BRTS"
+          }
+        ]
+      }
+    },
+    "motera-stadium": {
+      "gmrcName": "Motera Stadium",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "lifts": [
+        {
+          "lift": 1,
+          "gates": [
+            2
+          ]
+        },
+        {
+          "lift": 2,
+          "gates": [
+            3
+          ]
+        }
+      ]
+    },
+    "koteshwar-road": {
+      "gmrcName": "Koteshwar Road",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 3,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 4,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "vishwakarma-college": {
+      "gmrcName": "Vishwakarma College",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 4,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "tapovan-circle": {
+      "gmrcName": "Tapovan Circle",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 4,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "narmada-canal": {
+      "gmrcName": "Narmada Canal",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 4,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "koba-circle": {
+      "gmrcName": "Koba Circle",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 4,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "juna-koba": {
+      "gmrcName": "Juna Koba",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 4,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "koba-gam": {
+      "gmrcName": "Koba Gaam",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 4,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "gnlu": {
+      "gmrcName": "GNLU",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 4,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "raysan": {
+      "gmrcName": "Raysan",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 4,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "randesan": {
+      "gmrcName": "Randesan",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 4,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "dholakuva-circle": {
+      "gmrcName": "Dholakuva Circle",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 3,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 4,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "infocity": {
+      "gmrcName": "Infocity",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 4,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "sector-1": {
+      "gmrcName": "Sector-1",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 4,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "sector-10a": {
+      "gmrcName": "Sector-10A",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 4,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "sachivalaya": {
+      "gmrcName": "Sachivalaya",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 4,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "pdeu": {
+      "gmrcName": "PDEU",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 4,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            2
+          ]
+        }
+      ],
+      "multiModal": {
+        "summary": "Parking facility provided",
+        "modes": [],
+        "connections": [],
+        "amenities": [
+          "parking"
+        ],
+        "plannedAmenities": [
+          "public-bicycle-sharing",
+          "bus-bay"
+        ],
+        "sourceNote": "From the caption on GMRC's architectural rendering of the station, not from a facilities table."
+      }
+    },
+    "gift-city": {
+      "gmrcName": "GIFT City",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 4,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "akshardham": {
+      "gmrcName": "Akshardham",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 3,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 4,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "juna-sachivalaya": {
+      "gmrcName": "Juna Sachivalaya",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 3,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 4,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "sector-16": {
+      "gmrcName": "Sector-16",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2,
+        3
+      ],
+      "lifts": [
+        {
+          "lift": 4,
+          "gates": [
+            1,
+            2
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            3
+          ]
+        }
+      ]
+    },
+    "sector-24": {
+      "gmrcName": "Sector-24",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2
+      ],
+      "lifts": [
+        {
+          "lift": 4,
+          "gates": [
+            1
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            2
+          ]
+        }
+      ]
+    },
+    "mahatma-mandir": {
+      "gmrcName": "Mahatma Mandir",
+      "structure": "elevated",
+      "interchange": false,
+      "gates": [
+        1,
+        2,
+        3
+      ],
+      "lifts": [
+        {
+          "lift": 4,
+          "gates": [
+            1,
+            2
+          ]
+        },
+        {
+          "lift": 3,
+          "gates": [
+            3
+          ]
+        }
+      ],
+      "multiModal": {
+        "summary": "Integration with Indian Railways",
+        "modes": [
+          "indian-railways"
+        ],
+        "connections": [
+          {
+            "gate": null,
+            "text": "Connected to Gandhinagar Capital Railway Station by a 335-metre foot over bridge with travellators, opening directly onto the railway platform. Also gives access to the Mahatma Mandir Convention Centre, The Leela Hotel and Dandi Kutir."
+          }
+        ]
+      }
+    }
+  }
+}
