@@ -247,7 +247,17 @@ export function DraggableSheet({
       <div
         ref={contentRef}
         className="flex-1 overscroll-contain"
-        style={{ overflowY: snap === 'full' ? 'auto' : 'hidden', scrollbarWidth: 'none' }}
+        style={{
+          overflowY: snap === 'full' ? 'auto' : 'hidden',
+          // Matches overflowY: nothing scrolls below full snap, so the browser's
+          // native pan gesture has no job to do — but left at 'auto' it still
+          // claims the touch before our pointermove handoff sees enough delta,
+          // cancelling the gesture and leaving only the touch-action:none grab
+          // handle draggable. 'none' here lets a swipe anywhere on the card hand
+          // off, while full snap keeps native scrolling.
+          touchAction: snap === 'full' ? 'auto' : 'none',
+          scrollbarWidth: 'none',
+        }}
         onPointerDown={(e) => {
           contentGesture.current = { startY: e.clientY, down: true };
         }}

@@ -12,6 +12,7 @@ import { DepartureRow } from '../DepartureRow';
 interface NextDeparture {
   key: string;
   line: string;
+  destinationId: string;
   destinationName: string;
   clockTime: string;
   waitMins: number;
@@ -41,6 +42,7 @@ export function UpcomingTrains({ stationId, onViewAll }: { stationId: string; on
         out.push({
           key: `${line}-${dir.destinationId}`,
           line,
+          destinationId: dir.destinationId,
           destinationName: dir.destinationName,
           clockTime: next.clockTime,
           waitMins: next.waitMins,
@@ -92,6 +94,7 @@ export function UpcomingTrains({ stationId, onViewAll }: { stationId: string; on
             <DepartureRow
               key={d.key}
               line={d.line}
+              destinationId={d.destinationId}
               destinationName={d.destinationName}
               clockTime={d.clockTime}
               waitMins={d.waitMins}

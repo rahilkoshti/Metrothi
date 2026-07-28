@@ -1,9 +1,13 @@
 import { forwardRef, type ReactNode } from 'react';
-import { formatDuration } from '../engine/journeyEngine';
+import { ArrowRight } from 'lucide-react';
+import { formatDuration, LINE_PATHS } from '../engine/journeyEngine';
 import { LINE_COLORS } from '../constants';
 
 export interface DepartureRowProps {
   line: string;
+  /** Terminal station ID the train ends at — picks which way the badge's
+   *  direction arrow points (see LINE_PATHS). */
+  destinationId?: string;
   destinationName: string;
   clockTime: string;
   waitMins: number;
@@ -36,6 +40,7 @@ export interface DepartureRowProps {
 export const DepartureRow = forwardRef<HTMLElement, DepartureRowProps>(function DepartureRow(
   {
     line,
+    destinationId,
     destinationName,
     clockTime,
     waitMins,
@@ -50,6 +55,11 @@ export const DepartureRow = forwardRef<HTMLElement, DepartureRowProps>(function 
   ref
 ) {
   const color = LINE_COLORS[line];
+  // Two termini per line ⇒ the badge arrow points at whichever end of the
+  // track `destinationId` is — a shape cue reads faster than a colour one,
+  // and doesn't cost the line its single, recognisable colour.
+  const path = LINE_PATHS[line];
+  const towardEnd = !path || !destinationId || path[path.length - 1] === destinationId;
   const Tag = (onClick ? 'button' : 'div') as 'button';
   // Bare minutes get the big number + "min" stack of the reference; anything
   // over an hour reads better as one formatted string.
@@ -68,16 +78,27 @@ export const DepartureRow = forwardRef<HTMLElement, DepartureRowProps>(function 
         opacity: departed ? 0.55 : 1,
       }}
     >
-      <span
-        className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-[15px] font-bold leading-none"
-        style={{
-          background: departed ? 'var(--c-card-alt)' : `${color}1f`,
-          color: departed ? 'var(--c-text-4)' : color,
-        }}
-        aria-hidden
-      >
-        {destinationName.trim().charAt(0).toUpperCase()}
-      </span>
+      <div className="flex items-center gap-1 shrink-0">
+        <span
+          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-[15px] font-bold leading-none"
+          style={{
+            background: departed ? 'var(--c-card-alt)' : `${color}1f`,
+            color: departed ? 'var(--c-text-4)' : color,
+          }}
+          aria-hidden
+        >
+          {destinationName.trim().charAt(0).toUpperCase()}
+        </span>
+        <ArrowRight
+          size={13}
+          strokeWidth={3}
+          style={{
+            color: departed ? 'var(--c-text-4)' : color,
+            transform: towardEnd ? undefined : 'rotate(180deg)',
+          }}
+          aria-hidden
+        />
+      </div>
 
       <div className="flex-1 min-w-0">
         <div className="text-[14px] font-bold truncate" style={{ color: 'var(--c-text)' }}>
