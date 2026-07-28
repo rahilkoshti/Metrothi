@@ -1,6 +1,22 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { ArrowLeft, ArrowUpRight, MapPin, Navigation2, AlertTriangle, Clock } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  ArrowLeftRight,
+  Accessibility,
+  DoorOpen,
+  MapPin,
+  Navigation2,
+  AlertTriangle,
+  Clock,
+  Info,
+  Layers,
+  Waypoints,
+  Milestone,
+  Timer,
+  type LucideIcon,
+} from "lucide-react";
 import {
   STATION_BY_ID,
   fullDayStationSchedule,
@@ -14,6 +30,13 @@ import type { DayScheduleDirection, DayTrain } from "../engine/journeyEngine";
 
 import { LineBadge } from "../../../components/LineBadge";
 import { LINE_NAMES } from "../constants";
+import {
+  stationFacilities,
+  accessibleGates,
+  formatGateList,
+  MODE_LABELS,
+  type StationFacilities,
+} from "../stationFacilities";
 import { TrainRouteSheet } from "./TrainRouteSheet";
 import { DepartureRow } from "./DepartureRow";
 
@@ -94,6 +117,7 @@ function MergedTrainList({
             key={train.id}
             ref={train.id === firstUpcomingId ? nextRef : undefined}
             line={line}
+            destinationId={train.dir.destinationId}
             destinationName={train.dir.destinationName}
             clockTime={train.clockTime}
             waitMins={train.waitMins}
@@ -231,6 +255,403 @@ function LineScheduleCard({
   );
 }
 
+// ─── Schedule / Station Info tabs ──────────────────────────────────────
+function SectionLabel({ icon: Icon, text }: { icon: LucideIcon; text: string }) {
+  return (
+    <div className="flex items-center gap-2 mb-3">
+      <Icon size={13} style={{ color: "var(--c-text-4)" }} />
+      <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--c-text-4)" }}>
+        {text}
+      </span>
+    </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  icon: Icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: LucideIcon;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      className="flex items-center justify-center gap-1.5 py-3 rounded-xl text-[13px] font-bold transition-all active:scale-[0.98]"
+      style={{
+        background: active ? "var(--c-accent)" : "var(--c-card-alt)",
+        color: active ? "var(--c-accent-fg)" : "var(--c-text-3)",
+      }}
+    >
+      <Icon size={14} strokeWidth={2.5} />
+      {label}
+    </button>
+  );
+}
+
+function StatTile({
+  value,
+  label,
+  cardBg,
+  wide = false,
+}: {
+  value: React.ReactNode;
+  label: string;
+  cardBg: string;
+  /** Spans both columns — for a fifth tile that would otherwise sit orphaned. */
+  wide?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl px-3 py-3.5 text-center${wide ? " col-span-2" : ""}`}
+      style={{ background: cardBg, border: "1px solid var(--c-border)" }}
+    >
+      <div className="text-lg font-bold leading-none" style={{ color: "var(--c-text)" }}>
+        {value}
+      </div>
+      <div className="text-[10px] font-bold uppercase tracking-widest mt-1.5" style={{ color: "var(--c-text-4)" }}>
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function AttributeCard({
+  icon: Icon,
+  title,
+  description,
+  cardBg,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  cardBg: string;
+}) {
+  return (
+    <div className="rounded-2xl p-3.5 flex flex-col gap-2" style={{ background: cardBg, border: "1px solid var(--c-border)" }}>
+      <Icon size={18} strokeWidth={2.2} style={{ color: "var(--c-accent)" }} />
+      <div>
+        <div className="text-[13px] font-bold" style={{ color: "var(--c-text)" }}>
+          {title}
+        </div>
+        <div className="text-[11px] font-semibold mt-0.5 leading-snug" style={{ color: "var(--c-text-4)" }}>
+          {description}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** A small pill — one gate number, one transport mode. */
+function FactChip({ text, tone = "plain" }: { text: string; tone?: "plain" | "accent" }) {
+  return (
+    <span
+      className="text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-lg whitespace-nowrap"
+      style={
+        tone === "accent"
+          ? { background: "var(--c-accent)", color: "var(--c-accent-fg)" }
+          : { color: "var(--c-text)", border: "1px solid var(--c-border-2)" }
+      }
+    >
+      {text}
+    </span>
+  );
+}
+
+function FactNote({ text }: { text: string }) {
+  return (
+    <p className="text-[11px] font-semibold leading-snug mt-2.5" style={{ color: "var(--c-text-4)" }}>
+      {text}
+    </p>
+  );
+}
+
+/** GMRC's kebab-cased amenity keys, as prose. */
+function amenityLabel(key: string): string {
+  return key.replace(/-/g, " ").replace(/^./, (c) => c.toUpperCase());
+}
+
+/**
+ * Which numbered gates are open, per GMRC. The numbers are theirs, reproduced
+ * verbatim so they match the signage outside the station — never re-indexed to
+ * 1..n. No denominator is shown ("6 of 8 open"): GMRC publishes the operational
+ * gates, not the built ones, so the total is not ours to state.
+ */
+function EntrancesBlock({ facilities, cardBg }: { facilities: StationFacilities; cardBg: string }) {
+  if (facilities.gates.length === 0) return null;
+  return (
+    <div>
+      <SectionLabel icon={DoorOpen} text="Entrances" />
+      <div className="rounded-2xl p-3.5" style={{ background: cardBg, border: "1px solid var(--c-border)" }}>
+        <div className="flex flex-wrap gap-2">
+          {facilities.gates.map((g) => (
+            <FactChip key={g} text={`Gate ${g}`} />
+          ))}
+        </div>
+        <FactNote text="Open entry / exit gates. Numbers match the signage at the station." />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Where the lifts are — stated positively only. GMRC publishes which gate each
+ * lift serves; it never publishes where a lift is absent, so "Gate 2 has no
+ * lift" is a claim the source does not make and this block does not imply it.
+ * Lift numbers are GMRC's own (they aren't sequential with the gate numbers)
+ * so a rider can match them to the signage.
+ */
+function StepFreeBlock({ facilities, cardBg }: { facilities: StationFacilities; cardBg: string }) {
+  const gates = accessibleGates(facilities);
+  if (gates.length === 0) return null;
+  return (
+    <div>
+      <SectionLabel icon={Accessibility} text="Step-free access" />
+      <div className="rounded-2xl overflow-hidden" style={{ background: cardBg, border: "1px solid var(--c-border)" }}>
+        <div className="px-4 py-3 text-[13px] font-bold" style={{ color: "var(--c-text)" }}>
+          Step-free entry at {formatGateList(gates)}
+        </div>
+        {facilities.lifts.map((l) => (
+          <div
+            key={l.lift}
+            className="flex items-center gap-3 px-4 py-2.5"
+            style={{ borderTop: "1px solid var(--c-border)" }}
+          >
+            <div className="flex-1 min-w-0 text-[12px] font-bold" style={{ color: "var(--c-text-3)" }}>
+              Lift {l.lift}
+            </div>
+            <div className="text-[12px] font-bold tabular-nums" style={{ color: "var(--c-text)" }}>
+              {formatGateList(l.gates)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The other transport this station physically connects to, on the 10 stations
+ * GMRC names. Each connection carries GMRC's own wording and the Entry-Exit it
+ * uses, which is the same numbering as `EntrancesBlock` above.
+ *
+ * Renders nothing at all on the other 43 — absence in the source means "GMRC
+ * lists no *built* interchange here", not "no buses nearby", so a "No
+ * connections" line would be a false negative (PRD §4.4.1, §7.6).
+ */
+function ConnectionsBlock({ facilities, cardBg }: { facilities: StationFacilities; cardBg: string }) {
+  const mm = facilities.multiModal;
+  // PDEU is the one station with an amenity but no interchange, so this block
+  // is keyed off having *something* to say rather than off `modes` alone.
+  if (!mm || (mm.connections.length === 0 && !mm.amenities?.length)) return null;
+  const hasChips = mm.modes.length > 0 || (mm.amenities?.length ?? 0) > 0;
+  return (
+    <div>
+      <SectionLabel icon={ArrowLeftRight} text="Connections" />
+      <div className="rounded-2xl overflow-hidden" style={{ background: cardBg, border: "1px solid var(--c-border)" }}>
+        {hasChips && (
+          <div className="flex flex-wrap gap-2 px-3.5 pt-3.5 pb-1">
+            {mm.modes.map((m) => (
+              <FactChip key={m} text={MODE_LABELS[m]} tone="accent" />
+            ))}
+            {mm.amenities?.map((a) => (
+              <FactChip key={a} text={amenityLabel(a)} />
+            ))}
+          </div>
+        )}
+        {mm.connections.map((c, i) => (
+          <div
+            key={i}
+            className="px-4 py-3"
+            style={{ borderTop: i === 0 && !hasChips ? "none" : "1px solid var(--c-border)" }}
+          >
+            {c.gate !== null && (
+              <div className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "var(--c-text-4)" }}>
+                Gate {c.gate}
+              </div>
+            )}
+            <div className="text-[12.5px] font-semibold leading-snug" style={{ color: "var(--c-text)" }}>
+              {c.text}
+            </div>
+          </div>
+        ))}
+        {mm.connections.length === 0 && (
+          <div className="px-4 pb-3.5 pt-1 text-[12.5px] font-semibold leading-snug" style={{ color: "var(--c-text)" }}>
+            {mm.summary}
+          </div>
+        )}
+        {mm.sourceNote && (
+          <div className="px-4 pb-3.5">
+            <FactNote text={mm.sourceNote} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The "Station Info" tab. Two sources, both first-party:
+ *
+ * - stations.json / the schedule engine — line membership, phase, position on
+ *   the line, interchange/terminus, and today's real first/last train.
+ * - `stationFacilities.json` (§5.6) — the station's *physical* facts: structure,
+ *   which gates are open, which lift serves which gate, and the multi-modal
+ *   interchange on the 10 stations that have one.
+ *
+ * What each block renders, why it's worded the way it is, and what deliberately
+ * does not render is specified in PRD §4.4.1. The short version: gate numbers
+ * are GMRC's, step-free access is stated positively only, and blocks close up
+ * rather than showing a placeholder or a "none nearby" negative —
+ * `stationFacilities()` returns null for the one station GMRC omits.
+ *
+ * Still genuinely unpublished per station, so still absent here: toilets,
+ * Wi-Fi, ATMs, feeder-bus routes, and a landmark per gate (§5.6).
+ */
+function StationInfoPanel({ stationId, surface }: { stationId: string; surface: "page" | "sheet" }) {
+  const now = useNow();
+  const station = STATION_BY_ID[stationId];
+  const cardBg = surface === "sheet" ? "var(--c-bg)" : "var(--c-card)";
+  const facilities = stationFacilities(stationId);
+
+  const lines = useMemo(
+    () => (station ? [station.line, ...(station.secondLine ? [station.secondLine] : [])] : []),
+    [station]
+  );
+
+  const posOnLine = useMemo(() => {
+    if (!station) return null;
+    const path = LINE_PATHS[station.line];
+    if (!path) return null;
+    const idx = path.indexOf(stationId);
+    return idx === -1 ? null : { idx, total: path.length - 1 };
+  }, [stationId, station]);
+
+  const timingRows = useMemo(
+    () =>
+      lines.flatMap((line) =>
+        fullDayStationSchedule(stationId, line, now).map((dir) => ({
+          key: `${line}-${dir.destinationId}`,
+          line,
+          destinationName: dir.destinationName,
+          first: dir.trains[0]?.clockTime ?? "—",
+          last: dir.trains[dir.trains.length - 1]?.clockTime ?? "—",
+        }))
+      ),
+    // The schedule only moves on the minute, so don't rebuild every tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [stationId, lines, now.getMinutes()]
+  );
+
+  if (!station) return null;
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div>
+        <SectionLabel icon={Layers} text="Station Overview" />
+        <div className="grid grid-cols-2 gap-2.5">
+          <StatTile cardBg={cardBg} value={lines.length} label={lines.length > 1 ? "Lines" : "Line"} />
+          <StatTile cardBg={cardBg} value={`Phase ${station.phase}`} label="Network Phase" />
+          <StatTile
+            cardBg={cardBg}
+            value={posOnLine ? `${posOnLine.idx + 1} / ${posOnLine.total + 1}` : "—"}
+            label="Stop on Line"
+          />
+          <StatTile
+            cardBg={cardBg}
+            value={station.operational === false ? "Opening soon" : "Operational"}
+            label="Status"
+          />
+          {facilities && (
+            <StatTile
+              cardBg={cardBg}
+              wide
+              value={facilities.structure === "underground" ? "Underground" : "Elevated"}
+              label="Structure"
+            />
+          )}
+        </div>
+      </div>
+
+      <div>
+        <SectionLabel icon={Info} text="Station Details" />
+        <div className="grid grid-cols-2 gap-2.5">
+          <AttributeCard
+            cardBg={cardBg}
+            icon={Waypoints}
+            title={station.interchange ? "Interchange" : "Single Line"}
+            description={
+              station.interchange && station.secondLine
+                ? `Connects to ${LINE_NAMES[station.secondLine]}`
+                : `Served only by ${LINE_NAMES[station.line]}`
+            }
+          />
+          <AttributeCard
+            cardBg={cardBg}
+            icon={Milestone}
+            title={station.terminal ? "Terminus" : "Through Station"}
+            description={station.terminal ? "Start or end of the line" : "Trains pass through both ways"}
+          />
+        </div>
+      </div>
+
+      {facilities && (
+        <>
+          <EntrancesBlock facilities={facilities} cardBg={cardBg} />
+          <StepFreeBlock facilities={facilities} cardBg={cardBg} />
+          <ConnectionsBlock facilities={facilities} cardBg={cardBg} />
+        </>
+      )}
+
+      <div>
+        <SectionLabel icon={Clock} text="First & Last Train Today" />
+        <div className="rounded-2xl overflow-hidden" style={{ background: cardBg, border: "1px solid var(--c-border)" }}>
+          {timingRows.map((row, i) => (
+            <div
+              key={row.key}
+              className="flex items-center gap-3 px-4 py-3"
+              style={{ borderBottom: i < timingRows.length - 1 ? "1px solid var(--c-border)" : "none" }}
+            >
+              <LineBadge line={row.line} size="sm" />
+              <div className="flex-1 min-w-0 text-[13px] font-bold truncate" style={{ color: "var(--c-text)" }}>
+                Towards {row.destinationName}
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--c-text-4)" }}>
+                  First
+                </div>
+                <div className="text-[13px] font-bold tabular-nums" style={{ color: "var(--c-text)" }}>
+                  {row.first}
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--c-text-4)" }}>
+                  Last
+                </div>
+                <div className="text-[13px] font-bold tabular-nums" style={{ color: "var(--c-text)" }}>
+                  {row.last}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-start gap-2">
+        <Timer size={13} strokeWidth={2.4} className="shrink-0 mt-0.5" style={{ color: "var(--c-text-4)" }} />
+        <p className="text-[11px] font-semibold leading-snug" style={{ color: "var(--c-text-4)" }}>
+          {lines.map((l) => `${LINE_NAMES[l]}: every ~${LINE_META[l].avgFrequencyMins} min`).join(" · ")}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Shared detail body ──────────────────────────────────────────────
 // Everything the station page shows below its sticky header. Extracted so the
 // home screen's draggable sheet renders the identical content rather than a
@@ -265,6 +686,7 @@ export function StationDetailBody({
   onPlanIntent?: (detail: { source?: string } | { dest?: string }) => void;
 }) {
   const station = STATION_BY_ID[stationId];
+  const [tab, setTab] = useState<"schedule" | "info">("schedule");
 
   // Hooks must run unconditionally, so this sits above the missing-station return.
   const posOnLine = useMemo(() => {
@@ -371,28 +793,31 @@ export function StationDetailBody({
 
         {showActions ? actions : null}
 
-        {/* Schedule */}
+        {/* Schedule / Station Info */}
         <div>
-          <div className="flex items-center gap-2 mb-3">
-            <Clock size={13} style={{ color: "var(--c-text-4)" }} />
-            <span
-              className="text-[11px] font-bold uppercase tracking-widest"
-              style={{ color: "var(--c-text-4)" }}
-            >
-              Today&apos;s Schedule · tap any train for full route
-            </span>
+          <div className="grid grid-cols-2 gap-2 mb-4">
+            <TabButton active={tab === "schedule"} onClick={() => setTab("schedule")} icon={Clock} label="Schedule" />
+            <TabButton active={tab === "info"} onClick={() => setTab("info")} icon={Info} label="Station Info" />
           </div>
-          <div className="space-y-4">
-            {lines.map((line) => (
-              <LineScheduleCard
-                key={line}
-                stationId={stationId}
-                line={line}
-                autoOpenDirDest={openLine === line ? openDirDest : undefined}
-                surface={surface}
-              />
-            ))}
-          </div>
+
+          {tab === "schedule" ? (
+            <>
+              <SectionLabel icon={Clock} text="Tap any train for its full route" />
+              <div className="space-y-4">
+                {lines.map((line) => (
+                  <LineScheduleCard
+                    key={line}
+                    stationId={stationId}
+                    line={line}
+                    autoOpenDirDest={openLine === line ? openDirDest : undefined}
+                    surface={surface}
+                  />
+                ))}
+              </div>
+            </>
+          ) : (
+            <StationInfoPanel stationId={stationId} surface={surface} />
+          )}
         </div>
       </div>
   );

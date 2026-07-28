@@ -28,6 +28,29 @@ _(no open entries)_
 
 _(no open entries)_
 
+## Station detail (`app/src/features/journey/components/StationDetail.tsx`)
+
+_(no open entries)_
+
+## Settings / You screen (`app/src/features/journey/components/YouScreen.tsx`)
+
+- [ ] The screen has no entry points for the passenger reference content now
+      bundled in `app/src/data/passengerInfo.json` — facilities, do's & don'ts,
+      prohibited items, emergency equipment, customer care and lost & found
+      contacts, GMRC social/app/official links. Fully specified in PRD §4.5.1
+      (two new sections, nine topics) and §4.6 (one generic `InfoPage` against
+      a block model, not nine hand-built screens); scheduled as §8 phase 2.
+      Build it from that spec rather than improvising rows — the topics differ
+      only in content, and hand-building them is how they drift.
+
+- [ ] The "About & Data" section hardcodes its provenance strings
+      ("Effective 18.05.2026 · Hand-transcribed from GMRC"). Each data file now
+      carries its own `_meta` with a source URL and a `scrapedOn` /
+      `effectiveFrom` date; read the rows from those instead, so the dates stop
+      needing a manual edit every time a file is regenerated. Blocks the
+      §4.5.1 provenance row for `stationFacilities.json` / `passengerInfo.json`
+      being honest about its own age.
+
 ## PWA / offline deviations
 
 - [ ] **Dexie deliberately not implemented.** PRD §5.2/§5.3 originally mandated
@@ -42,6 +65,36 @@ _(no open entries)_
 ---
 
 ## Resolved / Fixed
+
+- **[Fixed 2026-07-28]** Station Info tab now renders the physical station data
+  (PRD §8 phase 1), and its stale doc-comment — which asserted no amenity data
+  exists — is rewritten to name both of the tab's sources and point at §4.4.1.
+  Three new blocks in `StationInfoPanel`, all fed by
+  `features/journey/stationFacilities.ts`: **Entrances** (a chip per open gate,
+  GMRC's numbering verbatim so it matches the signage, and deliberately no
+  "6 of 8" denominator — GMRC publishes the operational gates, not the built
+  ones); **Step-free access** ("Step-free entry at Gates 1, 4, 7 & 8" over a
+  lift→gate row per lift, stated positively only); and **Connections** on the
+  10 stations with a `multiModal`, as a mode chip row over GMRC's verbatim
+  `connections[].text`, each tied to the Entry-Exit it uses. `structure`
+  joined the Station Overview tiles as a full-width fifth tile (`StatTile`
+  gained a `wide` prop) rather than orphaning one in the 2-column grid.
+  **One deliberate step beyond the three specified blocks:** `pdeu` is the only
+  station with `amenities` but no interchange (`modes` and `connections` both
+  empty), so keying the block off `modes` alone would have hidden its one
+  published fact. The block renders when there is *anything* to say, showing
+  the amenity chip and `summary`, plus `sourceNote` in fine print since that
+  fact came from an image caption. `plannedAmenities` is **not** rendered —
+  planned isn't built. All 43 stations without `multiModal` and
+  `sabarmati-railway-station` (`stationFacilities()` → `null`, so all three
+  blocks and the structure tile close up) render no placeholder and no
+  negative. Verified data-side across all 54 stations via a throwaway vitest
+  file (since deleted): 53 listed, 10 Connections blocks, every station has at
+  least one gate and one lift so no block can render empty, and every gate
+  cited by a lift or a connection is one of that station's open gates.
+  `tsc -b --noEmit` clean, oxlint clean, suite still 239/239. **Not checked
+  live in-app** — the Browser pane again denied localhost navigation to this
+  session's dev server, same as the two entries below.
 
 - **[Fixed 2026-07-28]** Station sheet's fitted mid snap capped at ~60% of
   viewport, resolving the map-strip-too-thin item that used to sit in the

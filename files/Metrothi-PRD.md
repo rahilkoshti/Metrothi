@@ -2,7 +2,7 @@
 
 **Version:** 2.0 · **Date:** 2026-07-15 · **Owner:** Rahil
 **Status:** Master reference. All future build work should trace back to this document. Changes to scope/architecture get made *here first*, then implemented.
-**Last updated:** 2026-07-26 — home station sheet rebuilt against the design reference: opens at a content-fitted mid snap, adds a Favorite toggle and an Upcoming Trains preview, and splits the primary action into Google Maps walking directions vs. the in-app planner (§4.1, §4.4). See Change Log at the bottom.
+**Last updated:** 2026-07-28 — station & passenger information scraped from GMRC (gates, lifts, multi-modal interchange, rules, facilities, contacts) and given a delivery plan: Station Info tab blocks (§4.4.1), reference pages under YOU (§4.5.1), last-mile arrival guidance (§4.2), the data layer and its sourcing rule (§5.6), and a phased rollout (§8). See Change Log at the bottom.
 
 ---
 
@@ -89,7 +89,8 @@ HOME (the map)  ── overlays ──▶  SEARCH · GO planner · station sheet
   - **Departure picker:** a **fixed four-cell segmented row**, not a scroller — four cells always fit, so nothing is clipped by the fold and it doesn't compete with the sheet's own vertical drag. Each cell is only the clock time; the countdown lives once, in the hero this control drives. The meridiem is printed timetable-style, only when it changes. Difference is carried by **colour, not opacity** (a dimmed cell reads as disabled, and infeasible and tight options are both still selectable). It renders even when the current selection is infeasible — that is precisely when the rider needs to switch.
   - **Walk disclosure:** door-to-door plans append "Includes N walking", summed rather than split by end, since the route timeline below names each walk in full.
   - Arrival is **not** repeated in the sheet header above: the header owns the route's *static* facts (stops, transfers), the summary owns the chosen departure's, which change under it every time the picker moves. Carrying arrival in both printed the same clock time twice, one above the other.
-- **Ticket guidance card:** Advises on Token vs CSC vs NCMC requirements based on crossed phases, and notes the CSC/NCMC 10% discount (confirmed, §5.4) — display only, never folded into the fare shown. Rendered as a quiet aside rather than a third coloured block competing with the picker and the CTA.
+- **Ticket guidance card:** Advises on Token vs CSC vs NCMC requirements based on crossed phases, and notes the CSC/NCMC 10% discount (confirmed, §5.4) — display only, never folded into the fare shown. Rendered as a quiet aside rather than a third coloured block competing with the picker and the CTA. *Planned:* where it already tells a rider they need an NCMC, `metroInfo.purchase` lets it say **where to get one** in the same breath — counter (cash/UPI/card) or the GMRC app — instead of leaving them to find out at the gate.
+- **Arrival & last-mile guidance (planned):** The destination station's exit information is the natural close of a journey, and it is the one place the physical-station data (§5.6) is *decision-making-in-the-moment* rather than reference. On the results screen's destination row, and again on the Live Journey **Arrived** state (§4.2 Journey Mode), show the destination's step-free gate and — on the 10 stations that have one — its onward connection: *"Step-free exit at Gate 3 · BRTS via the skywalk at Gate 3"* at Sabarmati. This is precisely the "first- and last-mile connectivity" GMRC's MMI page exists to describe, and it lands at the moment the rider needs it rather than in a settings page they'd have read yesterday. Suppressed silently where the station has no published connection — same no-false-negative rule as §4.4.1.
 - **Warning cards:** Feasibility warnings for last-train cutoffs or bus-only windows. An infeasible selection replaces the hero with a "Route Not Possible" card naming the line you'd be stranded at, and the Start Journey CTA is withheld.
 - **All trains list:** Every departure for the day below the summary. Rows show the **train's own departure time** (matching the picker above, not the door-to-door leave time, which is a minute or two earlier and made one train read as two) and the **ride time** (§5.5, not `totalMins`).
 - **Journey Mode:** Actively transitions UI state as the user progresses geographically through their trip.
@@ -105,19 +106,62 @@ HOME (the map)  ── overlays ──▶  SEARCH · GO planner · station sheet
 - **Station Bottom Sheet:** Quick actions directly from the map viewport.
 
 ### 4.4 STATIONS
-- **Directory & Live Details:** Grouped by line with interchange and phase badges.
+- **Directory & Live Details:** Grouped by line with interchange and phase badges. *Planned:* a **connection facet** — "connects to BRTS / GSRTC / Railways" — over `stationsWithMode()` (§5.6). Ten stations, four modes; cheap to build and it answers a question the directory currently can't ("where can I pick up the BRTS?").
+- **Search keywords (planned):** `fuzzySearch.ts` matches station names only, so a visitor searching *"railway"* finds nothing, though Kalupur, Gandhigram, AEC and Mahatma Mandir all physically connect to one. Feed each station's `multiModal.modes` in as **non-displayed keyword aliases** — ranked below a name match, never overriding one — so "BRTS", "bus", "railway" and "airport-style" mode words resolve to real stations. This directly serves the visitor persona (§2), who knows the mode, not the station name.
 - **Station Detail Pages:** `/stations/:id` shows all live simulated departures per line. It is a real route (the SEO/deep-link surface) and is reached from the sheet's **View all →**. The same full-day schedule also lives further down the home sheet at its full snap, so the two are alternative ways to the same content — see the open item in `DISCREPANCIES.md`.
 - **Shared body:** `StationDetailBody` renders the schedule for both the standalone page and the home sheet, so the two can't drift. Two flags adapt it: `showHero` (the sheet already names the station in its header) and `showActions` (the sheet supplies its own Start Journey action, so the page's **From here / To here** buttons are suppressed there). Phase and stop-of-N remain on the standalone page's hero; they were dropped from the sheet's chip row.
 - **Merged schedule anchoring:** the full-day list parks the first still-upcoming train at the **top** of the scroller and keeps it there as departures roll past. The offset is derived from bounding rects rather than `offsetTop`, which is measured from the nearest positioned ancestor and not the scroller, so it stays correct however the sheet above is laid out. The first anchor is a **jump**, not a smooth scroll — animating from an arbitrary mount position is what reads as "the list loaded mid-scroll".
+
+#### 4.4.1 Station Info tab — physical station data (planned)
+
+The **Station Info** tab (the second of `StationDetailBody`'s two tabs, beside **Schedule**) currently shows only what the topology and the timetable already knew: line count, phase, stop-of-N, operational status, interchange/terminus, and today's first/last train. `stationFacilities.json` (§5.6) adds the station's *physical* facts, which is what someone standing outside it actually needs. Three new blocks, in this order — nearest-term need first:
+
+1. **Entrances.** Which numbered gates are open (`gates`), rendered from `formatGateList()`. This is the highest-value fact in the whole dataset: at Old High Court six of eight gates are open and at Ranip only three of four, and picking the wrong one costs a road crossing. Gate **numbers match the signage**, which is why GMRC's numbering is reproduced verbatim rather than re-indexed to 1..n.
+2. **Step-free access.** The gates with a lift (`accessibleGates()`), named with GMRC's own lift numbers so they match the signage too. Stated **positively** — "Step-free entry at Gates 1 & 3" — never as "Gates 2 and 4 have no lift": GMRC publishes where lifts *are*, and inferring their absence elsewhere from that is a claim the source does not make. Every one of the 53 listed stations has at least one lift, so this block always renders when the station is listed.
+3. **Connections.** Only on the **10 stations** that have one (`multiModal`): a mode chip per `modes` entry (BRTS / GSRTC buses / Indian Railways / High-speed rail) over GMRC's verbatim `connections[].text`, each tied to the gate it uses — "BRTS · Lift and Skywalk at Gate 5" at AEC. Because `connections[].gate` is validated at scrape time against the same station's operational gates, this cross-references block 1 rather than contradicting it. The block is keyed off having *something* to say, not off `modes`: PDEU carries an `amenities` entry (parking, from a rendering's caption — so it shows GMRC's `sourceNote` in fine print) with no interchange at all, and keying off modes would drop its one published fact. `plannedAmenities` is not rendered, since planned is not built.
+
+**Structure** (`elevated` / `underground`) joins the existing Station Overview tiles — replacing nothing, since it answers a different question from the four already there, and it matters: four stations are underground, where the street-to-platform walk is longer and GPS dies at the concourse.
+
+**Absent data is absent.** 43 stations have no `multiModal` and the Connections block simply does not render for them — no "No connections nearby" line, which would be a false negative (GMRC publishes *built interchanges*, not the presence or absence of bus stops). `sabarmati-railway-station` returns `null` from `stationFacilities()` entirely; it is not yet operational, the Status tile already says so, and all three blocks close up. This is the `stationImages.ts` rule (§4.6) applied to facts instead of photos.
+
+**Chip row.** `multiModal.modes` is also a candidate for a conditional chip in the sheet's chip row (§4.1) — "BRTS" at Vadaj tells a rider something that changes their plan, and it appears on only 10 stations so it never crowds the other 44. It is **not** committed until it's been checked at 375px: the row already carries four chips and wraps under the collapsed fold if pushed.
 
 ### 4.5 YOU
 - **Authentication:** Login/Signup flows powered by Supabase Auth.
 - **Data Management:** Sync settings, clear local data, manage saved commutes and places.
 - **Language:** A three-way selector (English / हिंदी / ગુજરાતી) sets the app-wide interface language, styled like the existing theme toggle. Planned — see §6.6.
 
+#### 4.5.1 Reference content — "Riding the metro" & "Help" (planned)
+
+Everything in `passengerInfo.json` and the non-fare half of `metroInfo.json` (§5.6) is **reference content**: read rarely, but the app is worthless to an occasional rider or a visitor (§2) without it. It belongs in YOU rather than on the map, because none of it is decision-making-in-the-moment data — with one exception noted below. Two new sections, using the existing `SectionHeader` + `Row` primitives:
+
+**"Riding the metro"** — five rows, each opening one reference page:
+
+| Row | Source | Why a rider opens it |
+|---|---|---|
+| **Fares & ticket rules** | `metroInfo.json` — `fareMedia`, `fareProducts`, `purchase`, `ticketValidity`, `timeInPaidArea`, `concessions`, `discounts`, `refunds`, `phaseRestriction`, `ticketConditions`, `penalties` | "Which ticket, bought where, valid for how long, and what happens if I get it wrong." Answers the cross-city traveler's *"why doesn't my token work?"* (§2) at leisure, where the GO ticket card (§4.2) only warns in passing. |
+| **Do's & don'ts** | `passengerInfo.dosAndDonts` — 9 dos, 14 don'ts | First-time riders. Several are genuinely non-obvious (no eating in the paid area, no sharing one ticket across a group). |
+| **Prohibited items** | `passengerInfo.prohibitedItems` — dangerous, offensive, live animals, each with its exception, under the Metro Rail (O&M) Act 2002 | "Can I bring this." The pets answer alone justifies the row. |
+| **Facilities & accessibility** | `passengerInfo.facilities` — 10 general, 8 accessibility | Network-wide, deliberately split from the per-station data. Ends with a pointer to the Station Info tab (§4.4.1), which is where lift-by-gate lives. |
+| **Safety & emergency** | `passengerInfo.emergencyFacilities` — 11 items grouped by `location` (platform / station / train / both) | Grouped by *where the thing is*, not listed flat: "on the platform" and "in the train" are how you'd look for it. |
+
+**"Help & contact"** — four rows:
+
+- **Customer care** — `contact.customerCare`, with the phone and email as **`tel:` and `mailto:` actions**, not copyable text. Carries GMRC's own scope note (operational matters only) so nobody emails passenger care about a tender.
+- **Lost & found** — `lostAndFound`. Office, hours, `tel:`/`mailto:`, the four claim rules, and the six-month disposal deadline. The live found-items list is **not** bundled (it changes weekly); the row links out to `listingUrl` instead.
+- **Official GMRC app** — `officialApp`, platform-aware. Metrothi does not and will not sell tickets (§3, out of scope), so the honest move is to name the app that does rather than dead-end the user.
+- **GMRC on the web** — `officialLinks` (12) and `social` (5). Every reference page also carries a "Read the original on gujaratmetrorail.com" footer link to its own source, so a rider can always check us against GMRC.
+
+**About & Data** gains a provenance row for this data — source and `_meta.scrapedOn` — matching the existing timetable/fares/live-estimates rows. This is principle 1 (§1) applied to reference content: the rider can see how old it is.
+
+**Feedback** keeps its two existing rows and gains GMRC's `feedbackUrl`, clearly separated: reporting a *timetable error in Metrothi* goes to us, a complaint about *the metro* goes to GMRC.
+
+**Considered and rejected — emergency info outside settings.** A quiet "Emergency" affordance on the Live Journey screen (§4.2) was considered and dropped. Reading a list of equipment on a phone is not what anyone does in an emergency, and our own source says why: the platform has a stop plunger, the train has a passenger alarm, and the station has a helpline. An app that inserts itself between a rider and those is worse than one that stays out of the way. The content stays informational, in settings, where it's read *before* it's needed.
+
 ### 4.6 Shared UI primitives
 
 - **`DepartureRow`** (`features/journey/components/DepartureRow.tsx`) — one departure card: a line-tinted initial badge, "Towards X", a subtitle, and one big figure on the right. Shared by the station sheet's departure board and the station page's full-day schedule so the two can't drift apart. A `primary` prop picks which figure takes the big right-hand slot and pushes the other into the subtitle: the sheet leads with the **countdown** (clock time below), the full-day schedule leads with the **departure time**, since the timetable itself is what you're reading there. Renders as a `button` only when given an `onClick`, a `div` otherwise. Departed rows dim and strike through; the highlighted "next" row is tinted with the line colour.
+- **`InfoPage`** (planned, `features/info/InfoPage.tsx`) — one generic reference-content screen, not nine hand-built ones. The pages in §4.5.1 differ only in their content, and that content is already structured in JSON, so they render from a shared block model: `list` (bulleted, e.g. the don'ts), `keyValue` (e.g. luggage limits, penalties), `prose`, `actions` (`tel:` / `mailto:` / external), and `sourceLink`. A registry (`features/info/topics.ts`) maps a topic slug to `{ title, blocks }` built from the JSON, and each topic is a real deep-linkable route `/you/:topic` — reference content is exactly the kind of thing a rider gets sent a link to, the same argument that makes `/stations/:id` a real route (§4.4). Nine screens hand-built against nine JSON shapes would drift; one component against one block model can't. Reference JSON is **dynamically imported** by this route so 12 KB of do's-and-donts prose stays out of the boot path of a map-first app (§5.6).
 - **Station photos** (`features/journey/stationImages.ts`) — photos of the stations themselves, keyed by station id. Only stations that have **actually been shot** appear: there is **no placeholder and no per-line stand-in**, because a photo of the wrong station is worse than no photo in a wayfinding app. `stationImage(id)` returns `null` on a miss and callers must handle it — the sheet header simply closes the row up. Assets are square (the slots that use them are), pre-cropped on the station structure, and compressed at build-input time rather than resized in CSS from a multi-megabyte original. The photo is decorative — the station's name sits right beside it — so it carries an empty `alt`. Currently: Doordarshan Kendra.
 
 ---
@@ -149,7 +193,8 @@ All transit graph data (stations, lines, schedules) is bundled with the PWA and 
 - **Route fare** is computed off the actual ordered station sequence a journey passes through (`journeyEngine.ts`'s `merged` path), not the endpoints alone, so it's correct through interchanges.
 - **Verification:** `fareEngine.test.ts` asserts 156 real GMRC-sampled pairs end-to-end through `planJourney` (fixture: `__fixtures__/gmrc-fare-samples.json`). Known gap: only pairs within ~0.12km of a slab cut were checked exhaustively; pairs further from a cut are unverified but low-risk. Full methodology and confidence notes live in `fares.json`'s `_meta` block.
 - **NCMC / CSC 10% discount:** Confirmed against GMRC's `fare-rules` page and independently by the product owner. Deliberately **not** applied to any computed fare — every fare in the app is the token fare. The discount is surfaced as text only, in the ticket guidance card's note.
-- **Operational facts:** Concessions, luggage limits, penalties, refund policy, ticket validity windows, and the Phase 1/Phase 2 token & CSC restriction were scraped from GMRC's official `fare-rules`, `smart-cards`, `national-common-mobility-card-ncmc`, and `train-information` pages and stored in `app/src/data/metroInfo.json`, with per-fact source quotes and any figure GMRC doesn't state left `null` rather than filled in from third-party sources. Not yet surfaced in any screen — candidate for a "Fares & Rules" info panel under GO or YOU.
+- **Operational facts:** Concessions, luggage limits, penalties, refund policy, ticket validity windows, and the Phase 1/Phase 2 token & CSC restriction were scraped from GMRC's official `fare-rules`, `smart-cards`, `national-common-mobility-card-ncmc`, and `train-information` pages and stored in `app/src/data/metroInfo.json`, with per-fact source quotes and any figure GMRC doesn't state left `null` rather than filled in from third-party sources. Re-read in full on 2026-07-28, adding `purchase` (where and how tickets are actually bought), `ticketConditions` (10 rules the earlier pass missed — screenshots of a QR are invalid, reverse-direction travel is not permitted, a dead phone is not an excuse), two overstepping penalties, and the two paper fare media. Its destination is now specified: the **Fares & ticket rules** page under YOU (§4.5.1), with the GO ticket card (§4.2) as the in-context excerpt.
+  - One cross-source tension is recorded rather than resolved: the fare-rules and NCMC pages describe NCMC purely as a bank-issued product, while the MMI page says it is "available at every station". Both are kept, with the discrepancy noted in `cards.ncmc.alsoAtStationsNote`, because picking a winner would be us deciding which GMRC page is wrong.
 
 ### 5.5 Reported durations — ride time vs `totalMins`
 
@@ -159,6 +204,30 @@ A journey option carries two different notions of "how long", and the UI must no
 - **`rideMinsOf(option)`** is the time from **boarding to arrival**. It excludes the *first* leg's wait — that is the platform wait, and it is already expressed as a countdown ("Leave in N") wherever it matters — but **includes every later leg's wait**, because interchange time is time you genuinely spend on the trip.
 
 Anything labelled as the trip's own duration uses `rideMinsOf`, never `totalMins`. Doubling the platform wait into the duration is what made a plan opened at 4am bill an 8-minute hop as a **2h 17m journey**, in the largest type on the screen. The helper takes anything carrying `legs`, so it works on a `JourneyOption` or on the plan, and returns `null` when there are none.
+
+### 5.6 Station & passenger reference data
+
+Everything the app knows about stations as *places* and about riding the metro as an *activity*, scraped from GMRC's own pages on 2026-07-28. Three files, split by who consumes them:
+
+| File | Shape | Consumed by |
+|---|---|---|
+| `app/src/data/stationFacilities.json` | `stations[id]` → `structure`, `gates[]`, `lifts[{lift, gates[]}]`, optional `multiModal` | Station Info tab (§4.4.1), arrival guidance (§4.2), search (below) |
+| `app/src/data/passengerInfo.json` | `facilities`, `emergencyFacilities`, `dosAndDonts`, `prohibitedItems`, `contact`, `lostAndFound`, `social`, `officialApp`, `officialLinks` | YOU reference pages (§4.5.1) |
+| `app/src/data/metroInfo.json` | fare, ticketing and card rules (extended 2026-07-28 with `purchase`, `ticketConditions`, two overstepping penalties, two paper fare media) | GO ticket card (§4.2), Fares & ticket rules page (§4.5.1) |
+
+**Access.** `features/journey/stationFacilities.ts` mirrors the `stationImages.ts` pattern: `stationFacilities(id)` returns the record or `null`, plus `accessibleGates()`, `formatGateList()` and `stationsWithMode()`. Typed at the accessor, JSON imported directly, per the repo convention.
+
+**Sourcing rule — the same one as `fares.json` and `stations.json`.** Only facts GMRC states appear. Nothing is filled in from a wiki, a blog or a transit aggregator, and every file carries a `_meta.rule` saying so with per-fact source URLs. Two consequences worth stating plainly, because both look like bugs otherwise:
+- **Never published per station:** toilets, Wi-Fi, ATMs, feeder-bus *routes*, and **gate landmarks** — the gate table numbers gates but never says which road each opens onto. Gate 3 is therefore "Gate 3", not "Gate 3 (Ashram Road)". A landmark per gate is the single highest-value missing field in this dataset; it would need a survey, not a scrape.
+- **`multiModal` is on 10 of 53 stations.** Its absence means "GMRC lists no *built* interchange here", never "no buses nearby", and the UI must not render it as a negative (§4.4.1).
+
+**Regeneration.** `node scripts/fetch-station-facilities.mjs` re-scrapes both source pages and rebuilds `stationFacilities.json`. It is defensive by design, because a silent mis-scrape here attaches one station's entrances to another: it throws if either page's table count changes, warns on any station name it can't map (both pages name stations differently — "Vadaj Metro Station" vs "Vadaj", "Kalupur Rly. Station"), re-validates the two Phase-2 facts that exist only as prose and an image caption, and **cross-checks every Entry-Exit cited by the MMI page against that station's operational gates**. All 10 currently pass, which is independent confirmation the cross-page name mapping is right. `passengerInfo.json` is hand-maintained: two of its sources are poster JPEGs with no machine-readable text.
+
+**Staleness.** GMRC edits these pages — gates open, MMI extends with Phase 2A/2B. `_meta.scrapedOn` is surfaced in About & Data (§4.5.1) and re-running the script belongs on the release checklist. `_meta.notCovered` currently lists `sabarmati-railway-station` and should shrink to empty when it opens.
+
+**Bundle & offline.** ~44 KB raw across the three files, bundled and precached like the rest of the transit data (§5.3), so every reference page works in airplane mode — which is the point, since the concourse of an underground station is exactly where you have no signal and want to know which gate has the lift. `stationFacilities.json` sits in the main bundle (the station sheet is boot-critical); `passengerInfo.json` is dynamically imported by the `/you/:topic` route (§4.6), since reference prose has no business in the boot path.
+
+**What this data does *not* unblock.** §5.1's flat 3-minute interchange buffer still needs a per-station walking matrix. Knowing a station is elevated or underground does not supply one, and in any case all three interchanges (Old High Court, Motera Stadium, GNLU) are elevated, so `structure` cannot even discriminate between them. That item stays open.
 
 ---
 
@@ -194,7 +263,7 @@ A **Language** section in `YouScreen.tsx` — a three-way segmented selector (`E
 |---|---|---|
 | **1 — Infra** | Install deps; `i18n/index.ts` init; empty `en/hi/gu.json` bundles; `useLanguage()` hook wired at app entry. | No |
 | **2 — UI extraction** | Sweep all ~24 `.tsx` files, replacing hardcoded strings with `t()` keys. Priority by visibility: HomeScreen → YouScreen → Planner → ResultsScreen → StationDetail → LiveJourneyScreen → LineStatusPills → search. Interpolation & plurals via i18next. | No |
-| **3 — Name data** | Add `nameHi`/`nameGu` to `stations.json` and `LINE_NAMES`; add the resolver with English fallback. | **Yes — needs an official GMRC name source (see §6.7)** |
+| **3 — Name data** | Add `nameHi`/`nameGu` to `stations.json` and `LINE_NAMES`; add the resolver with English fallback. | **Yes — needs an official GMRC name source (see §6.8)** |
 | **4 — Formatting** | Localize durations/dates/distances via `Intl`; resolve the numeral-system decision. | No |
 | **5 — Fonts** | Add Noto Devanagari + Gujarati; language-driven `font-family`. | No |
 | **6 — Settings UI** | Language selector in `YouScreen.tsx`. | No |
@@ -202,7 +271,25 @@ A **Language** section in `YouScreen.tsx` — a three-way segmented selector (`E
 
 **Critical path:** Phases 1, 5, 6 are quick and ship a working switcher immediately. Phase 2 is the bulk mechanical effort. Phase 3 can proceed in parallel once the name source lands, and is the only hard dependency.
 
-### 6.7 Open dependency — station & place name source
+### 6.7 Third surface — scraped GMRC reference content
+
+§6.2 splits translation into UI chrome and name data. The reference content added in §5.6 is a **third surface** with different rules again, and it is the largest body of prose in the app: ~30 rules and ~30 list items of official, partly legal text (penalties, the Metro Rail (O&M) Act 2002 prohibited-items list, ticket conditions).
+
+**We must not translate it ourselves.** Machine- or hand-translating GMRC's penalty and prohibited-items wording into Hindi and Gujarati would put words in a transport authority's mouth on matters where a rider could be fined, and it fails the same test §6.8 applies to station names.
+
+**We don't have to.** GMRC's own Do's & Don'ts and Prohibited Items posters are **trilingual** — Gujarati, Hindi and English side by side in the same image, already transcribed for English in `passengerInfo.json`. So for those two topics the authoritative translations exist at the same source and need only the same transcription pass, which makes them **unblocked**, unlike the station names of §6.8.
+
+Per-topic disposition:
+
+| Topic | Hi/Gu source | Status |
+|---|---|---|
+| Do's & don'ts, Prohibited items | The same GMRC posters, other two columns | **Unblocked** — transcribe alongside the English pass |
+| Fares & ticket rules, Facilities, Safety & emergency | English-only on gujaratmetrorail.com | **Blocked** — falls back to English with an explicit "Available in English only from GMRC" note, rather than a silent untranslated block |
+| Contact / lost & found / links | Phone numbers, emails, URLs | Not translatable content; only the surrounding labels are UI chrome (§6.2) |
+
+Structurally this means `passengerInfo.json` gains parallel `*_hi` / `*_gu` arrays for the two poster topics only, resolved with per-string English fallback — the same resolver shape as §6.2's station names, not a second mechanism.
+
+### 6.8 Open dependency — station & place name source
 Hindi/Gujarati station, line, and landmark names **do not exist anywhere in the repo today.** GMRC station signage is trilingual, so authoritative names exist, but they must not be machine-transliterated and shipped unverified (54 proper nouns × 2 languages, plus landmarks). **Required input:** a table keyed on the existing `id` slugs in `stations.json` with Hindi + Gujarati columns (+ line and place names). Until it lands, Phase 3 stays stubbed and the UI falls back to English per name.
 
 ---
@@ -214,11 +301,43 @@ Hindi/Gujarati station, line, and landmark names **do not exist anywhere in the 
 3. **Data Accuracy:** Zero cases where an impossible trip (e.g. arriving after the last train leaves a transfer station) shows a completable ETA.
 4. **Place Resolution:** Users can search for "GIFT City Club" or "Narendra Modi Stadium" and the app correctly routes them to the nearest metro station (GNLU / Motera) with a walking ETA tail.
 5. **Fare Accuracy:** The fare shown for a trip matches GMRC's own published fare for that trip (see §5.4), never a fabricated or guessed number — if a route's distance can't be resolved, the app shows nothing rather than an incorrect figure.
+6. **Station Fact Accuracy:** Every physical claim the app makes about a station — gate numbers, lift locations, structure, onward connections — traces to a GMRC page (§5.6). No amenity is invented, inferred, or imported from a third party, and no absence is rendered as a negative ("no lift here", "no connections"). Sending someone to a gate that isn't open is a worse failure than saying nothing, in the same way a photo of the wrong station is (§4.6).
+
+---
+
+## 8. Delivery plan — station & passenger information
+
+Ordered by rider value per unit of work. Phases 1–3 are unblocked and independent; nothing here depends on auth, sync, or the map.
+
+| Phase | Work | Surfaces | Blocked? |
+|---|---|---|---|
+| **1 — Station Info tab** ✅ *shipped 2026-07-28* | Entrances, step-free access and Connections blocks; `structure` tile; update the stale `StationInfoPanel` doc-comment (§4.4.1). | `StationDetail.tsx` | No |
+| **2 — Reference pages** | `InfoPage` + topic registry (§4.6); the nine topics of §4.5.1 wired into two new YOU sections; `tel:`/`mailto:` actions; About & Data provenance row; `/you/:topic` routes with dynamic import. | `YouScreen.tsx`, new `features/info/` | No |
+| **3 — Last-mile guidance** | Destination exit gate + onward connection on the results screen and the Live Journey **Arrived** state (§4.2). | `JourneySummary`, `LiveJourneyScreen` | No |
+| **4 — Discovery** | `multiModal.modes` as search keyword aliases; connection facet in the STATIONS directory (§4.4). | `fuzzySearch.ts`, directory | No |
+| **5 — Chip row** | Conditional connection chip in the station sheet — **only if** it survives a 375px check without pushing the row under the fold (§4.4.1). | `HomeScreen.tsx` | No — but may be rejected on measurement |
+| **6 — Ticket card depth** | `metroInfo.purchase` folded into the GO ticket guidance card (§4.2). | `JourneySummary` | No |
+| **7 — Localization** | Transcribe the Gujarati/Hindi columns of the two GMRC posters; English-only note on the remaining topics (§6.7). | `passengerInfo.json` | Only by §6 shipping first |
+
+**Critical path:** Phase 1 is the largest rider-visible gain for the least work — the data is already keyed by station id and the tab already exists. Phase 2 is the bulk of the effort but is entirely additive and touches nothing that routes or renders the map. Phase 5 is the only item that could be cut outright.
+
+**Not planned, and why:** a per-gate landmark ("Gate 3 — Ashram Road side") would be the single most useful addition to the Station Info tab and is the one thing GMRC does not publish (§5.6). It needs a physical survey of 53 stations. Until someone does that survey it stays out — inventing it from map data would fail §7.6.
 
 ---
 
 ## Change Log
 
+- **2026-07-28** — **§8 phase 1 shipped.** The Station Info tab now renders the physical station data: Entrances (a chip per open gate, GMRC's numbering, no invented denominator), Step-free access (lift→gate rows under a positive summary line), and Connections on the 10 stations that have one. `structure` joined the Station Overview tiles as a full-width fifth tile. One deviation from §4.4.1 as written: the Connections block is keyed off having *anything* to say rather than off `modes`, because `pdeu` has an amenity (parking) and no interchange — otherwise its only published fact would render nowhere. `plannedAmenities` stays unrendered; planned is not built.
+
+- **2026-07-28** — Station & passenger information scraped from GMRC and given a delivery plan (§4.2, §4.4, §4.4.1, §4.5.1, §4.6, §5.4, §5.6, §6.7, §7.6, new §8). No UI written yet — scope-first, per this doc's operating rule.
+  - **New data (§5.6).** `stationFacilities.json` — 53 of 54 stations, with structure (elevated/underground), operational gate numbers, lift→gate mapping, and multi-modal interchange on the 10 stations that have one, scraped from GMRC's entry/exit-gate page and its Multi Modal Integration page. `passengerInfo.json` — network facilities, do's & don'ts, prohibited items, emergency equipment, customer care, lost & found, official links. `metroInfo.json` extended after a full re-read of the fare-rules page. Regenerated by `scripts/fetch-station-facilities.mjs`, which throws on a page-shape change and cross-checks every MMI-cited Entry-Exit against that station's operational gates (all 10 pass, confirming the cross-page name mapping).
+  - **Corrects an earlier claim.** The 2026-07-20 pass concluded GMRC publishes no per-station amenity data. The MMI page does, for 10 stations, and it is the most useful station data found so far. Still genuinely absent per station: toilets, Wi-Fi, ATMs, feeder-bus routes, and **gate landmarks** — the gate table numbers gates but never says which road each opens onto (§5.6, §8).
+  - **Station Info tab (§4.4.1).** Gets Entrances / Step-free access / Connections blocks. Its doc-comment currently asserts no amenity data exists and is now half-wrong; logged in DISCREPANCIES.md. Step-free access is stated **positively** only — GMRC publishes where lifts are, so "Gate 2 has no lift" is a claim the source doesn't make.
+  - **Reference content in YOU (§4.5.1).** Two new sections, nine topics, rendering through one generic `InfoPage` (§4.6) against a block model rather than nine hand-built screens. Deep-linkable at `/you/:topic`; JSON dynamically imported so reference prose stays out of the boot path.
+  - **Last-mile guidance (§4.2).** The one place this data is in-the-moment rather than reference: the destination's step-free exit and onward connection, on the results screen and the Live Journey **Arrived** state.
+  - **Emergency info deliberately kept in settings.** A Live Journey emergency affordance was considered and rejected — the platform's stop plunger and the train's passenger alarm are the right channel mid-emergency, and our own source says so.
+  - **Localization gained a third surface (§6.7, old §6.7 renumbered §6.8).** GMRC's Do's & Don'ts and Prohibited Items posters are trilingual, so those two topics are **unblocked** for Hindi/Gujarati — unlike station names. The remaining topics are English-only at source and will say so rather than silently showing untranslated text. We do not translate GMRC's penalty or legal wording ourselves.
+  - **New success criterion §7.6** — every physical station claim traces to a GMRC page; no invented amenity, no absence rendered as a negative.
 - **2026-07-28** — Interchange sheet overflow and map-recenter accuracy fixed (§4.1); text selection disabled app-wide.
   - **Mid-snap cap.** `DraggableSheet`'s fitted mid snap was floored at `h * 0.12` (free to grow to ~88% of viewport) — on a 4-card interchange it measured 715px of an 812px screen, leaving only a 97px map strip once the search pill and line-status strip took their share, crowding out the floating Plan-route FAB and Recentre button. Floor raised to `h * 0.4`, capping the sheet at ~60% (~325px of map on the same viewport); a big interchange's departures now scroll within the mid snap instead of all fitting above the fold. Logged and resolved in DISCREPANCIES.md.
   - **Map recenter/pan accuracy.** `HomeScreen`'s `sheetInset` — the offset fed to `HomeMap` for both the recenter button and the pan-to-station nudge — was a fixed `midRatio` approximation that ignored the sheet's actual `snap` state, so recentering always shifted the map as if the sheet were at mid, even when it was collapsed or fitted taller on an interchange. Replaced with `sheetEdge`, the live rest-height measurement `DraggableSheet` already reports for the floating-control fit check (§4.1's "Map framing").
