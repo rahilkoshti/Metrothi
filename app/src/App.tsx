@@ -8,6 +8,7 @@ import { YouScreen } from './features/journey/components/YouScreen';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { useJourneySession } from './features/journey/hooks/useJourneySession';
 import { InfoPageFallback } from './features/info/InfoPageFallback';
+import { ScrollReset } from './components/ScrollReset';
 
 // The reference pages (§4.5.1) carry ~19 KB of GMRC prose in the two JSON files
 // their topic registry imports. None of it is needed to draw a map or plan a
@@ -111,6 +112,9 @@ function MainApp() {
     >
       <div className="w-full flex-1 relative flex flex-col">
         <main className="flex-1 overflow-y-auto">
+          {/* Sits inside <main> so its walk up the tree passes the two elements
+              that could own the page scroll. */}
+          <ScrollReset />
           <div className="animate-in fade-in duration-300">
             <Routes>
               <Route path="/" element={<HomeScreen {...homeProps} />} />

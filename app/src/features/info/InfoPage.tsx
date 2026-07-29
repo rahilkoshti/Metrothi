@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react";
 import { useParams, useNavigate, Navigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import { SectionLabel } from "../../components/FactPrimitives";
@@ -19,36 +18,17 @@ import { getTopic } from "./topics";
 export default function InfoPage() {
   const { topic: slug } = useParams();
   const navigate = useNavigate();
-  const rootRef = useRef<HTMLDivElement>(null);
   const topic = getTopic(slug);
 
-  // A route change does not reset scroll, so tapping a row from halfway down
-  // the YOU screen lands you halfway down the reference page — measured at
-  // 1400px into "Safety & emergency", which reads as a page that failed to
-  // load its top.
-  //
-  // Which element to reset is not obvious and must not be guessed: `<main>`
-  // carries `overflow-y: auto` but never actually scrolls (it is `flex-1` with
-  // no height cap, so it grows to its content and the *document* scrolls
-  // instead). Walk up for a genuinely scrolling ancestor and fall back to the
-  // document, so this keeps working whichever of the two owns the scroll.
-  useEffect(() => {
-    for (let el = rootRef.current?.parentElement; el; el = el.parentElement) {
-      const overflowY = getComputedStyle(el).overflowY;
-      if ((overflowY === "auto" || overflowY === "scroll") && el.scrollHeight > el.clientHeight) {
-        el.scrollTo({ top: 0 });
-        return;
-      }
-    }
-    document.scrollingElement?.scrollTo({ top: 0 });
-  }, [slug]);
+  // Scroll is reset on route change by `<ScrollReset />` in `App.tsx`, once for
+  // every route rather than here for this one.
 
   // An unknown slug is a stale link, not an error worth a page of its own —
   // send it back to the list it came from.
   if (!topic) return <Navigate to="/you" replace />;
 
   return (
-    <div ref={rootRef} className="min-h-[100dvh] pb-28">
+    <div className="min-h-[100dvh] pb-28">
       {/* Sticky top bar — same chrome as the station page, so "a page you
           pushed onto the stack" looks the same everywhere in the app. */}
       <div

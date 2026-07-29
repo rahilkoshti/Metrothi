@@ -38,15 +38,7 @@ _(no open entries)_
 
 ## Route-change scroll position (`App.tsx`, `StationDetail.tsx`)
 
-- [ ] **Navigating between routes keeps the previous screen's scroll offset.**
-      React Router does not reset it and nothing else does either, so tapping a
-      station from a scrolled screen lands on `/stations/:id` partway down.
-      Fixed for `/you/:topic` only, inside `InfoPage` (see the Resolved entry
-      below for the measurement and the reason `<main>` is the wrong element to
-      reset). The general fix is a `ScrollReset` component mounted once inside
-      `<BrowserRouter>`, keyed on `useLocation().pathname`, using the same
-      nearest-scrollable-ancestor walk — at which point `InfoPage`'s local copy
-      should be deleted rather than left to duplicate it.
+_(no open entries)_
 
 ## Bundle splitting
 
@@ -75,6 +67,31 @@ _(no open entries)_
 ---
 
 ## Resolved / Fixed
+
+- **[Fixed 2026-07-29]** Route changes now reset scroll, for every route rather
+  than for `/you/:topic` alone. `components/ScrollReset.tsx` is mounted once
+  inside `<main>`, keyed on `useLocation().pathname`, and `InfoPage`'s local
+  copy is deleted rather than left to duplicate it. It keeps the
+  nearest-scrollable-**ancestor** walk — `<main>` carries `overflow-y: auto` but
+  never scrolls, so the reset has to find the document instead; measured live at
+  `main.scrollHeight === main.clientHeight` while the document stood at 2633px
+  on `/you`. The walk stopping at an *ancestor* is what keeps it off the
+  scrollers a screen owns inside itself, notably `StationDetail`'s schedule
+  list, which parks the next departure at the top on mount.
+  **One deliberate addition beyond the entry as written:** it skips `POP`
+  (`useNavigationType`). The browser restores the offset itself on back/forward
+  for same-document entries, and resetting anyway would mean coming back from a
+  topic page dumped you at the top of a YOU screen you had scrolled — verified
+  live, back from `/you/safety` restored 1200px exactly. The component renders
+  a `display: none` anchor rather than `null` because *which* element owns the
+  scroll must be walked to, not guessed.
+  Verified live at 375×812 against this session's own dev server: PUSH from
+  `/you` at 1200px → `/you/safety` lands at 0; the **second** visit
+  (`/you/lost-and-found`, chunk already fetched, so no Suspense fallback to mask
+  a no-op — the case that actually failed before) also lands at 0 with a 1205px
+  document, so it is a real reset and not a clamp; back restores; `/` still
+  mounts the map with no console errors. `tsc -b --noEmit` clean, oxlint clean
+  (5 pre-existing warnings, none in the new file), suite 279/279.
 
 - **[Fixed 2026-07-29]** The reference content is reachable — PRD §8 phase 2.
   `passengerInfo.json` and the non-fare half of `metroInfo.json` had **zero
