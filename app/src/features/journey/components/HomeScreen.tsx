@@ -14,6 +14,7 @@ import { routeLegSlices } from '../../map/geometry/trackGeometry';
 import { useNow } from '../hooks/useNow';
 import { LINE_NAMES, LINE_COLORS } from '../constants';
 import { stationImage } from '../stationImages';
+import { MODE_LABELS, stationModes } from '../stationFacilities';
 import { LocationNotice } from '../../../components/LocationNotice';
 import { DraggableSheet, type SheetSnap } from '../../../components/DraggableSheet';
 import { LineStatusPills } from './LineStatusPills';
@@ -516,6 +517,22 @@ export function HomeScreen({
           )}
 
           {station.interchange && <Chip>Interchange</Chip>}
+
+          {/* What you can change to here (§4.4.1) — one chip per mode, named
+              the way the Station Info tab and the directory name them. Last in
+              the row because the line, the walk and the interchange are all
+              about the journey you're on; this is about leaving it.
+
+              Measured at 375px before shipping, which is what §8 gated it on.
+              One chip per mode costs a wrapped line on AEC alone (three modes),
+              and only while it is also your nearest station and its line is
+              closed — a state whose baseline row already wraps. The other eight
+              stay on one line in the state you actually browse them in. Naming
+              the mode is the whole point, so a "BRTS +2" roll-up that fits
+              would have nothing left to say. */}
+          {stationModes(station.id).map((mode) => (
+            <Chip key={mode}>{MODE_LABELS[mode]}</Chip>
+          ))}
         </div>
       </div>
     ) : (
