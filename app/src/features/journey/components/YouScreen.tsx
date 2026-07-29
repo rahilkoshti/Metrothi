@@ -1,4 +1,4 @@
-import { ChevronRight, ArrowUpRight, User, Moon, Sun, Footprints, MapPin, BookMarked, Clock, Train, Info, MessageSquare, Database, Building2, Zap, ArrowLeft } from "lucide-react";
+import { Moon, Sun, Footprints, MapPin, BookMarked, Clock, Train, Info, MessageSquare, Database, Building2, ArrowLeft } from "lucide-react";
 import { useTheme } from "../../../contexts/ThemeContext";
 import { useNavigate } from "react-router-dom";
 import {
@@ -10,104 +10,10 @@ import {
   type TopicEntry,
 } from "../../info/catalog";
 import { dataProvenance } from "../../info/provenance";
-
-// ─── Shared row components ────────────────────────────────────────────────────
-
-function SectionHeader({ label }: { label: string }) {
-  return (
-    <div
-      className="text-[9px] font-bold uppercase tracking-widest px-5 pt-6 pb-2"
-      style={{ color: 'var(--c-text-3)' }}
-    >
-      {label}
-    </div>
-  );
-}
-
-function RowDivider() {
-  return <div className="mx-5" style={{ height: 1, background: 'var(--c-border)' }} />;
-}
-
-/**
- * One settings row.
- *
- * Interactivity is derived from `onClick` / `href`, never declared: the old
- * `tappable` flag drew a button, a hover state and a chevron on rows that had
- * no handler at all, so every "tappable" row on this screen was a dead press.
- * A row that can't do anything now says so by having no affordance — the
- * `badge` ("Phase 4") is what tells you it's coming.
- *
- * `href` covers the three outbound kinds the reference rows need — `tel:`,
- * `mailto:` and an external page — and only the last of those opens a new tab.
- */
-function Row({
-  icon: Icon,
-  label,
-  value,
-  badge,
-  onClick,
-  href,
-  external = false,
-  children,
-}: {
-  icon?: React.ElementType;
-  label: string;
-  value?: string;
-  badge?: string;
-  onClick?: () => void;
-  href?: string;
-  /** Opens in a new tab and swaps the chevron for an outbound arrow. */
-  external?: boolean;
-  children?: React.ReactNode;
-}) {
-  const interactive = Boolean(onClick || href);
-  const Tag = href ? "a" : onClick ? "button" : "div";
-  const Chevron = external ? ArrowUpRight : ChevronRight;
-
-  return (
-    <Tag
-      {...(href ? { href } : {})}
-      {...(href && external ? { target: "_blank", rel: "noreferrer" } : {})}
-      {...(Tag === "button" ? { type: "button" as const, onClick } : {})}
-      className={`w-full flex items-center gap-4 px-5 py-4 text-left transition-colors ${interactive ? 'hover:bg-[var(--c-card-alt)] focus-visible:bg-[var(--c-card-alt)] focus-visible:outline-none' : ''}`}
-      style={{
-        background: 'transparent',
-        ...(interactive ? { cursor: 'pointer' } : {}),
-      }}
-    >
-      {Icon && (
-        <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--c-card-alt)' }}>
-          <Icon size={16} style={{ color: 'var(--c-text-2)' }} />
-        </div>
-      )}
-      <div className="flex-1 min-w-0">
-        <div className="text-[14px] font-semibold" style={{ color: 'var(--c-text)' }}>{label}</div>
-        {value && <div className="text-[11px] font-medium mt-0.5" style={{ color: 'var(--c-text-3)' }}>{value}</div>}
-      </div>
-      {badge && (
-        <span
-          className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border mr-2"
-          style={{ color: 'var(--c-text-3)', borderColor: 'var(--c-border-2)' }}
-        >
-          {badge}
-        </span>
-      )}
-      {children}
-      {interactive && !children && (
-        <Chevron size={16} className="shrink-0" style={{ color: 'var(--c-text-4)' }} />
-      )}
-    </Tag>
-  );
-}
-
-/** The rounded card every section's rows sit in. */
-function SectionCard({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="mx-5 rounded-2xl overflow-hidden" style={{ background: 'var(--c-card)', border: '1px solid var(--c-border)' }}>
-      {children}
-    </div>
-  );
-}
+import { AccountCard, DataSection } from "../../account/AccountCard";
+// The row primitives moved to their own module so the account card renders rows
+// identical to these instead of forking a second set (§4.6).
+import { Row, RowDivider, SectionCard, SectionHeader } from "./settingsRows";
 
 /** A section of reference-page rows, divided, from the topic catalog. */
 function TopicRows({ topics, onOpen }: { topics: TopicEntry[]; onOpen: (slug: string) => void }) {
@@ -196,29 +102,8 @@ export function YouScreen() {
         </button>
       </div>
 
-      {/* Avatar card */}
-      <div className="mx-5 mb-2 rounded-2xl overflow-hidden" style={{ background: 'var(--c-card)', border: '1px solid var(--c-border)' }}>
-        <div className="flex items-center gap-4 p-5">
-          <div
-            className="w-14 h-14 rounded-full flex items-center justify-center shrink-0"
-            style={{ background: 'var(--c-card-alt)' }}
-          >
-            <User size={26} style={{ color: 'var(--c-text-3)' }} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-[16px] font-bold" style={{ color: 'var(--c-text)' }}>Traveller</div>
-            <div className="text-[12px] font-medium mt-0.5" style={{ color: 'var(--c-text-3)' }}>Not signed in</div>
-          </div>
-        </div>
-        <div style={{ borderTop: '1px solid var(--c-border)' }}>
-          <Row
-            icon={Zap}
-            label="Sign in to sync your data"
-            value="Saved places, journeys & preferences"
-            badge="Phase 5"
-          />
-        </div>
-      </div>
+      {/* Account + sync (§4.5, §5.7). Real now, not a "Phase 5" stub. */}
+      <AccountCard />
 
       {/* ── Appearance ───────────────────────────────────────────────────── */}
       <SectionHeader label="Appearance" />
@@ -286,6 +171,9 @@ export function YouScreen() {
         <Row icon={Clock} label="Past trips" value="All your previous journeys" badge="Phase 4" />
       </SectionCard>
 
+      {/* ── Data & sync ──────────────────────────────────────────────────── */}
+      <DataSection />
+
       {/* ── About & Data ─────────────────────────────────────────────────────
           Every line here is read from the data files' own `_meta`, so the dates
           stop needing a manual edit each time one is regenerated (§4.5.1). */}
@@ -328,7 +216,7 @@ export function YouScreen() {
           Metrothi · v0.1.0-prototype
         </div>
         <div className="text-[11px] mt-1" style={{ color: 'var(--c-text-4)' }}>
-          Phase 1 — all features simulated, no auth
+          Live estimates simulated from the GMRC timetable
         </div>
       </div>
 

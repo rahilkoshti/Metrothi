@@ -1,44 +1,30 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { listSavedStationIds, toggleSavedStation } from '../../../data/db';
+import { syncNow } from '../../../services/syncEngine';
 
-const KEY = 'metrothi-saved-stations';
-// `storage` only fires in *other* tabs, so a toggle broadcasts its own event to
-// keep every mounted copy of the Favorite button in this tab in sync.
-const SYNC_EVENT = 'metrothi-saved-stations-change';
-
-function read(): string[] {
-  try {
-    const raw = JSON.parse(localStorage.getItem(KEY) || '[]');
-    return Array.isArray(raw) ? raw.filter((id: unknown): id is string => typeof id === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
-/** Favourited station ids, persisted to localStorage. */
+/**
+ * Favourited station ids, persisted to Dexie (§5.7).
+ *
+ * The hand-rolled `metrothi-saved-stations-change` event this hook used to
+ * broadcast is gone: `storage` only fires in *other* tabs, so keeping every
+ * mounted Favorite button in this tab in sync needed a same-tab event too.
+ * `useLiveQuery` observes the table itself and covers both cases at once — and
+ * removes the failure mode where a write that forgot to dispatch the event left
+ * a stale button behind.
+ *
+ * `savedIds` is `[]` for the first frame while IndexedDB is read, so callers keep
+ * a plain `string[]`. A favourite button that renders unfilled for one frame is
+ * exactly what this hook already did when it read inside a `useEffect`.
+ */
 export function useSavedStations() {
-  const [savedIds, setSavedIds] = useState<string[]>(read);
-
-  useEffect(() => {
-    const sync = () => setSavedIds(read());
-    window.addEventListener(SYNC_EVENT, sync);
-    window.addEventListener('storage', sync);
-    return () => {
-      window.removeEventListener(SYNC_EVENT, sync);
-      window.removeEventListener('storage', sync);
-    };
-  }, []);
+  const savedIds = useLiveQuery(listSavedStationIds, [], [] as string[]);
 
   const toggle = useCallback((id: string) => {
-    const next = read();
-    const i = next.indexOf(id);
-    if (i === -1) next.push(id);
-    else next.splice(i, 1);
-    try {
-      localStorage.setItem(KEY, JSON.stringify(next));
-    } catch {
-      // Private mode / quota — the in-memory state below still updates.
-    }
-    window.dispatchEvent(new Event(SYNC_EVENT));
+    // Fire-and-forget: the write is local and `useLiveQuery` re-renders off it,
+    // so there's nothing to await before the UI is right. Sync follows when it
+    // can, and no-ops when it can't.
+    void toggleSavedStation(id).then(() => syncNow());
   }, []);
 
   return { savedIds, isSaved: (id: string) => savedIds.includes(id), toggle };

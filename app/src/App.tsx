@@ -6,9 +6,12 @@ import { STATIONS, haversineKm, planJourney, STATION_BY_ID } from './features/jo
 import { StationDetail } from './features/journey/components/StationDetail';
 import { YouScreen } from './features/journey/components/YouScreen';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { AuthProvider } from './contexts/AuthContext';
 import { useJourneySession } from './features/journey/hooks/useJourneySession';
 import { InfoPageFallback } from './features/info/InfoPageFallback';
 import { ScrollReset } from './components/ScrollReset';
+import { recordRecentTrip, migrateFromLocalStorage } from './data/db';
+import { syncNow } from './services/syncEngine';
 
 // The reference pages (§4.5.1) carry ~19 KB of GMRC prose in the two JSON files
 // their topic registry imports. None of it is needed to draw a map or plan a
@@ -61,15 +64,14 @@ function MainApp() {
     const srcArg = source.isPlace ? source : (source.id || source);
     const destArg = dest.isPlace ? dest : (dest.id || dest);
     
-    try {
-      const arr = JSON.parse(localStorage.getItem("metrothi-recent-trips") || "[]");
-      const key = `${source.id || source.name}->${dest.id || dest.name}`;
-      const next = [
-        { key, source, dest, savedAt: Date.now() },
-        ...arr.filter((j: any) => j.key !== key)
-      ].slice(0, 5);
-      localStorage.setItem("metrothi-recent-trips", JSON.stringify(next));
-    } catch { /* ignore */ }
+    // Local write, not awaited: planning must not wait on IndexedDB, and a
+    // failed history write is never a reason to fail the journey the rider
+    // actually asked for. Eviction to 5 and the sync queue are handled inside
+    // `recordRecentTrip` (§5.7).
+    const key = `${source.id || source.name}->${dest.id || dest.name}`;
+    void recordRecentTrip({ key, source, dest })
+      .then(() => syncNow())
+      .catch(() => { /* history is best-effort */ });
 
     const r = planJourney(srcArg, destArg, config);
     setResult(r);
@@ -83,6 +85,14 @@ function MainApp() {
   // No tab bar — --nav-h is always 0.
   useEffect(() => {
     document.documentElement.style.setProperty('--nav-h', '0px');
+  }, []);
+
+  // Import pre-Dexie `localStorage` data once (§5.7). Deliberately not awaited
+  // before first paint: an IndexedDB read on the boot path is exactly what a
+  // map-first app can't afford, and every reader is a `useLiveQuery` that
+  // re-renders the moment the rows land.
+  useEffect(() => {
+    void migrateFromLocalStorage().catch(() => { /* nothing to recover; local data is untouched */ });
   }, []);
 
   // The map + sheet stay mounted through planning and live journeys, so
@@ -139,11 +149,13 @@ function MainApp() {
 
 function App() {
   return (
-    <ThemeProvider>
-      <BrowserRouter>
-        <MainApp />
-      </BrowserRouter>
-    </ThemeProvider>
+    <AuthProvider>
+      <ThemeProvider>
+        <BrowserRouter>
+          <MainApp />
+        </BrowserRouter>
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
 

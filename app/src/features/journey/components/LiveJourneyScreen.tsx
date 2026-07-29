@@ -12,6 +12,9 @@ import { LINE_COLORS } from "../constants";
 import { TrainRouteSheet } from "./TrainRouteSheet";
 import { ExitGuidance } from "./ExitGuidance";
 import { LineBadge } from "../../../components/LineBadge";
+import { useLiveQuery } from "dexie-react-hooks";
+import { isJourneySaved, toggleSavedJourney } from "../../../data/db";
+import { syncNow } from "../../../services/syncEngine";
 
 // ─── Layout constants ────────────────────────────────────────────────────────
 /** Width of the thick colored track bar (px). */
@@ -213,22 +216,19 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session }: L
   const srcSt = sourceStation || result.source;
   const dstSt = destStation || result.dest;
   const saveKey = `${srcSt?.id}->${dstSt?.id}`;
-  const [isSaved, setIsSaved] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("metrothi-saved-journeys") || "[]")
-        .some((j: any) => j.key === saveKey);
-    } catch { return false; }
-  });
+  // Live from Dexie (§5.7). `saveKey` is in the deps so the star re-reads when
+  // the rider changes the journey rather than reporting the previous one's state,
+  // and `false` on the first frame matches the old read-on-mount behaviour.
+  const isSaved = useLiveQuery(() => isJourneySaved(saveKey), [saveKey], false);
 
   function toggleSave() {
-    try {
-      const arr = JSON.parse(localStorage.getItem("metrothi-saved-journeys") || "[]");
-      const next = isSaved
-        ? arr.filter((j: any) => j.key !== saveKey)
-        : [...arr, { key: saveKey, sourceId: srcSt?.id, destId: dstSt?.id, sourceName: srcSt?.name, destName: dstSt?.name, savedAt: Date.now() }];
-      localStorage.setItem("metrothi-saved-journeys", JSON.stringify(next));
-      setIsSaved(!isSaved);
-    } catch { /* storage unavailable */ }
+    void toggleSavedJourney({
+      key: saveKey,
+      sourceId: srcSt?.id,
+      destId: dstSt?.id,
+      sourceName: srcSt?.name,
+      destName: dstSt?.name,
+    }).then(() => syncNow());
   }
 
   async function share() {

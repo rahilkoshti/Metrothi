@@ -34,7 +34,19 @@ _(no open entries)_
 
 ## Settings / You screen (`app/src/features/journey/components/YouScreen.tsx`)
 
-_(no open entries)_
+- [ ] **Three "Phase 4" stub rows now have real data behind them.**
+      `YouScreen.tsx` — Saved → "Saved places" and "Saved journeys", and Journey
+      History → "Past trips" are still inert rows carrying a `Phase 4` badge.
+      As of the Dexie/Supabase work (2026-07-30) the data those rows describe
+      genuinely exists, is queryable, and syncs: `listSavedStationIds()`,
+      `listSavedJourneys()` and `listRecentTrips()` in `app/src/data/db.ts`.
+      Saved journeys are already rendered on the search overlay
+      (`HomeSearch.tsx`) and recent trips in the planner, so the YOU screen is
+      now the only place claiming they're unbuilt.
+      Not fixed here because it's a new surface, not part of wiring the store,
+      and §4.5's Data Management scope was the sync half. A fix is three rows
+      reading the existing helpers — no new data layer.
+      *(Out of scope for the integration task; logged rather than fixed.)*
 
 ## Reference pages (`app/src/features/info/topics.ts`)
 
@@ -96,14 +108,20 @@ _(no open entries)_
 
 ## PWA / offline deviations
 
-- [ ] **Dexie deliberately not implemented.** PRD §5.2/§5.3 originally mandated
-      Dexie.js (IndexedDB) for the transit graph, schedules, and user data. The
-      PWA/offline work (2026-07-22) instead relies on the transit graph being
-      bundled JSON precached by the service worker, and keeps user data in
-      `localStorage`. This satisfies the airplane-mode launch criterion (§6.2)
-      without Dexie. PRD §5.2/§5.3 have been amended to match. Revisit only if
-      saved-journey data outgrows localStorage's ~5 MB budget.
-      *(Kept as a recorded decision, not a bug — nothing to fix.)*
+- [x] **Dexie deliberately not implemented — reversed 2026-07-30.** PRD §5.2/§5.3
+      originally mandated Dexie.js (IndexedDB) for the transit graph, schedules,
+      and user data. The PWA/offline work (2026-07-22) instead relied on the
+      transit graph being bundled JSON precached by the service worker, and kept
+      user data in `localStorage`, satisfying the airplane-mode criterion (§6.2)
+      without Dexie.
+      **Now reversed for user data only** — the transit graph is still bundled
+      JSON and Dexie never touches it, so that half of the original decision
+      stands. Note the trigger was *not* the condition this entry named
+      ("revisit only if saved-journey data outgrows localStorage's ~5 MB") — the
+      data is still kilobytes. It was Supabase sync (PRD §5.7): an offline write
+      queue needs indexed reads, atomic transactions and tombstones, and
+      `localStorage` offers none of the three. See §5.2 for the full reasoning
+      and §5.7 for the architecture.
 
 ---
 

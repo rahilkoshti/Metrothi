@@ -23,6 +23,13 @@ import {
 import { LineBadge } from '../../../components/LineBadge';
 import { LineStatusPills } from './LineStatusPills';
 import { SearchBar } from './SearchBar';
+import { useLiveQuery } from 'dexie-react-hooks';
+import {
+  listRecentTrips,
+  listSavedJourneys,
+  type RecentTrip,
+  type SavedJourney,
+} from '../../../data/db';
 import { LINE_BADGE_BG, LINE_NAMES } from '../constants';
 
 const SEARCHABLE = STATIONS.filter((s) => s.operational !== false);
@@ -173,20 +180,16 @@ export function HomeSearch({
   const scrollToLine = (line: string) =>
     scrollToEl(scrollerRef.current?.querySelector<HTMLElement>(`[data-line-group="${line}"]`));
 
-  const [recentTrips, setRecentTrips] = useState<any[]>([]);
-  const [savedJourneys, setSavedJourneys] = useState<any[]>([]);
+  // Live from Dexie (§5.7) rather than read once on mount, so a journey saved on
+  // the live-journey sheet shows up here without a remount.
+  const recentTrips = useLiveQuery(listRecentTrips, [], [] as RecentTrip[]);
+  const savedJourneys = useLiveQuery(listSavedJourneys, [], [] as SavedJourney[]);
 
   useEffect(() => {
     // When arriving from a line pill we're browsing that line's stations, so
     // don't steal focus into the input (and pop the keyboard) — the scroll to
     // the line group is the point.
     if (!focusLine) inputRef.current?.focus();
-    try {
-      setRecentTrips(JSON.parse(localStorage.getItem('metrothi-recent-trips') || '[]'));
-    } catch { /* ignore */ }
-    try {
-      setSavedJourneys(JSON.parse(localStorage.getItem('metrothi-saved-journeys') || '[]'));
-    } catch { /* ignore */ }
   }, []);
 
   const stationResults = useMemo(

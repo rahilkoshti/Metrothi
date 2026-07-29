@@ -23,6 +23,11 @@
      large text/UI components. Black is ~7.6:1. The accent colour itself
      doesn't change between themes, so neither does its foreground. */
   --c-accent-fg: #000000;
+  /* Destructive actions and error text ("Clear local data", a failed sign-in).
+     Unlike --c-accent this *does* change between themes: #dc2626 is ~4.8:1 on
+     the light card but only ~3.4:1 on the dark one, so the dark theme lightens
+     it rather than reusing the same red at half the contrast. */
+  --c-danger:    #dc2626;
   --layout-max-width: 768px;
 }
 
@@ -37,6 +42,7 @@
   --c-text-2:    #d4d4d8;
   --c-text-3:    #a1a1aa;
   --c-text-4:    #71717a;
+  --c-danger:    #f87171;
 }
 
 html, body, #root {

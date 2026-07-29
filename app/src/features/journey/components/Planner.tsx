@@ -13,6 +13,9 @@ import type { LocStatus } from "../../../App";
 
 import { fuzzySearch } from "../utils/fuzzySearch";
 import { formatModeList, stationModes, stationSearchKeywords } from "../stationFacilities";
+import { useLiveQuery } from "dexie-react-hooks";
+import { listRecentTrips, removeRecentTrip, type RecentTrip } from "../../../data/db";
+import { syncNow } from "../../../services/syncEngine";
 
 interface PlannerProps {
   onPlan: (sourceId: string | PlaceNode, destId: string | PlaceNode, timeConfig?: { queryTime?: Date, arriveBy?: boolean }) => void;
@@ -47,12 +50,9 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   });
 
-  const [recentTrips, setRecentTrips] = useState<any[]>([]);
-  useEffect(() => {
-    try {
-      setRecentTrips(JSON.parse(localStorage.getItem('metrothi-recent-trips') || '[]'));
-    } catch { /* ignore */ }
-  }, []);
+  // Live from Dexie (§5.7), so planning a trip on the home sheet updates this
+  // list without the planner having to be remounted to notice.
+  const recentTrips = useLiveQuery(listRecentTrips, [], [] as RecentTrip[]);
 
   function fillFromTrip(trip: any) {
     if (trip.source) { setSource(trip.source); setSourceQuery(trip.source.name ?? ''); setSourceIsAuto(false); }
@@ -62,11 +62,9 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
 
   function removeTrip(e: React.MouseEvent, key: string) {
     e.stopPropagation();
-    setRecentTrips(prev => {
-      const next = prev.filter(t => t.key !== key);
-      try { localStorage.setItem('metrothi-recent-trips', JSON.stringify(next)); } catch { /* ignore */ }
-      return next;
-    });
+    // No local filtered copy to keep in step — `useLiveQuery` re-renders off the
+    // tombstone the write leaves behind.
+    void removeRecentTrip(key).then(() => syncNow());
   }
 
   // Reset focusedIndex when query or active field changes
