@@ -68,6 +68,30 @@ _(no open entries)_
 
 ## Resolved / Fixed
 
+- **[Fixed 2026-07-29]** The Fares & ticket rules page (`features/info/topics.ts`,
+  "Ahmedabad ↔ Gandhinagar") claimed crossing between phases needs "an NCMC card
+  **or a QR ticket**". GMRC's quote printed directly beneath it restricts only
+  tokens and CSC and says nothing about QR — the page was reading permission out
+  of that silence, which is the inference §7.6 exists to prevent. It also
+  contradicted the journey planner's cross-phase card, whose NCMC-only rule was
+  confirmed against the fare-rules page on 2026-07-20 (entry below). Introduced
+  by phase 2, found while writing phase 6; the page now matches the engine.
+  Worth generalising: phase 2 rendered GMRC's quote *next to* prose composed
+  from it, and the composition drifted from the quote in a way nothing tested.
+
+- **[Fixed 2026-07-29]** The cross-phase ticket card told riders "only an NCMC
+  card works" and stopped — PRD §8 phase 6. Our own `metroInfo.cards.ncmc`
+  describes NCMC as bank-issued, so the card read as a dead end at exactly the
+  moment a visitor (§2) can't act on it; GMRC's MMI page says stations sell
+  them. `TicketInfo` gained `where: string | null`, populated on the cross-phase
+  branch only and asserted on both the normal and after-last-train paths (the
+  latter builds its own `PlanResult` and could have dropped it silently).
+  §8 scoped this as "fold in `metroInfo.purchase`", which turned out to be the
+  wrong source — that section is about buying *tickets*, and its online half is
+  the GMRC app, which sells QR tickets that aren't valid across phases. Strings
+  are copied into the engine rather than imported, so `metroInfo.json` stays off
+  the boot path (see the phase-2 bundle note).
+
 - **[Fixed 2026-07-29]** A journey now says how to leave the station it ends at
   — PRD §8 phase 3. `features/journey/exitGuidance.ts` reduces the phase-1
   facilities data to the two facts that are a decision when the doors open

@@ -227,11 +227,30 @@ describe("cross-phase ticketing", () => {
     expect(plan!.ticketInfo).toMatchObject({ tokenValid: true, cscValid: true, ncmcValid: true });
   });
 
+  // The cross-phase note tells a rider they need a card our own data elsewhere
+  // describes as bank-issued, so without `where` it reads as a dead end. These
+  // two assert the pairing rather than the wording: the branch that names a
+  // constraint says where to solve it, the branch with no constraint stays
+  // quiet. Purchase advice under "everything works" would be noise (§4.2).
+  it("names where to get an NCMC on the trips that require one", () => {
+    const plan = planJourney("ranip", "infocity", { queryTime: ist(9) });
+    expect(plan!.ticketInfo.where).toBeTruthy();
+    expect(plan!.ticketInfo.where).toMatch(/station/i);
+  });
+
+  it("says nothing about where to buy when every ticket type works", () => {
+    const plan = planJourney("vastral-gam", "thaltej-gam", { queryTime: ist(9) });
+    expect(plan!.ticketInfo.where).toBeNull();
+  });
+
   it("ticketing rules apply even when the line has shut for the day", () => {
     const plan = planJourney("ranip", "infocity", { queryTime: ist(23.9) });
     expect(plan).not.toBeNull();
     expect(plan!.crossesPhase).toBe(true);
     expect(plan!.ticketInfo.tokenValid).toBe(false);
+    // The after-last-train early return builds its own PlanResult; `where` has
+    // to survive that path too, not just the normal one.
+    expect(plan!.ticketInfo.where).toBeTruthy();
   });
 });
 

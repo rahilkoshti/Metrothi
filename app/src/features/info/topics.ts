@@ -158,7 +158,12 @@ function faresSections(): TopicSection[] {
         {
           kind: "prose",
           tone: "warn",
-          text: "Tokens and Smart Cards (CSC) are valid only within Phase 1. To cross between Phase 1 and Phase 2 you need an NCMC card or a QR ticket.",
+          // "or a QR ticket" used to be here. GMRC's quote below restricts
+          // tokens and CSC and says nothing about QR — reading permission out
+          // of that silence is the inference §7.6 exists to prevent, and it
+          // contradicted the journey planner's cross-phase card, which says
+          // NCMC only (confirmed against fare-rules, DISCREPANCIES 2026-07-20).
+          text: "Tokens and Smart Cards (CSC) are valid only within Phase 1. To cross between Phase 1 and Phase 2 you need an NCMC card.",
         },
         { kind: "note", text: m.phaseRestriction.quote },
       ],

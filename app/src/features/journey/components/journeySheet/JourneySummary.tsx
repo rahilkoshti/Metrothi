@@ -204,12 +204,20 @@ export function JourneySummary({
       )}
 
       {/* Ticket note — an aside, not a third coloured block competing with the
-          picker and the CTA. */}
+          picker and the CTA. `where` rides as a second line rather than a
+          fourth sentence: the note is the constraint and this is what to do
+          about it, and at 11px they stop being separable once run together. It
+          only ever has content on a cross-phase trip (§4.2). */}
       <div className="flex items-start gap-2">
         <Info size={13} strokeWidth={2.4} className="shrink-0 mt-0.5" style={{ color: 'var(--c-text-4)' }} />
-        <p className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--c-text-4)' }}>
-          {ticketInfo.note}
-        </p>
+        <div className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--c-text-4)' }}>
+          <p>{ticketInfo.note}</p>
+          {ticketInfo.where && (
+            <p className="mt-1" style={{ color: 'var(--c-text-3)' }}>
+              {ticketInfo.where}
+            </p>
+          )}
+        </div>
       </div>
 
       {isFeasible && (

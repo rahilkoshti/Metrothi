@@ -88,6 +88,11 @@ export interface TicketInfo {
   cscValid: boolean;
   ncmcValid: boolean;
   note: string;
+  /**
+   * Where to get the ticket `note` says you need - null when the note names no
+   * constraint to solve, which is every same-phase trip.
+   */
+  where: string | null;
 }
 
 export type JourneyStop = StationRecord & { viaLine: string };
@@ -273,6 +278,22 @@ function getTicketOptions(source: StationRecord, dest: StationRecord): TicketInf
       cscValid: false,
       ncmcValid: true,
       note: "This trip crosses Ahmedabad \u2194 Gandhinagar \u2014 only an NCMC card works. Token and Smart Card (CSC) aren't valid here. NCMC also gets 10% off the fare shown.",
+      // Without this, "only an NCMC works" reads as a dead end: our own card
+      // data describes NCMC as a bank-issued product, so the rider's fair
+      // inference is that they can't solve this at the station. GMRC's MMI page
+      // says they can. Kept to what the sources actually state:
+      //   - stations sell them: MMI page, Phase-2 tab (metroInfo
+      //     `cards.ncmc.alsoAtStationsQuote`), which is the ONLY page that says
+      //     so - hence "GMRC lists", not a flat promise (\u00a77.6).
+      //   - banks issue them: `cards.ncmc.purchase`.
+      // Deliberately omitted: `purchase.atStation.payBy` (cash/UPI/POS) is
+      // stated about buying TICKETS at a window, never about buying the card,
+      // and `purchase.online` is the GMRC app, which sells QR tickets only -
+      // not valid across phases, so it is no help here.
+      // Strings are copied, not imported: a named JSON import doesn't
+      // tree-shake per key, so `import metroInfo` here would drag all of
+      // metroInfo.json onto the boot path (see features/info/provenance.ts).
+      where: "GMRC lists NCMC cards as available at every station; banks issue them too.",
     };
   }
   return {
@@ -284,6 +305,9 @@ function getTicketOptions(source: StationRecord, dest: StationRecord): TicketInf
     // the token fare, and this note tells the rider what they would save.
     // Do not fold it into the arithmetic.
     note: "Token, Smart Card, or NCMC all work for this trip. Smart Card and NCMC both get 10% off the fare shown, deducted on exit.",
+    // Nothing to solve - every medium the rider might already hold works, so
+    // purchase advice here would be noise rather than depth (\u00a74.2).
+    where: null,
   };
 }
 
