@@ -12,6 +12,7 @@ import { LocationNotice } from "../../../components/LocationNotice";
 import type { LocStatus } from "../../../App";
 
 import { fuzzySearch } from "../utils/fuzzySearch";
+import { formatModeList, stationModes, stationSearchKeywords } from "../stationFacilities";
 
 interface PlannerProps {
   onPlan: (sourceId: string | PlaceNode, destId: string | PlaceNode, timeConfig?: { queryTime?: Date, arriveBy?: boolean }) => void;
@@ -93,7 +94,14 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
   const activeQuery = activeField === "source" ? sourceQuery : activeField === "destination" ? destQuery : "";
   const results = useMemo(() => {
     if (!activeField || !activeQuery.trim()) return [];
-    return fuzzySearch(activeQuery, STATIONS.filter(s => s.operational !== false), s => s.name);
+    // Modes ride along as hidden keywords (§4.4): "railway" is how a visitor
+    // names Kalupur as a destination before they know it's called Kalupur.
+    return fuzzySearch(
+      activeQuery,
+      STATIONS.filter(s => s.operational !== false),
+      s => s.name,
+      s => stationSearchKeywords(s.id),
+    );
   }, [activeField, activeQuery]);
 
   useEffect(() => {
@@ -242,6 +250,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
             )}
             {results.map((s: any, idx: number) => {
               const isFocused = idx === focusedIndex;
+              const modes = stationModes(s.id);
               return (
                 <button
                   key={s.id}
@@ -254,7 +263,16 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
                   onMouseEnter={() => setFocusedIndex(idx)}
                   onMouseLeave={() => setFocusedIndex(-1)}
                 >
-                  <span className="text-[15px] font-semibold" style={{ color: 'var(--c-text)' }}>{s.name}</span>
+                  <span className="flex flex-col min-w-0 pr-3">
+                    <span className="text-[15px] font-semibold truncate" style={{ color: 'var(--c-text)' }}>{s.name}</span>
+                    {/* Says why a row that matches no part of the typed name is
+                        in the list — without it, "bus" returning Vadaj is noise. */}
+                    {modes.length > 0 && (
+                      <span className="text-[11px] font-semibold truncate" style={{ color: 'var(--c-text-4)' }}>
+                        {formatModeList(modes)}
+                      </span>
+                    )}
+                  </span>
                   <LineBadge line={s.line} />
                 </button>
               );

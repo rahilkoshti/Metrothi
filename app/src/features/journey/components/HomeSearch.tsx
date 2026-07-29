@@ -11,6 +11,15 @@ import {
 } from '../engine/journeyEngine';
 import { GeocodingService } from '../../../services/GeocodingService';
 import { fuzzySearch } from '../utils/fuzzySearch';
+import {
+  MODE_LABELS,
+  TRANSPORT_MODES,
+  formatModeList,
+  stationModes,
+  stationSearchKeywords,
+  stationsWithMode,
+  type TransportMode,
+} from '../stationFacilities';
 import { LineBadge } from '../../../components/LineBadge';
 import { LineStatusPills } from './LineStatusPills';
 import { SearchBar } from './SearchBar';
@@ -19,6 +28,20 @@ import { LINE_BADGE_BG, LINE_NAMES } from '../constants';
 const SEARCHABLE = STATIONS.filter((s) => s.operational !== false);
 
 const LINE_ORDER = ['blue', 'red', 'yellow', 'violet'] as const;
+
+// The stations behind each facet chip, resolved once — the facilities data is
+// static. Modes with nothing behind them would render a dead chip, so they're
+// dropped here rather than checked at render.
+const CONNECTION_FACETS = TRANSPORT_MODES.map((mode) => ({
+  mode,
+  ids: new Set(stationsWithMode(mode)),
+})).filter((f) => f.ids.size > 0);
+
+/** "Ph.1 · Interchange · BRTS" — a station row's subtitle, minus what's absent. */
+function stationMeta(s: StationRecord, parts: (string | null)[]) {
+  const modes = stationModes(s.id);
+  return [...parts, modes.length ? formatModeList(modes) : null].filter(Boolean).join(' · ');
+}
 
 // Grouped once — STATIONS is static. Interchanges sit under their primary line
 // only, matching how the Stations tab groups them.
@@ -167,7 +190,10 @@ export function HomeSearch({
   }, []);
 
   const stationResults = useMemo(
-    () => (query.trim() ? fuzzySearch(query, SEARCHABLE, (s) => s.name) : []),
+    () =>
+      query.trim()
+        ? fuzzySearch(query, SEARCHABLE, (s) => s.name, (s) => stationSearchKeywords(s.id))
+        : [],
     [query]
   );
 
@@ -295,7 +321,10 @@ export function HomeSearch({
                 key={s.id}
                 badge={<LineBadge line={s.line} size="xs" />}
                 title={s.name}
-                meta={s.interchange ? 'Interchange' : undefined}
+                // The connection is what explains a row that matched no part of
+                // the name — "bus" returning Vadaj only reads as an answer once
+                // the row says BRTS.
+                meta={stationMeta(s, [s.interchange ? 'Interchange' : null])}
                 onClick={() => onSelectStation(s.id)}
                 onDirections={() => onPlanTo(s)}
               />
@@ -348,6 +377,12 @@ export function HomeSearch({
 /**
  * The full network, grouped by line — the same shape as the Stations tab, so
  * the overlay doubles as a browsable directory when there's nothing to search.
+ *
+ * The connection facet (§4.4) filters it to the stations GMRC names as an
+ * interchange with another mode, which is the one question the directory
+ * couldn't answer before: where do I pick up the BRTS. It's single-select —
+ * "BRTS and railways" has no useful reading, and every combination of two modes
+ * here is at most one station.
  */
 function AllStations({
   onSelectStation,
@@ -359,6 +394,8 @@ function AllStations({
   focusLine?: string | null;
 }) {
   const focusRef = useRef<HTMLDivElement>(null);
+  const [facet, setFacet] = useState<TransportMode | null>(null);
+  const facetIds = facet ? CONNECTION_FACETS.find((f) => f.mode === facet)?.ids : null;
 
   // Jump the tapped line's group to the top of the directory. Runs in a layout
   // effect, before paint, so the list is already parked at the right line when
@@ -371,9 +408,26 @@ function AllStations({
 
   return (
     <>
-      <SectionLabel text="All stations" />
+      <SectionLabel text={facet ? `Connects to ${MODE_LABELS[facet]}` : 'All stations'} />
+
+      {/* Scrolls horizontally like the quick-chip row above it: four labels this
+          long don't fit 375px, and wrapping them would push the first line group
+          off the screen. */}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar px-4 pb-1">
+        {CONNECTION_FACETS.map(({ mode, ids }) => (
+          <Chip
+            key={mode}
+            label={`${MODE_LABELS[mode]} ${ids.size}`}
+            active={facet === mode}
+            onClick={() => setFacet(facet === mode ? null : mode)}
+          />
+        ))}
+      </div>
+
       {LINE_ORDER.map((line) => {
-        const stns = STATIONS_BY_LINE[line];
+        const stns = facetIds
+          ? STATIONS_BY_LINE[line]?.filter((s) => facetIds.has(s.id))
+          : STATIONS_BY_LINE[line];
         if (!stns?.length) return null;
         return (
           <div key={line} data-line-group={line} ref={line === focusLine ? focusRef : undefined}>
@@ -387,13 +441,11 @@ function AllStations({
               </span>
             </div>
             {stns.map((s) => {
-              const meta = [
+              const meta = stationMeta(s, [
                 `Ph.${s.phase}`,
                 s.interchange ? 'Interchange' : null,
                 s.operational === false ? 'Opening soon' : null,
-              ]
-                .filter(Boolean)
-                .join(' · ');
+              ]);
               return (
                 <Row
                   key={s.id}
@@ -421,19 +473,33 @@ function Chip({
   icon,
   label,
   onClick,
+  active,
 }: {
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
   label: string;
   onClick: () => void;
+  /**
+   * Toggled facets carry the same accent fill as the Station Info tabs. Left
+   * undefined by the plain action chips, so they don't announce themselves as
+   * an un-pressed toggle.
+   */
+  active?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className="flex items-center gap-2 rounded-full px-4 min-h-[44px] shrink-0 whitespace-nowrap active:scale-95 transition-transform"
-      style={{ background: 'var(--c-card)', border: '1px solid var(--c-border)' }}
+      style={{
+        background: active ? 'var(--c-accent)' : 'var(--c-card)',
+        border: `1px solid ${active ? 'var(--c-accent)' : 'var(--c-border)'}`,
+      }}
     >
       {icon}
-      <span className="text-[13px] font-semibold" style={{ color: 'var(--c-text)' }}>
+      <span
+        className="text-[13px] font-semibold"
+        style={{ color: active ? 'var(--c-accent-fg)' : 'var(--c-text)' }}
+      >
         {label}
       </span>
     </button>

@@ -16,6 +16,32 @@ export const MODE_LABELS: Record<TransportMode, string> = {
   "high-speed-rail": "High-speed rail",
 };
 
+/** Every mode GMRC names, in the order the connection facet lists them. */
+export const TRANSPORT_MODES: TransportMode[] = [
+  "brts",
+  "gsrtc",
+  "indian-railways",
+  "high-speed-rail",
+];
+
+/**
+ * The words a rider types when they know the mode but not the station name —
+ * fed to search as non-displayed aliases (§4.4). Each mode's own label, plus
+ * the everyday word for it: someone looking for the intercity bus stand types
+ * "bus", not "GSRTC", and a visitor types "railway", not "Kalupur".
+ *
+ * These are search keys, not rendered text, so they assert nothing beyond the
+ * `modes` array they come from — the station page still shows only GMRC's own
+ * wording. They stay deliberately short: a keyword that matches loosely pulls
+ * unrelated stations above a name match.
+ */
+export const MODE_KEYWORDS: Record<TransportMode, string[]> = {
+  brts: ["BRTS", "bus", "bus rapid transit"],
+  gsrtc: ["GSRTC", "bus", "state bus", "intercity bus"],
+  "indian-railways": ["Indian Railways", "railway", "rail"],
+  "high-speed-rail": ["high speed rail", "bullet train", "NHSRCL", "rail"],
+};
+
 export interface MultiModalConnection {
   /** The Entry-Exit the transfer uses — matches `gates`. Null if GMRC doesn't say. */
   gate: number | null;
@@ -82,4 +108,25 @@ export function stationsWithMode(mode: TransportMode): string[] {
   return Object.entries(FACILITIES)
     .filter(([, f]) => f.multiModal?.modes.includes(mode))
     .map(([id]) => id);
+}
+
+/**
+ * The modes a station physically connects to, empty when GMRC names none.
+ *
+ * Empty is the honest answer for 44 of the 54 stations and for PDEU, whose
+ * `multiModal` is a parking amenity and no interchange at all — a station you
+ * cannot change modes at reads the same either way (§5.6).
+ */
+export function stationModes(stationId: string | null | undefined): TransportMode[] {
+  return stationFacilities(stationId)?.multiModal?.modes ?? [];
+}
+
+/** "BRTS · Indian Railways" — the modes a station connects to, for a meta line. */
+export function formatModeList(modes: TransportMode[]): string {
+  return modes.map((m) => MODE_LABELS[m]).join(" · ");
+}
+
+/** Non-displayed search keywords for a station: the modes it connects to. */
+export function stationSearchKeywords(stationId: string): string[] {
+  return stationModes(stationId).flatMap((m) => MODE_KEYWORDS[m]);
 }
