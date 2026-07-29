@@ -19,7 +19,8 @@
   },
 
   "facilities": {
-    "note": "Offered across the network. GMRC does not state which stations have which, so do not render these as a per-station amenity list.",
+    "note": "Offered across the network. GMRC does not state which stations have which.",
+    "_rule": "Do not render these as a per-station amenity list — GMRC publishes no per-station facility data (PRD §7.6). This half was inside `note` and therefore printed to riders as page copy; underscore-prefixed keys are the ones this file keeps out of the UI.",
     "general": [
       "Escalator",
       "Guiding Signage",

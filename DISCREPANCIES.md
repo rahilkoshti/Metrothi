@@ -36,6 +36,47 @@ _(no open entries)_
 
 _(no open entries)_
 
+## Reference pages (`app/src/features/info/topics.ts`)
+
+Found in the 2026-07-29 source-fidelity audit of all eight topics, which was
+prompted by the QR-ticket claim fixed the same day. The three real §7.6 problems
+it turned up were fixed then; these three are cosmetic or structural, and are
+here rather than fixed inline to keep that change reviewable.
+
+- [ ] **The Metro Rail (O&M) Act citation is attached to one of three statutory
+      lists.** `prohibitedSections` prints "Under the Metro Rail (O&M) Act,
+      2002." only in the **Offensive materials** section (`topics.ts:294`), but
+      all three lists are the Act's — Dangerous materials and Pets & live
+      animals both open with the same "No person shall take or cause to be
+      taken on the metro railway" statutory phrasing. Not a false claim, just
+      unevenly sourced: a rider reading the pets rule cannot see it is law.
+      Fix is either one citation per section or one for the page.
+
+- [ ] **The trilingual-poster note renders only under "Don't".**
+      `conductSections` puts "GMRC publishes this as a poster in Gujarati,
+      Hindi and English…" in the Don't section alone (`topics.ts:233`), though
+      the poster carries both columns. Worth more than cosmetics: that note is
+      what marks this topic as **unblocked for localization** (§6.7), so its
+      placement is the thing a future translator reads to know the Do column is
+      equally available.
+
+- [ ] **`.replace()` string surgery on lost-and-found data is silently
+      wording-dependent.** `l.office.replace("Lost & Found office, ", "")` and
+      `l.officeHours.replace(" hrs", "")` (`topics.ts:434-435`) both match
+      today's strings exactly and are correct now. A re-scrape that rewords
+      either field makes the replace a no-op and the row reads "Office: Lost &
+      Found office, Apparel Park Depot" under a label that already says Office.
+      Trim in the JSON, or assert the shape.
+
+**The pattern behind all of these, worth keeping:** every problem the audit
+found lived in a **composed** string — one the app builds out of GMRC fields
+rather than printing verbatim — and `topics.test.ts` had no assertion of that
+kind. It checks structure (non-empty blocks, well-formed URLs, correct counts),
+which is why a sentence contradicting the quote printed beside it survived a
+green suite. Two targeted tests were added on 2026-07-29; a general "no composed
+sentence contradicts its source" check is not expressible, so new composed
+prose needs its own assertion each time.
+
 ## Route-change scroll position (`App.tsx`, `StationDetail.tsx`)
 
 _(no open entries)_
@@ -67,6 +108,34 @@ _(no open entries)_
 ---
 
 ## Resolved / Fixed
+
+- **[Fixed 2026-07-29]** Three findings from the source-fidelity audit of all
+  eight reference topics (the audit's remaining three are open above).
+  - **Customer care invented a scope and contradicted its own source.** The
+    General Correspondence note read "Anything that is not about a journey —
+    tenders, media, recruitment — goes here, not to passenger care." Those three
+    examples are on no GMRC page, and GMRC routes non-operational queries to the
+    **registered office**, not to that line — so the invented sentence
+    contradicted `customerCare.scope`, printed two sections above it on the same
+    page. Now states only what GMRC states, and says plainly that the general
+    line's scope is unpublished.
+  - **A build rule was printed to riders as page copy.** `facilities.note`
+    ended "…so do not render these as a per-station amenity list" — an
+    instruction to whoever builds the page, rendered verbatim on
+    `/you/facilities`. The field was doing two jobs; the internal half moved to
+    `_rule`, matching this file's convention that underscore-prefixed keys stay
+    out of the UI. The caveat itself was kept — it is the reason the list is not
+    per-station, and dropping it would overclaim.
+  - **The facilities blurb asserted what its own note retracts.** "What every
+    station offers" (`catalog.ts`) claims universal availability directly above
+    a note saying GMRC does not state which stations have which. Now "What the
+    network offers".
+
+- **[Fixed 2026-07-29]** The fares page's "Where to buy" section covered ticket
+  media only, so after §8 phase 6 the planner was sending cross-phase riders to
+  a page that said nothing about the NCMC it told them to get. The section now
+  carries `cards.ncmc.purchase` plus GMRC's station-sales line, with the same
+  single-source hedge the planner's aside uses. Regression-tested.
 
 - **[Fixed 2026-07-29]** The Fares & ticket rules page (`features/info/topics.ts`,
   "Ahmedabad ↔ Gandhinagar") claimed crossing between phases needs "an NCMC card

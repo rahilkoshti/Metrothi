@@ -65,7 +65,10 @@ export const RIDING_TOPICS: TopicEntry[] = [
   {
     slug: "facilities",
     title: "Facilities & accessibility",
-    blurb: "What every station offers",
+    // Not "What every station offers": GMRC does not state which stations have
+    // which, and the page's own note says so — the blurb was asserting the
+    // thing the note retracts (§7.6).
+    blurb: "What the network offers",
     icon: Accessibility,
   },
   {

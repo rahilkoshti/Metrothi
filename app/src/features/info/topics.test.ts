@@ -153,6 +153,14 @@ describe("fares page — the numbers GMRC actually publishes", () => {
     expect(byLabel.get("Overstaying in the paid area")).toBe("₹10 / hour per person, max ₹50");
   });
 
+  it("answers where to get the card a cross-phase trip needs", () => {
+    // The planner's cross-phase note sends riders here for the NCMC (§8 phase
+    // 6). "Where to buy" covered ticket media only, so the page the advice
+    // points at had nothing to say about the card.
+    const bullets = blocksOf("fares").flatMap((b) => (b.kind === "list" ? b.items : []));
+    expect(bullets.some((i) => /NCMC/.test(i) && /station/i.test(i))).toBe(true);
+  });
+
   it("carries the cross-phase restriction as a warning", () => {
     const warnings = blocksOf("fares").filter((b) => b.kind === "prose" && b.tone === "warn");
     expect(warnings).toHaveLength(1);
@@ -177,6 +185,31 @@ describe("prohibited items — reordered for the rider, not the statute", () => 
     expect(animals.blocks.some((b) => b.kind === "note" && b.text.includes("sniffer dog"))).toBe(true);
     const offensive = sections.find((s) => s.label === "Offensive materials")!;
     expect(offensive.blocks.some((b) => b.kind === "note" && b.text.includes("transplant"))).toBe(true);
+  });
+});
+
+describe("no page prints an instruction meant for whoever builds it", () => {
+  // `facilities.note` used to end "...so do not render these as a per-station
+  // amenity list" — a rule for the developer, shipped as passenger-facing copy.
+  // The JSON now keeps that half under `_rule`; this is what notices if a
+  // future scrape folds a build rule back into a rendered field.
+  it.each(ALL_TOPICS.map((t) => t.slug))("%s reads as copy, not as a directive", (slug) => {
+    for (const block of blocksOf(slug)) {
+      const text =
+        block.kind === "note" || block.kind === "prose"
+          ? block.text
+          : block.kind === "list"
+          ? block.items.join(" ")
+          : "";
+      expect(text, slug).not.toMatch(/\bdo not render\b|\bdo not display\b|\bnot recorded here\b/i);
+    }
+  });
+
+  it("keeps the facilities caveat without the build rule", () => {
+    const notes = blocksOf("facilities").flatMap((b) => (b.kind === "note" ? [b.text] : []));
+    // The caveat itself must survive — it is the reason these are not shown
+    // per station, and dropping it would overclaim rather than underclaim.
+    expect(notes.some((t) => /does not state which stations/i.test(t))).toBe(true);
   });
 });
 

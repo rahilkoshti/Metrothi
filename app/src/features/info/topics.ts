@@ -100,6 +100,15 @@ function faresSections(): TopicSection[] {
           items: [
             `${m.purchase.atStation.where} — ${m.purchase.atStation.payBy.join(", ")}.`,
             `${m.purchase.online.where} — ${m.purchase.online.payBy.join(", ")}.`,
+            // The card, not just the tickets. `purchase` covers ticket media
+            // only, but NCMC is the one medium that works across phases, so
+            // the planner's cross-phase note now tells riders where to get one
+            // — and a page titled "Where to buy" that omits it sends the
+            // reader who followed that advice here to nothing. "GMRC also
+            // lists" keeps the hedge: the station-sales claim appears on the
+            // MMI page alone, while fare-rules and the NCMC page describe it
+            // as bank-issued (metroInfo `cards.ncmc.alsoAtStationsNote`).
+            `NCMC cards — ${m.cards.ncmc.purchase} GMRC also lists them as available at every station.`,
           ],
         },
         { kind: "note", text: m.purchase.online.note },
@@ -398,7 +407,14 @@ function contactSections(): TopicSection[] {
         },
         {
           kind: "note",
-          text: "Anything that is not about a journey — tenders, media, recruitment — goes here, not to passenger care.",
+          // This used to read "Anything that is not about a journey — tenders,
+          // media, recruitment — goes here, not to passenger care." Both halves
+          // were wrong. Those three examples are on no GMRC page; and GMRC
+          // routes non-operational queries to the **registered office**, which
+          // is a different thing from this line — so the invented sentence
+          // contradicted `customerCare.scope`, printed two sections above it.
+          // GMRC states no scope for the general line, so neither do we.
+          text: "GMRC does not say what this line covers. It states only that non-operational queries go to the registered office, below.",
         },
       ],
     },
