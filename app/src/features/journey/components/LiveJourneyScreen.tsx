@@ -10,6 +10,7 @@ import type { JourneyState, useJourneySession } from "../hooks/useJourneySession
 import { useNow } from "../hooks/useNow";
 import { LINE_COLORS } from "../constants";
 import { TrainRouteSheet } from "./TrainRouteSheet";
+import { ExitGuidance } from "./ExitGuidance";
 import { LineBadge } from "../../../components/LineBadge";
 
 // ─── Layout constants ────────────────────────────────────────────────────────
@@ -391,6 +392,11 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session }: L
               <div className="flex items-center gap-1.5 mt-1 text-[11px] font-medium" style={{ color: "var(--c-text-4)" }}>
                 {isLastLeg ? <><Flag size={11} /> Final stop</> : <><ArrowLeftRight size={11} /> Change here</>}
               </div>
+              {/* How to leave the station, under the stop you leave it at.
+                  Rendered for the whole ride rather than only once the Arrived
+                  state lands: the useful moment to read which exit to walk
+                  toward is while you're still on the train. */}
+              {isLastLeg && <ExitGuidance stationId={stops[gi(len - 1)]?.id} />}
             </div>
           </div>
         </div>

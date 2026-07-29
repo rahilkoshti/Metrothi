@@ -1,6 +1,7 @@
 import { LINE_META } from "../../engine/journeyEngine";
 import { formatDuration } from "../../engine/journeyEngine";
 import { LineBadge } from "../../../../components/LineBadge";
+import { ExitGuidance } from "../ExitGuidance";
 import { LINE_DOT_BG, LINE_TRACK_BG } from "../../constants";
 
 /**
@@ -114,6 +115,9 @@ export function RouteTimeline({ result, active }: { result: any; active: any }) 
                       </span>
                     </div>
                   )}
+                  {/* The destination row is the one stop you leave the system
+                      at, so it's the only one that gets the exit facts. */}
+                  {isLast && <ExitGuidance stationId={st.id} />}
                 </div>
               </div>
             );

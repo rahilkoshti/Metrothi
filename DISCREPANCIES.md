@@ -68,6 +68,33 @@ _(no open entries)_
 
 ## Resolved / Fixed
 
+- **[Fixed 2026-07-29]** A journey now says how to leave the station it ends at
+  — PRD §8 phase 3. `features/journey/exitGuidance.ts` reduces the phase-1
+  facilities data to the two facts that are a decision when the doors open
+  (step-free exit gates; each connection with the Entry-Exit it uses), and one
+  `<ExitGuidance>` renders it on both surfaces — `RouteTimeline`'s destination
+  row and `LiveJourneyScreen`'s final stop — so the two cannot drift.
+  Deviations from §4.2 as written, each deliberate and now in the PRD: it
+  renders for the **whole ride, not only the Arrived state** (you want to know
+  which exit to walk toward while still on the train); GMRC's connection
+  wording is **verbatim minus the "Entry-Exit 5 – " prefix**, since the gate is
+  printed beside it and rewriting the rest would be invention; and PDEU's
+  parking is **not** treated as a way onward. The surface is `RouteTimeline`,
+  not `JourneySummary` as §8 listed — the destination row lives there.
+  8 tests in `exitGuidance.test.ts` cover what would otherwise fail silently as
+  plausible text: the prefix regex against every published spelling across all
+  9 stations with a connection, Ranip's two-gate pairing, Mahatma Mandir's
+  gate-less connection, and that **every** station a journey can end at
+  resolves (only `sabarmati-railway-station`, which GMRC does not list, returns
+  null). Verified live at 375 and 320px by planning Old High Court → Sabarmati
+  and starting the journey: both surfaces read "Step-free exit at Gates 2, 3 &
+  5" over "Gate 3 · Lift and Skywalk connecting BRTS", zero horizontal overflow
+  at either width, no console errors. **Known extreme:** Mahatma Mandir's
+  connection is 200 characters and wraps to eight lines (121px) at 320px — kept
+  rather than clamped, since a clamp with no "more" affordance would hide the
+  useful half, and it is 1 station of 53. `tsc -b --noEmit` clean, suite
+  287/287 (was 279).
+
 - **[Fixed 2026-07-29]** Route changes now reset scroll, for every route rather
   than for `/you/:topic` alone. `components/ScrollReset.tsx` is mounted once
   inside `<main>`, keyed on `useLocation().pathname`, and `InfoPage`'s local
