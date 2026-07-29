@@ -312,20 +312,22 @@ Ordered by rider value per unit of work. Phases 1–3 are unblocked and independ
 | Phase | Work | Surfaces | Blocked? |
 |---|---|---|---|
 | **1 — Station Info tab** ✅ *shipped 2026-07-28* | Entrances, step-free access and Connections blocks; `structure` tile; update the stale `StationInfoPanel` doc-comment (§4.4.1). | `StationDetail.tsx` | No |
-| **2 — Reference pages** | `InfoPage` + topic registry (§4.6); the nine topics of §4.5.1 wired into two new YOU sections; `tel:`/`mailto:` actions; About & Data provenance row; `/you/:topic` routes with dynamic import. | `YouScreen.tsx`, new `features/info/` | No |
+| **2 — Reference pages** ✅ *shipped 2026-07-29* | `InfoPage` + topic registry (§4.6); the nine rows of §4.5.1 wired into two new YOU sections as **eight pages plus one direct store link**; `tel:`/`mailto:` actions; About & Data provenance read from `_meta`; `/you/:topic` routes with dynamic import. | `YouScreen.tsx`, new `features/info/` | No |
 | **3 — Last-mile guidance** | Destination exit gate + onward connection on the results screen and the Live Journey **Arrived** state (§4.2). | `JourneySummary`, `LiveJourneyScreen` | No |
 | **4 — Discovery** | `multiModal.modes` as search keyword aliases; connection facet in the STATIONS directory (§4.4). | `fuzzySearch.ts`, directory | No |
 | **5 — Chip row** | Conditional connection chip in the station sheet — **only if** it survives a 375px check without pushing the row under the fold (§4.4.1). | `HomeScreen.tsx` | No — but may be rejected on measurement |
 | **6 — Ticket card depth** | `metroInfo.purchase` folded into the GO ticket guidance card (§4.2). | `JourneySummary` | No |
 | **7 — Localization** | Transcribe the Gujarati/Hindi columns of the two GMRC posters; English-only note on the remaining topics (§6.7). | `passengerInfo.json` | Only by §6 shipping first |
 
-**Critical path:** Phase 1 is the largest rider-visible gain for the least work — the data is already keyed by station id and the tab already exists. Phase 2 is the bulk of the effort but is entirely additive and touches nothing that routes or renders the map. Phase 5 is the only item that could be cut outright.
+**Critical path:** Phases 1 and 2 are shipped. Phase 3 is next and is the last item that changes what a rider sees mid-journey; 4–6 are refinements, and phase 5 is the only item that could be cut outright.
 
 **Not planned, and why:** a per-gate landmark ("Gate 3 — Ashram Road side") would be the single most useful addition to the Station Info tab and is the one thing GMRC does not publish (§5.6). It needs a physical survey of 53 stations. Until someone does that survey it stays out — inventing it from map data would fail §7.6.
 
 ---
 
 ## Change Log
+
+- **2026-07-29** — **§8 phase 2 shipped.** The reference content of §4.5.1 is reachable: one generic `InfoPage` over a block model (`features/info/`), a topic registry, and eight deep-linkable `/you/:topic` routes behind `React.lazy`, reached from two new YOU sections placed **above** Preferences/Saved/History so live content isn't buried under three sections of Phase-4 stubs. Deviations from §4.5.1 as written, all deliberate: the **official GMRC app is a row, not a page** (two store URLs and a sentence do not earn a screen — the row opens the right store per platform); **prohibited items is reordered** to pets and luggage before the statutory lists, since GMRC's order is the Act's and the rider's question is "can I bring my dog"; **`metroInfo.luggage` renders on that page too**, because "can I bring this" includes size; and there is **no `numbered` list marker** — every GMRC list is a set of rules, not a sequence, and numbering a set invents an order. The block model gained `chips`, `linkList` and `definitions` beyond §4.6's five, each mapping to an idiom the Station Info tab already uses. §6.7 stays satisfiable: blocks hold strings, never composed JSX, so the Hindi/Gujarati resolver can swap them per language. **Bundle note worth keeping:** a named JSON import does *not* tree-shake per key — Vite emits one module per file, so any boot-path import drags the whole file into the main chunk. Confirmed by grepping the built output, not assumed; see `DISCREPANCIES.md`.
 
 - **2026-07-28** — **§8 phase 1 shipped.** The Station Info tab now renders the physical station data: Entrances (a chip per open gate, GMRC's numbering, no invented denominator), Step-free access (lift→gate rows under a positive summary line), and Connections on the 10 stations that have one. `structure` joined the Station Overview tiles as a full-width fifth tile. One deviation from §4.4.1 as written: the Connections block is keyed off having *anything* to say rather than off `modes`, because `pdeu` has an amenity (parking) and no interchange — otherwise its only published fact would render nowhere. `plannedAmenities` stays unrendered; planned is not built.
 

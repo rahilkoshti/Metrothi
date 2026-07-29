@@ -1,6 +1,7 @@
 {
   "_meta": {
-    "source": "Official GMRC pages, scraped 2026-07-20",
+    "source": "Official GMRC pages",
+    "scrapedOn": "2026-07-20",
     "pages": {
       "fareRules": "https://www.gujaratmetrorail.com/ahmedabad/fare-rules/",
       "smartCard": "https://www.gujaratmetrorail.com/ahmedabad/smart-cards/",

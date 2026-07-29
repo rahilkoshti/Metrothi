@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { HomeScreen } from './features/journey/components/HomeScreen';
 import { LocationService, type LocationErrorKind } from './services/LocationService';
@@ -7,6 +7,14 @@ import { StationDetail } from './features/journey/components/StationDetail';
 import { YouScreen } from './features/journey/components/YouScreen';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { useJourneySession } from './features/journey/hooks/useJourneySession';
+import { InfoPageFallback } from './features/info/InfoPageFallback';
+
+// The reference pages (§4.5.1) carry ~19 KB of GMRC prose in the two JSON files
+// their topic registry imports. None of it is needed to draw a map or plan a
+// journey, so the whole route is split out and fetched on first visit — after
+// which the service worker has it precached and it works offline like the rest
+// (§5.6).
+const InfoPage = lazy(() => import('./features/info/InfoPage'));
 
 // "locating" and "granted" plus the three ways a location request can fail.
 // Kept distinct because each failure needs different wording and a different
@@ -108,6 +116,14 @@ function MainApp() {
               <Route path="/" element={<HomeScreen {...homeProps} />} />
               <Route path="/stations/:id" element={<StationDetail />} />
               <Route path="/you" element={<YouScreen />} />
+              <Route
+                path="/you/:topic"
+                element={
+                  <Suspense fallback={<InfoPageFallback />}>
+                    <InfoPage />
+                  </Suspense>
+                }
+              />
               <Route path="*" element={<HomeScreen {...homeProps} />} />
             </Routes>
           </div>

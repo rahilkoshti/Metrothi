@@ -1,6 +1,15 @@
-import { ChevronRight, User, Moon, Sun, Footprints, MapPin, BookMarked, Clock, Train, Info, MessageSquare, Database, Zap, ArrowLeft } from "lucide-react";
+import { ChevronRight, ArrowUpRight, User, Moon, Sun, Footprints, MapPin, BookMarked, Clock, Train, Info, MessageSquare, Database, Building2, Zap, ArrowLeft } from "lucide-react";
 import { useTheme } from "../../../contexts/ThemeContext";
 import { useNavigate } from "react-router-dom";
+import {
+  RIDING_TOPICS,
+  HELP_TOPICS,
+  OFFICIAL_APP,
+  GMRC_FEEDBACK_URL,
+  officialAppStore,
+  type TopicEntry,
+} from "../../info/catalog";
+import { dataProvenance } from "../../info/provenance";
 
 // ─── Shared row components ────────────────────────────────────────────────────
 
@@ -19,31 +28,52 @@ function RowDivider() {
   return <div className="mx-5" style={{ height: 1, background: 'var(--c-border)' }} />;
 }
 
+/**
+ * One settings row.
+ *
+ * Interactivity is derived from `onClick` / `href`, never declared: the old
+ * `tappable` flag drew a button, a hover state and a chevron on rows that had
+ * no handler at all, so every "tappable" row on this screen was a dead press.
+ * A row that can't do anything now says so by having no affordance — the
+ * `badge` ("Phase 4") is what tells you it's coming.
+ *
+ * `href` covers the three outbound kinds the reference rows need — `tel:`,
+ * `mailto:` and an external page — and only the last of those opens a new tab.
+ */
 function Row({
   icon: Icon,
   label,
   value,
   badge,
-  tappable = false,
+  onClick,
+  href,
+  external = false,
   children,
 }: {
   icon?: React.ElementType;
   label: string;
   value?: string;
   badge?: string;
-  tappable?: boolean;
+  onClick?: () => void;
+  href?: string;
+  /** Opens in a new tab and swaps the chevron for an outbound arrow. */
+  external?: boolean;
   children?: React.ReactNode;
 }) {
-  const Tag = tappable ? "button" : "div";
+  const interactive = Boolean(onClick || href);
+  const Tag = href ? "a" : onClick ? "button" : "div";
+  const Chevron = external ? ArrowUpRight : ChevronRight;
+
   return (
     <Tag
-      className={`w-full flex items-center gap-4 px-5 py-4 text-left transition-colors ${tappable ? 'hover:bg-[var(--c-card-alt)] focus-visible:bg-[var(--c-card-alt)] focus-visible:outline-none' : ''}`}
+      {...(href ? { href } : {})}
+      {...(href && external ? { target: "_blank", rel: "noreferrer" } : {})}
+      {...(Tag === "button" ? { type: "button" as const, onClick } : {})}
+      className={`w-full flex items-center gap-4 px-5 py-4 text-left transition-colors ${interactive ? 'hover:bg-[var(--c-card-alt)] focus-visible:bg-[var(--c-card-alt)] focus-visible:outline-none' : ''}`}
       style={{
         background: 'transparent',
-        ...(tappable ? { cursor: 'pointer' } : {}),
+        ...(interactive ? { cursor: 'pointer' } : {}),
       }}
-      
-      
     >
       {Icon && (
         <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--c-card-alt)' }}>
@@ -63,10 +93,38 @@ function Row({
         </span>
       )}
       {children}
-      {tappable && !children && (
-        <ChevronRight size={16} style={{ color: 'var(--c-text-4)' }} />
+      {interactive && !children && (
+        <Chevron size={16} className="shrink-0" style={{ color: 'var(--c-text-4)' }} />
       )}
     </Tag>
+  );
+}
+
+/** The rounded card every section's rows sit in. */
+function SectionCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mx-5 rounded-2xl overflow-hidden" style={{ background: 'var(--c-card)', border: '1px solid var(--c-border)' }}>
+      {children}
+    </div>
+  );
+}
+
+/** A section of reference-page rows, divided, from the topic catalog. */
+function TopicRows({ topics, onOpen }: { topics: TopicEntry[]; onOpen: (slug: string) => void }) {
+  return (
+    <>
+      {topics.map((topic, i) => (
+        <div key={topic.slug}>
+          {i > 0 && <RowDivider />}
+          <Row
+            icon={topic.icon}
+            label={topic.title}
+            value={topic.blurb}
+            onClick={() => onOpen(topic.slug)}
+          />
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -114,6 +172,8 @@ function ThemeToggle() {
 export function YouScreen() {
   const { theme } = useTheme();
   const navigate = useNavigate();
+  const openTopic = (slug: string) => navigate(`/you/${slug}`);
+  const appStore = officialAppStore();
 
   return (
     <div className="max-w-[var(--layout-max-width)] mx-auto pb-28" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
@@ -156,14 +216,13 @@ export function YouScreen() {
             label="Sign in to sync your data"
             value="Saved places, journeys & preferences"
             badge="Phase 5"
-            tappable
           />
         </div>
       </div>
 
       {/* ── Appearance ───────────────────────────────────────────────────── */}
       <SectionHeader label="Appearance" />
-      <div className="mx-5 rounded-2xl overflow-hidden" style={{ background: 'var(--c-card)', border: '1px solid var(--c-border)' }}>
+      <SectionCard>
         <div className="flex items-center gap-4 px-5 py-4">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--c-card-alt)' }}>
             {theme === 'dark'
@@ -179,59 +238,89 @@ export function YouScreen() {
           </div>
           <ThemeToggle />
         </div>
-      </div>
+      </SectionCard>
+
+      {/* ── Riding the metro ─────────────────────────────────────────────────
+          Above Preferences / Saved / History on purpose: those are three
+          sections of Phase-4 stubs, and this is the first content on the screen
+          that actually does something. Live content doesn't get buried under
+          promises. */}
+      <SectionHeader label="Riding the metro" />
+      <SectionCard>
+        <TopicRows topics={RIDING_TOPICS} onOpen={openTopic} />
+      </SectionCard>
+
+      {/* ── Help & contact ───────────────────────────────────────────────── */}
+      <SectionHeader label="Help & contact" />
+      <SectionCard>
+        <TopicRows topics={HELP_TOPICS} onOpen={openTopic} />
+        <RowDivider />
+        <Row
+          icon={OFFICIAL_APP.icon}
+          label={OFFICIAL_APP.title}
+          value={`${OFFICIAL_APP.blurb} · ${appStore.label}`}
+          href={appStore.href}
+          external
+        />
+      </SectionCard>
 
       {/* ── Preferences ──────────────────────────────────────────────────── */}
       <SectionHeader label="Preferences" />
-      <div className="mx-5 rounded-2xl overflow-hidden" style={{ background: 'var(--c-card)', border: '1px solid var(--c-border)' }}>
-        <Row icon={Footprints} label="Walking speed" value="Normal (5 km/h)" badge="Phase 4" tappable />
+      <SectionCard>
+        <Row icon={Footprints} label="Walking speed" value="Normal (5 km/h)" badge="Phase 4" />
         <RowDivider />
-        <Row icon={MapPin} label="Default departure station" value="Not set — uses GPS" badge="Phase 4" tappable />
-      </div>
+        <Row icon={MapPin} label="Default departure station" value="Not set — uses GPS" badge="Phase 4" />
+      </SectionCard>
 
       {/* ── Saved ────────────────────────────────────────────────────────── */}
       <SectionHeader label="Saved" />
-      <div className="mx-5 rounded-2xl overflow-hidden" style={{ background: 'var(--c-card)', border: '1px solid var(--c-border)' }}>
-        <Row icon={BookMarked} label="Saved places" value="Home, Work, and more" badge="Phase 4" tappable />
+      <SectionCard>
+        <Row icon={BookMarked} label="Saved places" value="Home, Work, and more" badge="Phase 4" />
         <RowDivider />
-        <Row icon={Train} label="Saved journeys" value="Your frequent routes" badge="Phase 4" tappable />
-      </div>
+        <Row icon={Train} label="Saved journeys" value="Your frequent routes" badge="Phase 4" />
+      </SectionCard>
 
       {/* ── History ──────────────────────────────────────────────────────── */}
       <SectionHeader label="Journey History" />
-      <div className="mx-5 rounded-2xl overflow-hidden" style={{ background: 'var(--c-card)', border: '1px solid var(--c-border)' }}>
-        <Row icon={Clock} label="Past trips" value="All your previous journeys" badge="Phase 4" tappable />
-      </div>
+      <SectionCard>
+        <Row icon={Clock} label="Past trips" value="All your previous journeys" badge="Phase 4" />
+      </SectionCard>
 
-      {/* ── About & Data ─────────────────────────────────────────────────── */}
+      {/* ── About & Data ─────────────────────────────────────────────────────
+          Every line here is read from the data files' own `_meta`, so the dates
+          stop needing a manual edit each time one is regenerated (§4.5.1). */}
       <SectionHeader label="About & Data" />
-      <div className="mx-5 rounded-2xl overflow-hidden" style={{ background: 'var(--c-card)', border: '1px solid var(--c-border)' }}>
-        <Row
-          icon={Database}
-          label="Timetable"
-          value="Effective 18.05.2026 · Hand-transcribed from GMRC"
-        />
-        <RowDivider />
-        <Row
-          icon={Info}
-          label="Fares"
-          value="Estimates only — not sourced from GMRC"
-        />
-        <RowDivider />
-        <Row
-          icon={Info}
-          label="Live estimates"
-          value="Simulated from timetable — no real-time feed"
-        />
-      </div>
+      <SectionCard>
+        {dataProvenance().map((row, i) => (
+          <div key={row.key}>
+            {i > 0 && <RowDivider />}
+            <Row
+              icon={row.key === "live" ? Info : Database}
+              label={row.label}
+              value={row.detail}
+              {...(row.href ? { href: row.href, external: true } : {})}
+            />
+          </div>
+        ))}
+      </SectionCard>
 
-      {/* ── Feedback ─────────────────────────────────────────────────────── */}
+      {/* ── Feedback ─────────────────────────────────────────────────────────
+          Split on purpose: a timetable error in *Metrothi* is ours, a complaint
+          about *the metro* is GMRC's, and the two must not go to one inbox. */}
       <SectionHeader label="Feedback" />
-      <div className="mx-5 rounded-2xl overflow-hidden" style={{ background: 'var(--c-card)', border: '1px solid var(--c-border)' }}>
-        <Row icon={MessageSquare} label="Report a timetable issue" tappable />
+      <SectionCard>
+        <Row icon={MessageSquare} label="Report a timetable issue" value="A departure Metrothi gets wrong" />
         <RowDivider />
-        <Row icon={MessageSquare} label="Suggest a feature" tappable />
-      </div>
+        <Row icon={MessageSquare} label="Suggest a feature" value="Something Metrothi should do" />
+        <RowDivider />
+        <Row
+          icon={Building2}
+          label="Feedback to GMRC"
+          value="Complaints and suggestions about the metro itself"
+          href={GMRC_FEEDBACK_URL}
+          external
+        />
+      </SectionCard>
 
       {/* ── App version ──────────────────────────────────────────────────── */}
       <div className="px-5 pt-8 pb-4 text-center">

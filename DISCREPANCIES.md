@@ -34,22 +34,32 @@ _(no open entries)_
 
 ## Settings / You screen (`app/src/features/journey/components/YouScreen.tsx`)
 
-- [ ] The screen has no entry points for the passenger reference content now
-      bundled in `app/src/data/passengerInfo.json` — facilities, do's & don'ts,
-      prohibited items, emergency equipment, customer care and lost & found
-      contacts, GMRC social/app/official links. Fully specified in PRD §4.5.1
-      (two new sections, nine topics) and §4.6 (one generic `InfoPage` against
-      a block model, not nine hand-built screens); scheduled as §8 phase 2.
-      Build it from that spec rather than improvising rows — the topics differ
-      only in content, and hand-building them is how they drift.
+_(no open entries)_
 
-- [ ] The "About & Data" section hardcodes its provenance strings
-      ("Effective 18.05.2026 · Hand-transcribed from GMRC"). Each data file now
-      carries its own `_meta` with a source URL and a `scrapedOn` /
-      `effectiveFrom` date; read the rows from those instead, so the dates stop
-      needing a manual edit every time a file is regenerated. Blocks the
-      §4.5.1 provenance row for `stationFacilities.json` / `passengerInfo.json`
-      being honest about its own age.
+## Route-change scroll position (`App.tsx`, `StationDetail.tsx`)
+
+- [ ] **Navigating between routes keeps the previous screen's scroll offset.**
+      React Router does not reset it and nothing else does either, so tapping a
+      station from a scrolled screen lands on `/stations/:id` partway down.
+      Fixed for `/you/:topic` only, inside `InfoPage` (see the Resolved entry
+      below for the measurement and the reason `<main>` is the wrong element to
+      reset). The general fix is a `ScrollReset` component mounted once inside
+      `<BrowserRouter>`, keyed on `useLocation().pathname`, using the same
+      nearest-scrollable-ancestor walk — at which point `InfoPage`'s local copy
+      should be deleted rather than left to duplicate it.
+
+## Bundle splitting
+
+- [ ] **A named JSON import does not tree-shake per key.** `import { _meta }
+      from "./x.json"` reads as if it pulls one key, but Vite emits one module
+      per JSON file: any boot-path module touching a file drags the whole thing
+      into the main chunk. Verified in build output — an `import { officialApp }
+      from "passengerInfo.json"` in `features/info/catalog.ts` put all 12 KB of
+      do's-and-don'ts prose in `index.js` and left the lazy `InfoPage` chunk
+      with none of it. Worked around by copying three URLs into `catalog.ts`
+      under a test that asserts they still match the JSON. A real fix would
+      split the handful of boot-needed constants into their own small file at
+      scrape time, so nothing is copied and nothing over-imports.
 
 ## PWA / offline deviations
 
@@ -65,6 +75,69 @@ _(no open entries)_
 ---
 
 ## Resolved / Fixed
+
+- **[Fixed 2026-07-29]** The reference content is reachable — PRD §8 phase 2.
+  `passengerInfo.json` and the non-fare half of `metroInfo.json` had **zero
+  consumers**: a repo-wide search for either name returned one hit, a comment in
+  `fareEngine.ts`. Both now render through one generic `InfoPage` over a block
+  model (`features/info/`), reached from two new YOU sections at
+  **eight routes** `/you/:topic` plus one direct store link. Deviations from
+  §4.5.1 as written, each deliberate:
+  - **"Official GMRC app" is a row, not a page.** It holds two store URLs and a
+    sentence; a page would be a dead end showing you a button to press. The row
+    opens the right store per platform and says which in its second line.
+  - **Prohibited items is reordered** — pets and luggage before the statutory
+    dangerous/offensive lists. GMRC's order is the Metro Rail (O&M) Act's; the
+    question riders arrive with is "can I bring my dog". No fact is altered and
+    each `exception` stays attached to the rule it qualifies (organ transplant,
+    sniffer dogs — the genuinely useful half).
+  - **`metroInfo.luggage` appears on the prohibited page**, not just under
+    fares: "can I bring this" includes size, and the limit otherwise existed
+    only as item 3 of a nine-item conduct list.
+  - **No `numbered` list marker.** Every GMRC list turned out to be a set of
+    rules, not a sequence — including lost & found's, which reads like a
+    procedure and isn't. Numbering a set invents an order.
+  - **Reading typography** (14px medium, `--c-text-2`, relaxed leading) is the
+    one place this feature departs from the app's 9–14px bold uppercase
+    dashboard voice, which is right for a countdown and wrong for fourteen
+    consecutive sentences of rules.
+  Three defects were found and fixed *during* verification, none of which
+  static checks would have caught: acronyms lowercased by a `.join().toLowerCase()`
+  ("cash, upi, pos"); four facility chips clipped inside their card at 320px
+  (`FactChip` gained `wrap`, gate chips keep `nowrap`); and the scroll-position
+  bug now logged as its own open entry above — `<main>` carries
+  `overflow-y: auto` but never scrolls, so the obvious reset was a no-op that
+  the Suspense fallback masked on first visit and not after. Verified live at
+  375 and 320px in both themes: all eight pages, `tel:`/`mailto:`/external
+  hrefs, the unknown-slug redirect, zero console errors, and no regression on
+  the Station Info tab that now imports the lifted `FactPrimitives`.
+  `tsc -b --noEmit` clean, oxlint clean, suite 279/279 (was 239 — `topics.test.ts`
+  adds 40, including guards on the copied URLs and the shared scrape date).
+  Bundle: main chunk 550.48 → 540.46 kB, reference prose entirely in the 34 kB
+  lazy `InfoPage` chunk, confirmed by grepping the built files rather than
+  assumed.
+
+- **[Fixed 2026-07-29]** About & Data reads its dates from the data files'
+  own `_meta` (`features/info/provenance.ts`), so they stop needing a manual
+  edit each time a file is regenerated. It is a written-out five-line mapping,
+  not a generic reader: the files disagree on the field name — `effectiveFrom`
+  (timetable), `scrapedOn` (fares, facilities), `lastVerified` (stations),
+  `generated` (tracks). The two hand-maintained reference files dated
+  themselves in *prose* inside `_meta.source` ("Official GMRC pages, scraped
+  2026-07-28"); both gained a real `scrapedOn` field rather than having that
+  English parsed. The **Fares row was also wrong, not just stale** — it claimed
+  "Estimates only — not sourced from GMRC" long after `fareEngine` was rebuilt
+  on real GMRC distance data (see the 2026-07-20 entry below), so it understated
+  our own accuracy; it now reads "Read from GMRC 20.07.2026 · charged on
+  distance, not stops" and links to the source page.
+
+- **[Fixed 2026-07-29]** `YouScreen`'s `Row` had **no click handler at all** —
+  `tappable` drew a button, a hover state and a chevron over an empty
+  `onClick`-shaped gap in the props, so every "tappable" row on that screen was
+  a dead press. Interactivity is now derived from `onClick`/`href` rather than
+  declared, which also means the nine Phase-4/5 stub rows stop pretending: they
+  keep their badge and lose the affordance. `href` covers `tel:`, `mailto:` and
+  external, and only the last opens a new tab.
 
 - **[Fixed 2026-07-28]** Station Info tab now renders the physical station data
   (PRD §8 phase 1), and its stale doc-comment — which asserted no amenity data

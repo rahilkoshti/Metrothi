@@ -1,6 +1,7 @@
 {
   "_meta": {
-    "source": "Official GMRC Ahmedabad pages, scraped 2026-07-28",
+    "source": "Official GMRC Ahmedabad pages",
+    "scrapedOn": "2026-07-28",
     "pages": {
       "facilities": "https://www.gujaratmetrorail.com/ahmedabad/facilities-for-passenger/",
       "dosAndDonts": "https://www.gujaratmetrorail.com/ahmedabad/dos-and-donts/",
