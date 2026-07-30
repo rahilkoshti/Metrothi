@@ -3,14 +3,18 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 /**
  * Supabase client (PRD §5.7).
  *
- * **Loaded on demand, never on the boot path.** `@supabase/supabase-js` is 104 KB
- * raw / 26 KB gzipped, and nothing in the first frame of a map-first app needs
- * it: the map, the nearest station and the departure board are all local. Sync is
- * a background concern and the account UI lives behind the `/you` route, so the
- * SDK is dynamically imported the first time something actually asks for it —
- * the same argument that keeps 12 KB of reference prose out of the boot path
- * (§5.6), for twice the weight. The `import type` above is erased at build time
- * and costs nothing.
+ * **Loaded on demand, never on the boot path.** `@supabase/supabase-js` is 202 KB
+ * raw / 52 KB gzipped — measured from the production chunk, not the package —
+ * and nothing in the first frame of a map-first app needs it: the map, the
+ * nearest station and the departure board are all local. Sync is a background
+ * concern and the account UI lives behind the `/you` route, so the SDK is
+ * dynamically imported the first time something actually asks for it — the same
+ * argument that keeps 12 KB of reference prose out of the boot path (§5.6), for
+ * four times the weight. The `import type` above is erased at build time and
+ * costs nothing.
+ *
+ * Most of that 52 KB is the realtime client, which this app never uses; the SDK
+ * bundles it regardless. Worth revisiting if the boot budget gets tight.
  *
  * Also deliberately nullable. Metrothi must work with no account, no network and
  * **no Supabase project configured at all** — otherwise a fresh clone needs

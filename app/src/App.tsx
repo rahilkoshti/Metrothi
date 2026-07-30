@@ -73,6 +73,10 @@ function MainApp() {
       .then(() => syncNow())
       .catch(() => { /* history is best-effort */ });
 
+    // `config` already carries the rider's pace (§8.1 phase E) — merged in by
+    // `HomeScreen`, which is the only caller and holds the preference anyway.
+    // The shell doesn't subscribe to it: a `prefs` observer here would re-render
+    // the whole route tree, map included, for a value it only forwards.
     const r = planJourney(srcArg, destArg, config);
     setResult(r);
     setActiveJourney(false);

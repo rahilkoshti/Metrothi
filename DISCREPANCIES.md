@@ -34,19 +34,7 @@ _(no open entries)_
 
 ## Settings / You screen (`app/src/features/journey/components/YouScreen.tsx`)
 
-- [ ] **Three "Phase 4" stub rows now have real data behind them.**
-      `YouScreen.tsx` — Saved → "Saved places" and "Saved journeys", and Journey
-      History → "Past trips" are still inert rows carrying a `Phase 4` badge.
-      As of the Dexie/Supabase work (2026-07-30) the data those rows describe
-      genuinely exists, is queryable, and syncs: `listSavedStationIds()`,
-      `listSavedJourneys()` and `listRecentTrips()` in `app/src/data/db.ts`.
-      Saved journeys are already rendered on the search overlay
-      (`HomeSearch.tsx`) and recent trips in the planner, so the YOU screen is
-      now the only place claiming they're unbuilt.
-      Not fixed here because it's a new surface, not part of wiring the store,
-      and §4.5's Data Management scope was the sync half. A fix is three rows
-      reading the existing helpers — no new data layer.
-      *(Out of scope for the integration task; logged rather than fixed.)*
+_(no open entries)_
 
 ## Reference pages (`app/src/features/info/topics.ts`)
 
@@ -106,6 +94,38 @@ _(no open entries)_
       split the handful of boot-needed constants into their own small file at
       scrape time, so nothing is copied and nothing over-imports.
 
+- [ ] **`/you` is a static route, so the whole settings screen is boot weight.**
+      Found while shipping §8.1 phases D & E (2026-07-31), which added
+      `SavedData.tsx`, `PreferencesSection.tsx` and a 53-station `<select>` to
+      `YouScreen` and moved the boot chunk from 203.89 KB gzip to 207.17 KB.
+      `App.tsx:132` mounts `YouScreen` directly while `/you/:topic` right below
+      it is `lazy()` — so the reference *prose* is split out and the screen that
+      links to it is not. Nothing on YOU is needed to draw a map or plan a
+      journey, which is the same argument §5.6 makes for the topic pages.
+      A fix is one `lazy()` plus the `Suspense` boundary that's already there
+      for its child route; the thing to check is that the account card and theme
+      toggle don't regress, since both read context the shell owns.
+      **Measured 2026-07-31:** building it both ways puts the boot chunk at
+      663.11 KB raw / 207.17 KB gzip as it stands and 630.26 KB / 197.23 KB
+      behind `lazy()` — **9.94 KB gzip off every cold start**, which is three
+      times what phases D & E added in the first place.
+      *(Out of scope for the phase D/E task, which was the rows themselves.)*
+
+- [ ] **`STATIONS_BY_LINE` is built twice, in two files, from the same array.**
+      Found during the phase D/E cleanup pass (2026-07-31).
+      `HomeSearch.tsx:56` groups `STATIONS` by line at module scope, and
+      `PreferencesSection.tsx`'s `byLine` memo does it again for the departure
+      `<select>`. The two differ only in that the newer one filters
+      `operational !== false` — its `sort((a,b) => a.order - b.order)` is a
+      no-op, since `stations.json` already stores each line in `order`.
+      Not consolidated here because the shared home is the awkward part:
+      `constants.ts` is a pure leaf with zero imports today, and moving a
+      station-derived index there would make every one of its many importers
+      pull `journeyEngine`. `journeyEngine.ts` (which already owns `STATIONS`
+      and `STATION_BY_ID`) is the better home, and that's a wider edit than a
+      cleanup pass should make.
+      *(Out of scope for the cleanup pass; logged rather than fixed.)*
+
 ## PWA / offline deviations
 
 - [x] **Dexie deliberately not implemented — reversed 2026-07-30.** PRD §5.2/§5.3
@@ -126,6 +146,19 @@ _(no open entries)_
 ---
 
 ## Resolved / Fixed
+
+- **[Fixed 2026-07-31]** The three "Phase 4" stub rows on YOU had real data
+  behind them. Saved → "Saved places" / "Saved journeys" and Journey History →
+  "Past trips" were inert rows with a `Phase 4` badge, while
+  `listSavedStationIds()`, `listSavedJourneys()` and `listRecentTrips()` had
+  been live and syncing since 2026-07-30. Now `features/journey/components/
+  SavedData.tsx` — each row reads its table through `useLiveQuery` and expands
+  to the full list, with removal per entry. Removal is the part the other two
+  surfaces couldn't offer: the search overlay and the planner show these rows as
+  shortcuts to act on, and there was nowhere to see everything you had stored.
+  Verified in the browser that removing a saved station tombstones the row and
+  queues it, rather than deleting it (§5.7). Shipped with §8.1 phase E, which
+  did the same for the two Preferences stubs.
 
 - **[Fixed 2026-07-29]** Three findings from the source-fidelity audit of all
   eight reference topics (the audit's remaining three are open above).

@@ -481,6 +481,18 @@ describe("walkMinsForKm", () => {
   ])("%f km ≈ %i min at 5 km/h", (km, mins) => {
     expect(walkMinsForKm(km)).toBe(mins);
   });
+
+  // The pace is the rider's preference (§8.1 phase E), passed in per call so the
+  // engine has no settable state that boot order could read before it lands.
+  it("scales with the pace it is given", () => {
+    expect(walkMinsForKm(5, 4)).toBe(75);
+    expect(walkMinsForKm(5, 5)).toBe(60);
+    expect(walkMinsForKm(5, 6)).toBe(50);
+  });
+
+  it("still floors at a minute at the briskest pace", () => {
+    expect(walkMinsForKm(0, 6)).toBe(1);
+  });
 });
 
 // ─── Station inputs must stay stations ─────────────────────────────────────────
@@ -528,5 +540,25 @@ describe("station-to-station journeys carry no walk", () => {
     const plan = planJourney(aPlace, "thaltej-gam", cfg)!;
     expect(plan.sourcePlace).not.toBeNull();
     expect(plan.sourceWalkMins).toBeGreaterThan(0);
+  });
+
+  // ─── Walking pace reaches the plan ──────────────────────────────────────────
+
+  it("a brisker pace shortens the walk leg", () => {
+    const relaxed = planJourney(aPlace, "thaltej-gam", { ...cfg, walkSpeedKmh: 4 })!;
+    const brisk = planJourney(aPlace, "thaltej-gam", { ...cfg, walkSpeedKmh: 6 })!;
+    expect(brisk.sourceWalkMins).toBeLessThan(relaxed.sourceWalkMins);
+  });
+
+  it("defaults to 5 km/h when no pace is given", () => {
+    const implicit = planJourney(aPlace, "thaltej-gam", cfg)!;
+    const explicit = planJourney(aPlace, "thaltej-gam", { ...cfg, walkSpeedKmh: 5 })!;
+    expect(implicit.sourceWalkMins).toBe(explicit.sourceWalkMins);
+  });
+
+  it("leaves a station-to-station plan alone — it has no walk to scale", () => {
+    const plan = planJourney("vastral-gam", "thaltej-gam", { ...cfg, walkSpeedKmh: 4 })!;
+    expect(plan.sourceWalkMins).toBe(0);
+    expect(plan.destWalkMins).toBe(0);
   });
 });

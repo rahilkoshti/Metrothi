@@ -5,6 +5,7 @@ import { STATIONS, estimateLine, nextDepartureFromStation, formatDuration, walkM
 import type { PlaceNode } from "../engine/journeyEngine";
 import { useNow } from "../hooks/useNow";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
+import { useWalkSpeed, useDefaultDeparture } from "../hooks/usePreferences";
 import { GeocodingService } from "../../../services/GeocodingService";
 
 import { LineBadge } from "../../../components/LineBadge";
@@ -53,6 +54,13 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
   // Live from Dexie (§5.7), so planning a trip on the home sheet updates this
   // list without the planner having to be remounted to notice.
   const recentTrips = useLiveQuery(listRecentTrips, [], [] as RecentTrip[]);
+  const { walkSpeedKmh } = useWalkSpeed();
+
+  // A default departure station outranks GPS but not an explicit "From here"
+  // (§8.1 phase E). The hook resolves the id and reads an unknown one as unset,
+  // so a stale pref synced from a build with different data can't land here as
+  // an empty source field.
+  const { defaultDeparture } = useDefaultDeparture();
 
   function fillFromTrip(trip: any) {
     if (trip.source) { setSource(trip.source); setSourceQuery(trip.source.name ?? ''); setSourceIsAuto(false); }
@@ -76,6 +84,10 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
     if (prefillSourceId) {
       const stn = STATIONS.find(s => s.id === prefillSourceId);
       if (stn) { setSource(stn); setSourceQuery(stn.name); setSourceIsAuto(false); }
+    } else if (defaultDeparture && sourceIsAuto) {
+      // The rider said where they usually start, so don't wait on GPS or
+      // overwrite their answer when it arrives.
+      setSource(defaultDeparture); setSourceQuery(defaultDeparture.name);
     } else if (nearest && sourceIsAuto) {
       setSource(nearest); setSourceQuery(nearest.name);
     }
@@ -87,7 +99,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
         setDestination(prefillDestId); setDestQuery(prefillDestId.name);
       }
     }
-  }, [nearest, sourceIsAuto, prefillSourceId, prefillDestId]);
+  }, [nearest, sourceIsAuto, prefillSourceId, prefillDestId, defaultDeparture]);
 
   const activeQuery = activeField === "source" ? sourceQuery : activeField === "destination" ? destQuery : "";
   const results = useMemo(() => {
@@ -315,16 +327,29 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
       </div>
 
       <div className="space-y-2.5 mb-6 px-1">
-        {sourceIsAuto && (
-          <LocationNotice status={locStatus} onRetry={onRetryLocation} compact />
-        )}
-        {sourceIsAuto && nearest?.distanceKm != null && (
-          <div className="text-xs font-medium flex items-center gap-2 px-1" style={{ color: 'var(--c-text-3)' }}>
-            <span>~{Math.round(nearest.distanceKm * 1000)}m away</span>
-            <span>·</span>
-            <span>{formatDuration(walkMinsForKm(nearest.distanceKm))} walk</span>
+        {/* An auto-filled source came from exactly one of two places, and the
+            notices differ accordingly. The distance and the retry prompt both
+            describe the *nearest* station, so with a default departure station
+            set they'd attach the wrong distance to a station the rider chose,
+            and a location failure is no longer something to retry (§8.1 phase
+            E). Nested rather than three flat conditions so that "one of these,
+            never both" is the shape of the code and not a rule to remember. */}
+        {sourceIsAuto && (defaultDeparture ? (
+          <div className="text-xs font-medium px-1" style={{ color: 'var(--c-text-3)' }}>
+            Your default departure station
           </div>
-        )}
+        ) : (
+          <>
+            <LocationNotice status={locStatus} onRetry={onRetryLocation} compact />
+            {nearest?.distanceKm != null && (
+              <div className="text-xs font-medium flex items-center gap-2 px-1" style={{ color: 'var(--c-text-3)' }}>
+                <span>~{Math.round(nearest.distanceKm * 1000)}m away</span>
+                <span>·</span>
+                <span>{formatDuration(walkMinsForKm(nearest.distanceKm, walkSpeedKmh))} walk</span>
+              </div>
+            )}
+          </>
+        ))}
         {sourceStatus?.status === "running" && (
           <div className="flex items-center gap-2 text-xs font-semibold p-3 rounded-xl text-green-600" style={{ background: 'rgba(74,222,128,0.06)' }}>
             <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />

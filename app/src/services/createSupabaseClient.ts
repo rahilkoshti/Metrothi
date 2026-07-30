@@ -4,7 +4,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
  * The only module that statically imports `@supabase/supabase-js`.
  *
  * It exists to be a dynamic-import boundary. `supabase.ts` imports *this* file
- * lazily, which keeps the 26 KB-gzipped SDK out of the boot bundle (§5.7) and —
+ * lazily, which keeps the 52 KB-gzipped SDK out of the boot bundle (§5.7) and —
  * the reason it's a separate file rather than an inline `import('@supabase/...')`
  * — gives the emitted chunk a name someone can recognise. Importing the package
  * directly names the chunk after its own path, so it lands in the build output

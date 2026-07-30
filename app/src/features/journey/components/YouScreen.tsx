@@ -1,4 +1,4 @@
-import { Moon, Sun, Footprints, MapPin, BookMarked, Clock, Train, Info, MessageSquare, Database, Building2, ArrowLeft } from "lucide-react";
+import { Moon, Sun, Info, MessageSquare, Database, Building2, ArrowLeft } from "lucide-react";
 import { useTheme } from "../../../contexts/ThemeContext";
 import { useNavigate } from "react-router-dom";
 import {
@@ -14,6 +14,8 @@ import { AccountCard, DataSection } from "../../account/AccountCard";
 // The row primitives moved to their own module so the account card renders rows
 // identical to these instead of forking a second set (§4.6).
 import { Row, RowDivider, SectionCard, SectionHeader } from "./settingsRows";
+import { SavedSection, HistorySection } from "./SavedData";
+import { PreferencesSection } from "./PreferencesSection";
 
 /** A section of reference-page rows, divided, from the topic catalog. */
 function TopicRows({ topics, onOpen }: { topics: TopicEntry[]; onOpen: (slug: string) => void }) {
@@ -126,10 +128,11 @@ export function YouScreen() {
       </SectionCard>
 
       {/* ── Riding the metro ─────────────────────────────────────────────────
-          Above Preferences / Saved / History on purpose: those are three
-          sections of Phase-4 stubs, and this is the first content on the screen
-          that actually does something. Live content doesn't get buried under
-          promises. */}
+          Above Preferences / Saved / History on purpose. That ordering was set
+          when those three were Phase-4 stubs and live content couldn't be
+          buried under promises; it stays now that they're real, because a rider
+          on this screen is far likelier to want the fare rules than to want to
+          change their walking pace. */}
       <SectionHeader label="Riding the metro" />
       <SectionCard>
         <TopicRows topics={RIDING_TOPICS} onOpen={openTopic} />
@@ -149,27 +152,17 @@ export function YouScreen() {
         />
       </SectionCard>
 
-      {/* ── Preferences ──────────────────────────────────────────────────── */}
-      <SectionHeader label="Preferences" />
-      <SectionCard>
-        <Row icon={Footprints} label="Walking speed" value="Normal (5 km/h)" badge="Phase 4" />
-        <RowDivider />
-        <Row icon={MapPin} label="Default departure station" value="Not set — uses GPS" badge="Phase 4" />
-      </SectionCard>
+      {/* ── Preferences ──────────────────────────────────────────────────────
+          Both rows printed their own default as if it were stored (§8.1 phase
+          E). They're now `prefs` rows, so they sync like everything else. */}
+      <PreferencesSection />
 
-      {/* ── Saved ────────────────────────────────────────────────────────── */}
-      <SectionHeader label="Saved" />
-      <SectionCard>
-        <Row icon={BookMarked} label="Saved places" value="Home, Work, and more" badge="Phase 4" />
-        <RowDivider />
-        <Row icon={Train} label="Saved journeys" value="Your frequent routes" badge="Phase 4" />
-      </SectionCard>
-
-      {/* ── History ──────────────────────────────────────────────────────── */}
-      <SectionHeader label="Journey History" />
-      <SectionCard>
-        <Row icon={Clock} label="Past trips" value="All your previous journeys" badge="Phase 4" />
-      </SectionCard>
+      {/* ── Saved & History ──────────────────────────────────────────────────
+          Both sections read the live Dexie tables (§8.1 phase D). They were
+          "Phase 4" stubs for as long as the data existed, which made this screen
+          the only place in the app saying these features weren't built. */}
+      <SavedSection />
+      <HistorySection />
 
       {/* ── Data & sync ──────────────────────────────────────────────────── */}
       <DataSection />

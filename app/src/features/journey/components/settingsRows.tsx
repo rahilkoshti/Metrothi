@@ -1,4 +1,5 @@
-import { ChevronRight, ArrowUpRight } from "lucide-react";
+import { useState } from "react";
+import { ChevronRight, ArrowUpRight, ChevronDown } from "lucide-react";
 
 /**
  * The YOU screen's row primitives.
@@ -30,8 +31,12 @@ export function RowDivider() {
  * Interactivity is derived from `onClick` / `href`, never declared: the old
  * `tappable` flag drew a button, a hover state and a chevron on rows that had
  * no handler at all, so every "tappable" row on this screen was a dead press.
- * A row that can't do anything now says so by having no affordance — the
- * `badge` ("Phase 4") is what tells you it's coming.
+ * A row that can't do anything now says so by having no affordance.
+ *
+ * There was also a `badge` prop, which existed only to print "Phase 4" on rows
+ * whose feature wasn't built. §8.1 phases D & E built the last five, so it had
+ * no call sites left and was removed rather than kept warm for a stub that may
+ * never come back.
  *
  * `href` covers the three outbound kinds the reference rows need — `tel:`,
  * `mailto:` and an external page — and only the last of those opens a new tab.
@@ -40,7 +45,6 @@ export function Row({
   icon: Icon,
   label,
   value,
-  badge,
   onClick,
   href,
   external = false,
@@ -51,7 +55,6 @@ export function Row({
   icon?: React.ElementType;
   label: string;
   value?: string;
-  badge?: string;
   onClick?: () => void;
   href?: string;
   /** Opens in a new tab and swaps the chevron for an outbound arrow. */
@@ -91,19 +94,66 @@ export function Row({
         </div>
         {value && <div className="text-[11px] font-medium mt-0.5" style={{ color: 'var(--c-text-3)' }}>{value}</div>}
       </div>
-      {badge && (
-        <span
-          className="text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border mr-2"
-          style={{ color: 'var(--c-text-3)', borderColor: 'var(--c-border-2)' }}
-        >
-          {badge}
-        </span>
-      )}
       {children}
       {interactive && !children && (
         <Chevron size={16} className="shrink-0" style={{ color: 'var(--c-text-4)' }} />
       )}
     </Tag>
+  );
+}
+
+/**
+ * A row that discloses its own content below it.
+ *
+ * Lives here rather than in either caller because §8.1 phases D & E each grew
+ * one: the Saved/History lists and the walking-speed picker were byte-identical
+ * down to the chevron's `rotate(180deg)`, and their expanded children had
+ * already drifted to different padding on day one — which is exactly the fork
+ * this module exists to prevent.
+ *
+ * `expandable` defaults to true because a picker always has choices to show.
+ * The lists pass `count > 0`, so an empty one renders as a plain row with no
+ * affordance rather than a press that opens nothing — the rule `Row` derives
+ * its own interactivity from.
+ *
+ * `children` may be a function, which receives a `close` callback: a picker
+ * collapses once a choice is made, while a list of things to remove stays open.
+ * That's the only behaviour the two callers disagree on, so it's the only thing
+ * passed back out.
+ */
+export function ExpandableRow({
+  icon,
+  label,
+  value,
+  expandable = true,
+  children,
+}: {
+  icon?: React.ElementType;
+  label: string;
+  value?: string;
+  expandable?: boolean;
+  children: React.ReactNode | ((close: () => void) => React.ReactNode);
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <Row
+        icon={icon}
+        label={label}
+        value={value}
+        onClick={expandable ? () => setOpen((v) => !v) : undefined}
+      >
+        {expandable && (
+          <ChevronDown
+            size={16}
+            className="shrink-0 transition-transform duration-200"
+            style={{ color: 'var(--c-text-4)', transform: open ? 'rotate(180deg)' : 'none' }}
+          />
+        )}
+      </Row>
+      {expandable && open && (typeof children === 'function' ? children(() => setOpen(false)) : children)}
+    </>
   );
 }
 

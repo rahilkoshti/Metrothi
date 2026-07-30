@@ -30,6 +30,7 @@ import { LiveJourneyScreen } from './LiveJourneyScreen';
 import { StationSheetActions, openWalkingDirections } from './stationSheet/StationSheetActions';
 import { UpcomingTrains } from './stationSheet/UpcomingTrains';
 import { useSavedStations } from '../hooks/useSavedStations';
+import { useWalkSpeed } from '../hooks/usePreferences';
 import type { useJourneySession } from '../hooks/useJourneySession';
 import type { LocStatus } from '../../../App';
 
@@ -224,6 +225,10 @@ export function HomeScreen({
   // Keep the plan's clocks live while it sits on screen, mirroring the old
   // ResultsScreen recompute. Recomputes every 15s and whenever the route changes.
   const now = useNow(15000);
+  // The rider's pace (§8.1 phase E). In the dependency list on purpose: changing
+  // it on the YOU screen should move the walk legs of a plan already on screen,
+  // not wait for the next 15s tick to notice.
+  const { walkSpeedKmh } = useWalkSpeed();
   const plan = useMemo(() => {
     if (!result) return null;
     return (
@@ -234,10 +239,10 @@ export function HomeScreen({
         // "Walk 1 min" row to the timeline.
         result.sourcePlace || result.sourceStation.id,
         result.destPlace || result.destStation.id,
-        { queryTime: result.queryTime, actualNow: now, arriveBy: result.arriveBy, isLeaveNow: result.isLeaveNow }
+        { queryTime: result.queryTime, actualNow: now, arriveBy: result.arriveBy, isLeaveNow: result.isLeaveNow, walkSpeedKmh }
       ) || result
     );
-  }, [result, now]);
+  }, [result, now, walkSpeedKmh]);
 
   // Stable id for the current route — drives the map's one-shot fit and the
   // sheet's snap/selection resets, without refiring on the 15s clock tick.
@@ -328,7 +333,11 @@ export function HomeScreen({
     setPlannerOpen(false);
     setPrefillSource(null);
     setPrefillDest(null);
-    onPlan(source, dest, config);
+    // The rider's pace rides along with every plan (§8.1 phase E). Merged here
+    // rather than read inside the engine, which stays free of the store — and
+    // here rather than in the shell, which would then observe `prefs` on the
+    // boot path for a value only this path uses.
+    onPlan(source, dest, { ...config, walkSpeedKmh });
   }
 
   const collapsedHeight =
@@ -511,7 +520,7 @@ export function HomeScreen({
               </Chip>
               <Chip>
                 <Clock size={12} strokeWidth={2.4} style={{ color: 'var(--c-text-4)' }} />
-                {formatDuration(walkMinsForKm(nearest.distanceKm))} walk
+                {formatDuration(walkMinsForKm(nearest.distanceKm, walkSpeedKmh))} walk
               </Chip>
             </>
           )}

@@ -31,6 +31,7 @@ import {
   type SavedJourney,
 } from '../../../data/db';
 import { LINE_BADGE_BG, LINE_NAMES } from '../constants';
+import { useWalkSpeed } from '../hooks/usePreferences';
 
 const SEARCHABLE = STATIONS.filter((s) => s.operational !== false);
 
@@ -184,6 +185,7 @@ export function HomeSearch({
   // the live-journey sheet shows up here without a remount.
   const recentTrips = useLiveQuery(listRecentTrips, [], [] as RecentTrip[]);
   const savedJourneys = useLiveQuery(listSavedJourneys, [], [] as SavedJourney[]);
+  const { walkSpeedKmh } = useWalkSpeed();
 
   useEffect(() => {
     // When arriving from a line pill we're browsing that line's stations, so
@@ -356,7 +358,7 @@ export function HomeSearch({
                       ? `${near.km < 1
                         ? `${Math.round(near.km * 1000)} m`
                         : `${near.km.toFixed(1)} km`
-                      } · ${formatDuration(walkMinsForKm(near.km))} walk`
+                      } · ${formatDuration(walkMinsForKm(near.km, walkSpeedKmh))} walk`
                       : 'No station nearby'
                   }
                   onClick={() => near && onSelectStation(near.station.id)}

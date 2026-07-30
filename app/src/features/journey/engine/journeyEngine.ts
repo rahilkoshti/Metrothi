@@ -3,6 +3,9 @@
 import stationsData from "../../../data/stations.json";
 import tracksData from "../../../data/tracks.json";
 import { fareForRoute } from "./fareEngine";
+// Constants and parsing only — no React, no Dexie. The engine takes the rider's
+// pace as a plan input; it never reads the store itself.
+import { DEFAULT_WALK_SPEED_KMH } from "../../../data/preferences";
 
 export interface PlaceNode {
   isPlace: true;
@@ -264,10 +267,20 @@ export function travelMinsBetween(line: string, fromId: string, toId: string): n
 // Fares live in fareEngine.ts - GMRC charges on distance, not stop count.
 
 const INTERCHANGE_BUFFER_MINS = 3;
-const WALK_SPEED_KMH = 5;
 
-export function walkMinsForKm(km: number) {
-  return Math.max(1, Math.round((km / WALK_SPEED_KMH) * 60));
+/**
+ * Minutes to walk `km`, at the rider's pace (§8.1 phase E).
+ *
+ * The speed is a parameter with a default rather than a module constant, so the
+ * preference reaches the engine the same way `queryTime` does — passed in per
+ * call. A settable module-level speed would be a second source of truth that
+ * boot order could read before the pref lands, and would make the engine's
+ * output depend on when it was called rather than on what it was asked.
+ *
+ * Floored at 1 minute at every pace: "0 min walk" reads as "you are there".
+ */
+export function walkMinsForKm(km: number, speedKmh: number = DEFAULT_WALK_SPEED_KMH) {
+  return Math.max(1, Math.round((km / speedKmh) * 60));
 }
 
 function getTicketOptions(source: StationRecord, dest: StationRecord): TicketInfo {
@@ -1026,6 +1039,12 @@ export interface PlanConfig {
    * mean anything for this plan.
    */
   isLeaveNow?: boolean;
+  /**
+   * The rider's walking pace in km/h (§8.1 phase E). Defaults to
+   * {@link DEFAULT_WALK_SPEED_KMH}, which is what every station-to-station plan
+   * gets regardless — it has no walk legs to scale.
+   */
+  walkSpeedKmh?: number;
 }
 
 export function planJourney(sourceInput: string | PlaceNode, destInput: string | PlaceNode, config: PlanConfig = {}): PlanResult | null {
@@ -1033,6 +1052,7 @@ export function planJourney(sourceInput: string | PlaceNode, destInput: string |
   const actualNow = config.actualNow || new Date();
   const isLeaveNow = config.isLeaveNow ?? !config.queryTime;
   const arriveBy = config.arriveBy || false;
+  const walkSpeedKmh = config.walkSpeedKmh || DEFAULT_WALK_SPEED_KMH;
   const searchTime = arriveBy ? new Date(queryTime.getTime() - 120 * 60000) : queryTime;
 
   let sourcePlace: PlaceNode | null = null;
@@ -1047,7 +1067,7 @@ export function planJourney(sourceInput: string | PlaceNode, destInput: string |
     sourcePlace = sourceInput;
     const { station, distKm } = findNearestStation(sourceInput);
     sourceId = station.id;
-    sourceWalkMins = walkMinsForKm(distKm);
+    sourceWalkMins = walkMinsForKm(distKm, walkSpeedKmh);
   }
 
   let destId: string;
@@ -1057,7 +1077,7 @@ export function planJourney(sourceInput: string | PlaceNode, destInput: string |
     destPlace = destInput;
     const { station, distKm } = findNearestStation(destInput);
     destId = station.id;
-    destWalkMins = walkMinsForKm(distKm);
+    destWalkMins = walkMinsForKm(distKm, walkSpeedKmh);
   }
 
   const base = buildLegs(sourceId, destId);
