@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import { HomeScreen } from './features/journey/components/HomeScreen';
 import { LocationService, type LocationErrorKind } from './services/LocationService';
 import { STATIONS, haversineKm, planJourney, STATION_BY_ID } from './features/journey/engine/journeyEngine';
@@ -193,6 +194,7 @@ function App() {
           <MainApp />
         </BrowserRouter>
       </ThemeProvider>
+      <Analytics />
     </AuthProvider>
   );
 }
