@@ -226,9 +226,12 @@ export function HomeSearch({
   const showEmptyState = !query.trim();
 
   return (
-    <div
-      className="fixed inset-0 z-[1200] flex flex-col animate-in fade-in duration-150"
+    <motion.div
+      className="fixed inset-0 z-[1200] flex flex-col"
       style={{ background: 'var(--c-bg)' }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
     >
       {/* Search bar — the exact same shared pill as the home screen, in its
           'active' state, so nothing about its shape changes when the overlay
@@ -375,7 +378,7 @@ export function HomeSearch({
           </motion.div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 }
 

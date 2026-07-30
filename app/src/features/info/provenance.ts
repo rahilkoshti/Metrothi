@@ -1,10 +1,14 @@
-// Only files that are already in the boot bundle may be read here — this module
-// is imported by `YouScreen`. A JSON import is all-or-nothing whatever its
-// form: Vite emits one module per file, so touching `passengerInfo.json` or
-// `metroInfo.json` from this side would pull all 19 KB of reference prose out
-// of the lazy `/you/:topic` chunk and into the main one (§5.6). The three below
-// are boot-critical anyway — the timetable and fares drive the sheet, and
-// `stationFacilities` drives the Station Info tab.
+// Only files something else already pulls in may be read here. `/you` is now a
+// lazy route, so this module is no longer in the boot bundle itself — but the
+// constraint survives that move intact, because a JSON import is all-or-nothing
+// whatever its form: Vite emits one module per file, so touching
+// `passengerInfo.json` or `metroInfo.json` from this side would pull all 19 KB
+// of reference prose out of the `/you/:topic` chunk and into the one the
+// settings screen downloads, which is a list of rows that links to those pages
+// and does not need their text (§5.6). The three below cost nothing wherever
+// they are read — the timetable and fares drive the sheet, and
+// `stationFacilities` drives the Station Info tab, so all three are on the boot
+// path already.
 import { _meta as timetableMeta } from "../../data/timetable.json";
 import { _meta as faresMeta } from "../../data/fares.json";
 import { _meta as facilitiesMeta } from "../../data/stationFacilities.json";

@@ -7,14 +7,14 @@ import {
   animate,
   type PanInfo,
 } from 'framer-motion';
+// Matches the feel of the other sheets in the app rather than a linear ease.
+// Shared from `sheetMotion` because "the other sheets in the app" is a claim
+// something has to keep true — `TrainRouteSheet` rises on the same spring.
+import { SPRING } from './sheetMotion';
 
 export type SheetSnap = 'collapsed' | 'mid' | 'full';
 
 const SNAP_ORDER: SheetSnap[] = ['collapsed', 'mid', 'full'];
-
-// Matches the feel of the other sheets in the app rather than a linear ease —
-// a drag that's released mid-flight should decelerate, not stop dead.
-const SPRING = { type: 'spring', stiffness: 420, damping: 42, mass: 0.9 } as const;
 
 // Past this speed the gesture is a flick: honour its direction instead of
 // snapping to whichever point happens to be nearest.

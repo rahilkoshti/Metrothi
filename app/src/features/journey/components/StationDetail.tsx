@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from "react";
+import { motion } from "framer-motion";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
@@ -786,7 +787,20 @@ export function StationDetail() {
   const deepLinkState = (location.state as { openLine?: string; openDirDest?: string } | null) ?? {};
 
   return (
-    <div className="min-h-[100dvh] pb-28 animate-in fade-in slide-in-from-right-4 duration-300">
+    // The dead classes here were `fade-in slide-in-from-right-4`; only the fade
+    // is restored. The 16px lateral part was built and measured first, and it
+    // overflows: `<main>` carries `overflow-y: auto`, which per CSS makes its
+    // `overflow-x` compute to `auto` rather than stay visible, so a page root
+    // starting 16px right of its box gives `main` a real horizontal scroll
+    // range — measured at 375px, `scrollWidth` 391 against `clientWidth` 375,
+    // on the entrance's own first frame. Killing it would mean clipping
+    // `<main>` for every route to buy one decorative slide. Don't re-add it.
+    <motion.div
+      className="min-h-[100dvh] pb-28"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+    >
       {/* Sticky top bar */}
       <div
         className="sticky top-0 z-30 px-4 py-3 flex items-center gap-3 transition-colors"
@@ -814,6 +828,6 @@ export function StationDetail() {
         openDirDest={deepLinkState.openDirDest}
         onPlanIntent={(detail) => navigate("/", { state: { planTrip: detail } })}
       />
-    </div>
+    </motion.div>
   );
 }

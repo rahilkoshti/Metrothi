@@ -15,12 +15,12 @@ import {
  * What reference pages exist, for the rows on the YOU screen (§4.5.1).
  *
  * Deliberately separate from `topics.ts`, and deliberately importing no JSON:
- * this module is in the boot bundle because `YouScreen` renders from it, while
+ * this module is reached from the YOU screen, which lists the topics, while
  * `topics.ts` — which pulls in 19 KB of reference prose — is reached only from
- * the lazy `/you/:topic` chunk (§4.6). Anything that needs the *content* of a
- * topic belongs there; this file knows only that a topic exists and what its
- * row says. `topics.test.ts` holds the two in sync by asserting every slug
- * here resolves to a built topic.
+ * the `/you/:topic` chunk one route below (§4.6). Anything that needs the
+ * *content* of a topic belongs there; this file knows only that a topic exists
+ * and what its row says. `topics.test.ts` holds the two in sync by asserting
+ * every slug here resolves to a built topic.
  */
 
 export type TopicSlug =
@@ -114,10 +114,13 @@ export const ALL_TOPICS: TopicEntry[] = [...RIDING_TOPICS, ...HELP_TOPICS];
  *
  * **The three URLs below are copied from `passengerInfo.json`, not imported.**
  * A named JSON import looks like it would tree-shake to just these keys — it
- * does not. Vite emits one module per JSON file, so a single named import from
- * a boot-path module (which this is: `YouScreen` renders from it) drags all
- * 12 KB of reference prose into the main chunk and leaves the lazy chunk with
- * none of it. Verified in the build output, not assumed.
+ * does not. Vite emits one module per JSON file, so a single named import here
+ * drags all 12 KB of reference prose into whatever chunk this module lands in
+ * and leaves the topic chunk with none of it. That chunk used to be the boot
+ * bundle; since `/you` went lazy it is the settings screen's own, which is a
+ * smaller cost and the same mistake — a list of rows that links to those pages
+ * has no more use for their text than the map does. Verified in the build
+ * output, not assumed.
  *
  * `topics.test.ts` asserts these three still match the JSON, so the copy cannot
  * silently drift from the source of record.

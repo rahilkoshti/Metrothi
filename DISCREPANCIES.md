@@ -93,23 +93,12 @@ _(no open entries)_
       under a test that asserts they still match the JSON. A real fix would
       split the handful of boot-needed constants into their own small file at
       scrape time, so nothing is copied and nothing over-imports.
-
-- [ ] **`/you` is a static route, so the whole settings screen is boot weight.**
-      Found while shipping §8.1 phases D & E (2026-07-31), which added
-      `SavedData.tsx`, `PreferencesSection.tsx` and a 53-station `<select>` to
-      `YouScreen` and moved the boot chunk from 203.89 KB gzip to 207.17 KB.
-      `App.tsx:132` mounts `YouScreen` directly while `/you/:topic` right below
-      it is `lazy()` — so the reference *prose* is split out and the screen that
-      links to it is not. Nothing on YOU is needed to draw a map or plan a
-      journey, which is the same argument §5.6 makes for the topic pages.
-      A fix is one `lazy()` plus the `Suspense` boundary that's already there
-      for its child route; the thing to check is that the account card and theme
-      toggle don't regress, since both read context the shell owns.
-      **Measured 2026-07-31:** building it both ways puts the boot chunk at
-      663.11 KB raw / 207.17 KB gzip as it stands and 630.26 KB / 197.23 KB
-      behind `lazy()` — **9.94 KB gzip off every cold start**, which is three
-      times what phases D & E added in the first place.
-      *(Out of scope for the phase D/E task, which was the rows themselves.)*
+      **Updated 2026-07-31:** `/you` is now `lazy()`, so `catalog.ts` is no
+      longer a boot-path module and the chunk this would spill into is the
+      settings screen's own rather than `index.js`. The rule is unchanged and
+      the workaround stays — a list of rows that links to the reference pages
+      has no more use for their prose than the map does — but the entry's
+      "main chunk" framing now describes the general case, not this call site.
 
 - [ ] **`STATIONS_BY_LINE` is built twice, in two files, from the same array.**
       Found during the phase D/E cleanup pass (2026-07-31).
@@ -146,6 +135,75 @@ _(no open entries)_
 ---
 
 ## Resolved / Fixed
+
+- **[Fixed 2026-07-31]** `/you` is a `lazy()` route, so the settings screen is
+  no longer boot weight. One `lazy()` around `YouScreen` plus a `Suspense`
+  boundary beside the one `/you/:topic` already had, and a `YouScreenFallback`
+  that draws the title block and section cards at their real margins so the
+  layout doesn't jump — the same shape as `InfoPageFallback`, and raw divs for
+  the same reason, since importing `settingsRows` would pull the row primitives
+  back onto the boot path.
+  **The 9.94 KB gzip this entry claimed was wrong, and the way it was wrong is
+  worth keeping.** That figure came from the `index-*.js` line of the build
+  report. Splitting this route also lifts `jsx-runtime` (3.29 KB gzip) and
+  `preload-helper` (0.69 KB) out into their own files, which `index.html` still
+  loads at boot — so the entry chunk drops further than the boot payload does.
+  Measured across **every** file `index.html` requests: 662,652 raw / 204,171
+  gzip before, 641,102 / 198,719 after, i.e. **5.32 KB gzip (21.0 KB raw) off
+  every cold start** — still worth it, and about half of what was advertised.
+  Anyone re-measuring a split should sum the boot files, not read one line.
+  Two doc-comments asserted the premise this change removes — `catalog.ts` and
+  `provenance.ts` both said "this module is in the boot bundle because
+  `YouScreen` renders from it", and the JSON-import rule they justify was left
+  standing but re-argued: the prose would now land in the settings screen's own
+  chunk instead of the main one, which is a smaller cost and the same mistake.
+  Verified live at 375px: `/you` renders all its sections, the account card
+  reads "Not signed in", and the theme toggle still crosses the new Suspense
+  boundary — one press moved `--c-bg` to `#0f0f0f` and wrote `dark` to the
+  `metrothi-theme` mirror, so the Dexie-plus-paint-hint path (§5.7) is intact.
+  `tsc -b --noEmit` clean, oxlint at its 9 pre-existing warnings, suite 352/352.
+
+- **[Fixed 2026-07-31]** The eight dead `animate-in` / `fade-in` /
+  `slide-in-from-*` classes are gone: seven are real framer-motion entrances
+  now, and one is deleted. framer-motion over `tw-animate-css` because it is
+  already the project's animation library and already did this exact job for
+  the search suggestions — adding a CSS animation package would put weight on
+  the boot path in the same change that took weight off it.
+  **`StationDetail`'s lateral slide was built, measured, and dropped.**
+  `slide-in-from-right-4` starts the page root 16px right of its box, and
+  `<main>` carries `overflow-y: auto`, which per CSS makes its `overflow-x`
+  compute to `auto` rather than stay `visible` — so the entrance gave `main` a
+  real horizontal scroll range, measured at 375px as `scrollWidth` 391 against
+  `clientWidth` 375 on the animation's own first frame. Only the fade is
+  restored (`scrollWidth` 375, overflow 0 on the same frame). Killing the
+  overflow instead would mean clipping `<main>` for every route to buy one
+  decorative slide.
+  **`App.tsx`'s route-fade is deleted rather than reimplemented.** It sits
+  outside `<Routes>`, so as written it fades the whole app in once at boot —
+  on the boot path §5.6 exists to protect — and a genuine per-route transition
+  needs `AnimatePresence` keyed on the path, which would unmount `HomeScreen`
+  on every navigation and tear down the map and sheet the shell keeps mounted
+  on purpose (§4.1).
+  `TrainRouteSheet` rises on the app's own sheet spring, now shared from
+  `components/sheetMotion.ts` rather than copied — its own module because
+  exporting it from `DraggableSheet` costs that file fast refresh, and
+  importing `DraggableSheet` for four numbers would drag the whole drag
+  implementation along. Entrances only, matching what the dead classes
+  specified; an exit would need `AnimatePresence` in both callers.
+  **Verification caveat, and it is a real one:** the Browser pane never
+  composited a frame this session — `document.visibilityState` is `hidden`,
+  0 rAF callbacks fired in 600 ms, `document.timeline.currentTime` is 0, and
+  screenshots time out on every route, not just the map. So every framer
+  animation sits pinned at its *initial* value in-pane and none were watched
+  running. What that does verify is each entrance's worst frame, which is the
+  frame that can overflow: all seven mount with the right content and the right
+  starting transform (`-8px` dropdown, `-4px` time rows, `translateY(100%)` and
+  `top: 812` for the sheet at an 812px viewport), the sheet's 100% offset adds
+  **zero** document scroll height (1442 → 1442) because it is `position: fixed`,
+  and horizontal overflow is 0 at every one of them.
+  `tsc -b --noEmit` clean, oxlint at its 9 pre-existing warnings (the one this
+  work briefly added, from exporting `SPRING`, is what `sheetMotion.ts` exists
+  to avoid), suite 352/352, no console errors on any route touched.
 
 - **[Fixed 2026-07-31]** The three "Phase 4" stub rows on YOU had real data
   behind them. Saved → "Saved places" / "Saved journeys" and Journey History →
@@ -560,16 +618,6 @@ _(no open entries)_
   intent in router state (`{ planTrip: { source | dest } }`). `HomeScreen` reads
   that state once on mount, opens the planner with the prefill, then clears the
   state (`replace`) so a refresh/back-nav doesn't reopen it.
-
-- **[Found 2026-07-25, not fixed]** Dead `animate-in` / `fade-in` /
-  `slide-in-from-top-*` classes across the app (e.g. the `HomeSearch` overlay
-  root, `Planner.tsx` dropdown, other overlays). The project is on **Tailwind v4
-  with no `tailwindcss-animate` / `tw-animate-css`**, so these utilities generate
-  **no CSS** (`getComputedStyle` → `animation-name: none`) and the intended
-  entrance animations simply don't happen for real users. Fix options: add
-  `tw-animate-css` and `@import` it, or replace with framer-motion /
-  hand-written `@keyframes`. (The search-suggestions entrance was done with
-  framer-motion instead.) Out of scope for the UI-parity search work.
 
 - **[Added 2026-07-23]** Home-map viewport is now fenced to the metro area. Set
   `maxBounds` (network box padded ~25%), `maxBoundsViscosity: 1.0` (hard fence —

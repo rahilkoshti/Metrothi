@@ -4,11 +4,11 @@ import { HomeScreen } from './features/journey/components/HomeScreen';
 import { LocationService, type LocationErrorKind } from './services/LocationService';
 import { STATIONS, haversineKm, planJourney, STATION_BY_ID } from './features/journey/engine/journeyEngine';
 import { StationDetail } from './features/journey/components/StationDetail';
-import { YouScreen } from './features/journey/components/YouScreen';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { useJourneySession } from './features/journey/hooks/useJourneySession';
 import { InfoPageFallback } from './features/info/InfoPageFallback';
+import { YouScreenFallback } from './features/journey/components/YouScreenFallback';
 import { ScrollReset } from './components/ScrollReset';
 import { recordRecentTrip, migrateFromLocalStorage } from './data/db';
 import { syncNow } from './services/syncEngine';
@@ -19,6 +19,25 @@ import { syncNow } from './services/syncEngine';
 // which the service worker has it precached and it works offline like the rest
 // (§5.6).
 const InfoPage = lazy(() => import('./features/info/InfoPage'));
+
+// The settings screen goes the same way, for the same reason one route down.
+// Nothing on YOU is needed to draw a map or plan a journey, and it carries the
+// topic catalog, the provenance mapping, the account card and a 53-station
+// `<select>` behind it.
+//
+// Measured over the build both ways, counting **every** file `index.html`
+// loads and not just the entry chunk: 641,102 raw / 198,719 gzip against
+// 662,652 / 204,171, so **5.32 KB gzip (21.0 KB raw) off every cold start**.
+// The entry chunk alone appears to drop 9.8 KB, and that figure is wrong —
+// splitting this route also lifts `jsx-runtime` and `preload-helper` out into
+// their own files, which `index.html` still fetches at boot. Anyone re-measuring
+// this should sum the boot files, not read the `index-*.js` line.
+//
+// Named export, so the module is unwrapped to a default here rather than given
+// a default export it has no other use for.
+const YouScreen = lazy(() =>
+  import('./features/journey/components/YouScreen').then((m) => ({ default: m.YouScreen })),
+);
 
 // "locating" and "granted" plus the three ways a location request can fail.
 // Kept distinct because each failure needs different wording and a different
@@ -129,22 +148,37 @@ function MainApp() {
           {/* Sits inside <main> so its walk up the tree passes the two elements
               that could own the page scroll. */}
           <ScrollReset />
-          <div className="animate-in fade-in duration-300">
-            <Routes>
-              <Route path="/" element={<HomeScreen {...homeProps} />} />
-              <Route path="/stations/:id" element={<StationDetail />} />
-              <Route path="/you" element={<YouScreen />} />
-              <Route
-                path="/you/:topic"
-                element={
-                  <Suspense fallback={<InfoPageFallback />}>
-                    <InfoPage />
-                  </Suspense>
-                }
-              />
-              <Route path="*" element={<HomeScreen {...homeProps} />} />
-            </Routes>
-          </div>
+          {/* This used to be wrapped in `animate-in fade-in duration-300`,
+              which generated no CSS — the project is on Tailwind v4 with no
+              animate plugin, so the fade never happened for anyone. It is
+              deleted rather than reimplemented, because neither reading of it
+              is something we want: as written it sits outside `<Routes>` and
+              would fade the whole app in once at boot, delaying the first frame
+              on the boot path §5.6 exists to protect; and a real per-route
+              transition needs `AnimatePresence` keyed on the path, which would
+              unmount `HomeScreen` on every navigation and tear down the map and
+              sheet this shell keeps mounted on purpose (§4.1). */}
+          <Routes>
+            <Route path="/" element={<HomeScreen {...homeProps} />} />
+            <Route path="/stations/:id" element={<StationDetail />} />
+            <Route
+              path="/you"
+              element={
+                <Suspense fallback={<YouScreenFallback />}>
+                  <YouScreen />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/you/:topic"
+              element={
+                <Suspense fallback={<InfoPageFallback />}>
+                  <InfoPage />
+                </Suspense>
+              }
+            />
+            <Route path="*" element={<HomeScreen {...homeProps} />} />
+          </Routes>
         </main>
       </div>
     </div>

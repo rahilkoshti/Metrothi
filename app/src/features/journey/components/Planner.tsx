@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { motion } from "framer-motion";
 import { ArrowUpDown, ArrowRight, MapPin, History, Clock, ChevronDown, X } from "lucide-react";
 import { StationInput } from "./StationInput";
 import { STATIONS, estimateLine, nextDepartureFromStation, formatDuration, walkMinsForKm } from "../engine/journeyEngine";
@@ -251,9 +252,15 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
         </button>
 
         {showSuggestions && (
-          <div
-            className="absolute left-0 right-0 top-[calc(100%+8px)] rounded-2xl overflow-hidden shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 z-50 max-h-[60vh] overflow-y-auto"
+          // Drops in from 8px above, matching the search overlay's own
+          // suggestion list (`HomeSearch`), which is the one place in the app
+          // where this entrance was already real.
+          <motion.div
+            className="absolute left-0 right-0 top-[calc(100%+8px)] rounded-2xl overflow-hidden shadow-2xl z-50 max-h-[60vh] overflow-y-auto"
             style={{ background: 'var(--c-card)', border: '1px solid var(--c-border-2)' }}
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
           >
             {results.length > 0 && (
               <div className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-neutral-500 bg-neutral-50 dark:bg-neutral-800/50">Stations</div>
@@ -322,7 +329,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
                 </button>
               );
             })}
-          </div>
+          </motion.div>
         )}
       </div>
 
@@ -426,7 +433,12 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
         </button>
 
         {timeExpanded && (
-          <div className="mt-3 animate-in fade-in slide-in-from-top-1 duration-200">
+          <motion.div
+            className="mt-3"
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+          >
             <div className="flex items-center gap-1 mb-3 p-1 rounded-xl" style={{ background: 'var(--c-card)' }}>
               {(['now', 'depart', 'arrive'] as const).map(mode => (
                 <button
@@ -451,7 +463,11 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
               ))}
             </div>
             {timeMode !== 'now' && (
-              <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+              >
                 <input
                   type="datetime-local"
                   value={timeStr}
@@ -464,9 +480,9 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
                     boxShadow: '0 2px 12px rgba(0,0,0,0.05)'
                   }}
                 />
-              </div>
+              </motion.div>
             )}
-          </div>
+          </motion.div>
         )}
       </div>
 

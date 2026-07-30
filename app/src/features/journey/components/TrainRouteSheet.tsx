@@ -1,5 +1,7 @@
 import { useEffect, useRef, useMemo } from "react";
+import { motion } from "framer-motion";
 import { ArrowRight, X } from "lucide-react";
+import { SPRING } from "../../../components/sheetMotion";
 import {
   STATION_BY_ID,
   LINE_META,
@@ -108,15 +110,23 @@ export function TrainRouteSheet({
   return (
     <>
       {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+      <motion.div
+        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
       />
 
-      {/* Sheet */}
-      <div
-        className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl animate-in slide-in-from-bottom duration-300"
+      {/* Sheet. Entrance only, as the dead Tailwind classes specified — an exit
+          would need `AnimatePresence` in both callers, which is a behaviour
+          nobody has asked for and not what was being restored here. */}
+      <motion.div
+        className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl"
         style={{ background: "var(--c-bg)", maxHeight: "85vh", display: "flex", flexDirection: "column" }}
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        transition={SPRING}
       >
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-1 shrink-0">
@@ -259,7 +269,7 @@ export function TrainRouteSheet({
 
           <div className="h-6" />
         </div>
-      </div>
+      </motion.div>
     </>
   );
 }
