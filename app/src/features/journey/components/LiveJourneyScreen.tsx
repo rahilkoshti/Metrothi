@@ -8,7 +8,8 @@ import {
 import { fullDayStationSchedule, LINE_PATHS, clockTimeAfter } from "../engine/journeyEngine";
 import type { JourneyState, useJourneySession } from "../hooks/useJourneySession";
 import { useNow } from "../hooks/useNow";
-import { LINE_COLORS } from "../constants";
+import { LINE_COLORS, LINE_TEXT } from "../constants";
+import { legOffsetsOf, activeLegIndexOf } from "../liveStatus";
 import { TrainRouteSheet } from "./TrainRouteSheet";
 import { ExitGuidance } from "./ExitGuidance";
 import { LineBadge } from "../../../components/LineBadge";
@@ -21,12 +22,6 @@ import { syncNow } from "../../../services/syncEngine";
 const RAIL_W = 14;
 /** Vertical offset of a station dot's center from its row top (px). */
 const DOT_Y = 12;
-
-// Current-station text needs to be readable on both themes — raw line yellow
-// (#EAB308) fails on the light background, so it gets a darker stand-in.
-const CURRENT_TEXT: Record<string, string> = {
-  blue: "#3B82F6", red: "#EF4444", yellow: "#CA8A04", violet: "#A855F7",
-};
 
 const fmtMins = (m: number) => `${m} min${m === 1 ? "" : "s"}`;
 
@@ -167,15 +162,12 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session }: L
   const startDate = session.startedAt ? new Date(session.startedAt) : null;
 
   // Global stop index of each leg's first station (leg k spans o[k] .. o[k+1]).
-  const legOffsets = useMemo(() => {
-    const o: number[] = [0];
-    (legs || []).forEach((leg: any) => o.push(o[o.length - 1] + leg.ids.length - 1));
-    return o;
-  }, [legs]);
+  // Shared with the collapsed summary — the two disagreed about which leg was
+  // current at an interchange, which is the one moment it matters.
+  const legOffsets = useMemo(() => legOffsetsOf(legs), [legs]);
 
   const cs = currentStopIndex;
-  let activeLegIdx = 0;
-  for (let k = 0; k < (legs?.length || 0); k++) if (legOffsets[k] <= cs) activeLegIdx = k;
+  const activeLegIdx = activeLegIndexOf(legOffsets, cs);
 
   const isLegExpanded = (k: number) => expandedLegs[k] ?? k === activeLegIdx;
 
@@ -277,7 +269,7 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session }: L
 
     const nameStyle = (li: number, base: string) =>
       isCurrent(li)
-        ? { color: CURRENT_TEXT[leg.line], fontWeight: 700 }
+        ? { color: LINE_TEXT[leg.line], fontWeight: 700 }
         : { color: isPassed(li) ? "var(--c-text-4)" : base };
 
     const intermediateRow = (li: number) => (
@@ -289,7 +281,7 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session }: L
               {stationName(li)}
             </div>
             {isActive && !isPassed(li) && (
-              <div className="text-[11px] font-medium mt-0.5 transition-colors duration-300" style={{ color: isCurrent(li) ? CURRENT_TEXT[leg.line] : "var(--c-text-4)" }}>
+              <div className="text-[11px] font-medium mt-0.5 transition-colors duration-300" style={{ color: isCurrent(li) ? LINE_TEXT[leg.line] : "var(--c-text-4)" }}>
                 {minsLeftAt(li)} min{minsLeftAt(li) === 1 ? "" : "s"} left
               </div>
             )}

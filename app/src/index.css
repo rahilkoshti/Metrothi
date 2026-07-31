@@ -28,6 +28,11 @@
      the light card but only ~3.4:1 on the dark one, so the dark theme lightens
      it rather than reusing the same red at half the contrast. */
   --c-danger:    #dc2626;
+  /* "You've arrived" / "get off here" — the live journey's only positive
+     signal, and the counterpart to --c-accent's "get ready". Theme-aware for
+     the same reason --c-danger is: #15803d is ~4.9:1 on the light card and
+     would fall under 3:1 on the dark one. */
+  --c-success:   #15803d;
   --layout-max-width: 768px;
 }
 
@@ -43,6 +48,7 @@
   --c-text-3:    #a1a1aa;
   --c-text-4:    #71717a;
   --c-danger:    #f87171;
+  --c-success:   #4ade80;
 }
 
 html, body, #root {

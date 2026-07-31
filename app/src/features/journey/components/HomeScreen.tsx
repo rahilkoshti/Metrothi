@@ -43,8 +43,14 @@ const HomeMap = lazy(() => import('../../map/components/HomeMap').then((m) => ({
 const COLLAPSED_H = 118;
 // Peek height for the planned-route header (title + chips row).
 const PLAN_COLLAPSED_H = 104;
-// Peek height for the live-journey summary header.
-const LIVE_COLLAPSED_H = 96;
+// Floor for the live-journey peek — deliberately *below* the summary's own
+// height rather than tuned to it, so `DraggableSheet`'s `Math.max` always
+// resolves to the header and the peek is the header exactly. The previous 96
+// sat above it and the sheet spent every live journey showing 26px of a body
+// that is only legible whole: the destination heading, sliced in half at the
+// fold. The bar's shortest form is the arrived states, which drop their third
+// band; this stays under that.
+const LIVE_COLLAPSED_H = 80;
 
 // Vertical space the floating chrome (search pill, then the line-status strip)
 // claims at the top of the map. Floating controls have to clear it, or they'd

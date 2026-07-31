@@ -1,11 +1,43 @@
-import { MapPin, Train, Flag, ChevronUp } from "lucide-react";
+import { MapPin, Train, Flag, ChevronUp, Footprints, ArrowLeftRight, ArrowRight } from "lucide-react";
 import type { useJourneySession } from "../../hooks/useJourneySession";
+import { liveStatusOf, type LiveIcon, type LiveTone } from "../../liveStatus";
+import { LINE_COLORS, LINE_TEXT } from "../../constants";
+
+const ICONS: Record<LiveIcon, typeof Train> = {
+  walk: Footprints,
+  wait: MapPin,
+  train: Train,
+  transfer: ArrowLeftRight,
+  flag: Flag,
+};
+
+const TONE: Record<LiveTone, string> = {
+  normal: "var(--c-text)",
+  alert: "var(--c-accent)",
+  good: "var(--c-success)",
+};
 
 /**
  * Live-journey summary shown in the home sheet header once a trip is underway.
- * Tapping it maximizes the full-screen LiveJourneyScreen. Replaces the old
- * floating MinimizedJourneyBar so the live state lives in the same bottom
- * overlay as planning did.
+ * Tapping it maximizes the full-screen LiveJourneyScreen.
+ *
+ * Three bands, because this is the state a rider spends most of the journey in
+ * and it has to answer more than one question without being expanded:
+ *
+ *   1. a progress rail — "am I nearly there", for 3px
+ *   2. the instruction and its countdown — "what do I do next, and when"
+ *   3. where this train is left, and at what time — "where do I get off"
+ *
+ * It is sized to *be* the sheet's collapsed peek. `LIVE_COLLAPSED_H` is a floor
+ * below this height rather than a target, so the peek resolves to the header
+ * itself (`DraggableSheet`'s `Math.max`) and a band that grows — a wrapped
+ * instruction, a longer name — takes the peek with it instead of being sliced
+ * off at the fold.
+ *
+ * Still English in every language, like the rest of the live journey: §6.6
+ * phase 2 owns `LiveJourneyScreen` and this file as one unit, and translating
+ * only the header would put a Hindi status line above an English timeline in
+ * the same sheet.
  */
 export function LiveJourneySummary({
   result,
@@ -16,66 +48,91 @@ export function LiveJourneySummary({
   session: ReturnType<typeof useJourneySession>;
   onMaximize: () => void;
 }) {
-  const { currentState, stopTimeline, currentStopIndex, elapsedMins } = session;
+  const status = liveStatusOf(result, session);
+  if (!status) return null;
 
-  const statusMessage = (() => {
-    switch (currentState) {
-      case 'NOT_STARTED': return 'Starting…';
-      case 'WALKING_TO_STATION': return `Walk to ${result.source.name}`;
-      case 'WAITING_FOR_TRAIN': return `Wait at ${result.source.name}`;
-      case 'ON_TRAIN': return 'On train';
-      case 'APPROACHING_TRANSFER': return 'Approaching transfer';
-      case 'TRANSFERRING': return 'Transferring';
-      case 'APPROACHING_DESTINATION': return `Approaching ${result.dest.name}`;
-      case 'FINAL_WALK': return `Arrived at ${result.dest.name}`;
-      case 'COMPLETED': return 'Completed';
-      default: return '';
-    }
-  })();
-
-  const statusIcon = (() => {
-    switch (currentState) {
-      case 'WALKING_TO_STATION':
-      case 'FINAL_WALK':
-      case 'TRANSFERRING':
-        return <MapPin size={18} className="text-yellow-400" />;
-      case 'COMPLETED':
-        return <Flag size={18} className="text-green-500" />;
-      default:
-        return <Train size={18} className="text-yellow-400" />;
-    }
-  })();
-
-  const nextTarget = stopTimeline[currentStopIndex + 1];
-  const minsRemaining = nextTarget != null ? Math.max(0, nextTarget - elapsedMins) : null;
+  const { line, instruction, countdown, alight, tone, progress } = status;
+  const Icon = ICONS[status.icon];
+  // Both maps are keyed by the same line ids the engine emits, so a miss means
+  // a line we don't know about — fall back to a literal hex either way, since
+  // the icon's tint is built by appending an alpha pair to it.
+  const rail = LINE_COLORS[line] ?? "#71717a";
+  const glyph = LINE_TEXT[line] ?? "#71717a";
 
   return (
-    <div
-      className="flex items-center justify-between px-4 pb-3 gap-3"
+    <button
+      type="button"
       onClick={onMaximize}
+      aria-label={`Live journey: ${instruction}. Open journey details`}
+      className="w-full text-left"
     >
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="w-10 h-10 rounded-full flex items-center justify-center bg-yellow-400/10 shrink-0">
-          {statusIcon}
-        </div>
-        <div className="min-w-0">
-          <div className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: 'var(--c-accent)' }}>Live status</div>
-          <div className="text-[15px] font-bold leading-tight truncate" style={{ color: 'var(--c-text)' }}>
-            {statusMessage}
+      {/* Band 1 — progress. Full-bleed and only 3px tall: it reads as an edge of
+          the sheet rather than a control, which is the point. The trip's line
+          colour is otherwise absent from the collapsed bar entirely. */}
+      <div className="relative h-[3px] w-full overflow-hidden" style={{ background: "var(--c-border)" }}>
+        <div
+          className="absolute inset-y-0 left-0 transition-[width] duration-1000 ease-linear"
+          style={{ width: `${progress * 100}%`, background: rail }}
+        />
+      </div>
+
+      <div className="px-4 pt-2.5 pb-3">
+        {/* Band 2 — the instruction, and the one number that matters now. */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: `${rail}1A`, color: glyph }}
+            >
+              <Icon size={18} strokeWidth={2.2} />
+            </div>
+            <div
+              className="text-[15px] font-bold leading-tight truncate"
+              style={{ color: "var(--c-text)" }}
+            >
+              {instruction}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 shrink-0">
+            {countdown && (
+              <div className="text-right">
+                <div className="text-[15px] font-bold tabular-nums leading-tight" style={{ color: TONE[tone] }}>
+                  {countdown.value}
+                </div>
+                <div
+                  className="text-[9px] font-bold uppercase tracking-widest"
+                  style={{ color: "var(--c-text-4)" }}
+                >
+                  {countdown.label}
+                </div>
+              </div>
+            )}
+            {/* Always present, including the arrived states where there is no
+                countdown left to sit beside — it is the bar's only affordance. */}
+            <ChevronUp size={16} style={{ color: "var(--c-text-4)" }} />
           </div>
         </div>
-      </div>
-      <div className="flex items-center gap-3 shrink-0">
-        {minsRemaining != null && currentState !== 'COMPLETED' && (
-          <div className="text-right">
-            <div className="text-[15px] font-bold tabular-nums" style={{ color: 'var(--c-text)' }}>
-              {Math.ceil(minsRemaining)}<span className="text-[11px] font-semibold ml-0.5" style={{ color: 'var(--c-text-4)' }}>min</span>
-            </div>
-            <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: 'var(--c-text-4)' }}>to next stop</div>
+
+        {/* Band 3 — where this train is left, and when. The destination and its
+            arrival time were previously reachable only at the full snap. */}
+        {alight && (
+          <div className="flex items-center gap-1.5 mt-2 text-[12px] font-semibold min-w-0">
+            <ArrowRight size={12} strokeWidth={2.6} className="shrink-0" style={{ color: "var(--c-text-4)" }} />
+            <span className="truncate" style={{ color: "var(--c-text-2)" }}>
+              {alight.final ? alight.name : `Get off at ${alight.name}`}
+            </span>
+            {alight.clock && (
+              <>
+                <span style={{ color: "var(--c-text-4)" }}>·</span>
+                <span className="tabular-nums shrink-0" style={{ color: "var(--c-text-3)" }}>
+                  {alight.final ? `arr ${alight.clock}` : alight.clock}
+                </span>
+              </>
+            )}
           </div>
         )}
-        <ChevronUp size={16} style={{ color: 'var(--c-text-4)' }} />
       </div>
-    </div>
+    </button>
   );
 }
