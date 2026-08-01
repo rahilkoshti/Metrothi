@@ -7,6 +7,12 @@ import type { Block } from "./blocks";
 // not: see the bundle note in `catalog.ts`.
 import passengerInfo from "../../data/passengerInfo.json";
 import facilities from "../../data/stationFacilities.json";
+import en from "../../i18n/locales/en.json";
+
+/** Dotted lookup into the bundle; `undefined` for a key that isn't there. */
+function leafAt(obj: unknown, key: string): unknown {
+  return key.split(".").reduce<any>((acc, part) => acc?.[part], obj);
+}
 
 /**
  * The registry is built by reading keys out of two JSON files, so it fails
@@ -233,16 +239,32 @@ describe("safety page — grouped by where the thing is", () => {
 describe("provenance", () => {
   it("reads a real date out of every dated file", () => {
     for (const row of dataProvenance()) {
-      expect(row.detail, row.label).not.toMatch(/undefined|NaN|\bnull\b/);
+      if (row.date === undefined) continue;
+      // DD.MM.YYYY, GMRC's own format — and read from the file, so regenerating
+      // one updates this screen without an edit here. A missing `_meta` field
+      // would land as "undefined.undefined.undefined" rather than throwing.
+      expect(row.date, row.key).toMatch(/^\d{2}\.\d{2}\.\d{4}$/);
     }
   });
 
   it("dates the timetable and the reference data from their own _meta", () => {
-    const byKey = new Map(dataProvenance().map((r) => [r.key, r.detail]));
-    // Both are DD.MM.YYYY, GMRC's own format — and both come from the files, so
-    // regenerating one updates this screen without an edit here.
-    expect(byKey.get("timetable")).toMatch(/^Effective \d{2}\.\d{2}\.\d{4} · /);
-    expect(byKey.get("reference")).toMatch(/^Scraped \d{2}\.\d{2}\.\d{4} · /);
+    const byKey = new Map(dataProvenance().map((r) => [r.key, r]));
+    expect(byKey.get("timetable")?.date).toBeDefined();
+    expect(byKey.get("reference")?.date).toBeDefined();
+  });
+
+  it("names a real bundle key for every row, and asks for a date only where it has one", () => {
+    // The rows carry keys rather than sentences now (§6.2), so a typo renders
+    // "about.timetableDetial" on the settings screen and nothing throws. The
+    // second half catches the opposite slip: a `{{date}}` in the English string
+    // with no `date` on the row prints a sentence with a hole in it.
+    for (const row of dataProvenance()) {
+      const label = leafAt(en, row.labelKey);
+      const detail = leafAt(en, row.detailKey);
+      expect(label, row.labelKey).toBeTypeOf("string");
+      expect(detail, row.detailKey).toBeTypeOf("string");
+      expect(String(detail).includes("{{date}}"), row.detailKey).toBe(row.date !== undefined);
+    }
   });
 
   it("dates the reference row off a scrape both its files share", () => {

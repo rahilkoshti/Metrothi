@@ -1,5 +1,7 @@
 import { Accessibility, ArrowLeftRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { exitGuidanceFor } from "../exitGuidance";
+import { gateNumbers } from "../stationFacilities";
 
 /**
  * The destination's exit facts, as the closing lines of a journey (PRD §4.2) —
@@ -13,19 +15,31 @@ import { exitGuidanceFor } from "../exitGuidance";
  * for why that is silence rather than a "no step-free exit" line.
  */
 export function ExitGuidance({ stationId }: { stationId: string | null | undefined }) {
+  const { t } = useTranslation();
   const guidance = exitGuidanceFor(stationId);
   if (!guidance) return null;
 
   return (
     <div className="mt-1.5 flex flex-col gap-1">
-      {guidance.stepFree && (
-        <Line icon={<Accessibility size={11} strokeWidth={2.4} />}>{guidance.stepFree}</Line>
+      {guidance.stepFreeGates.length > 0 && (
+        <Line icon={<Accessibility size={11} strokeWidth={2.4} />}>
+          {t('journey.stepFreeExit', {
+            gates: t('journey.gateList', {
+              count: guidance.stepFreeGates.length,
+              gates: gateNumbers(guidance.stepFreeGates),
+            }),
+          })}
+        </Line>
       )}
       {guidance.connections.map((c, i) => (
         <Line key={i} icon={<ArrowLeftRight size={11} strokeWidth={2.4} />}>
           {c.gate !== null && (
             <>
-              <span style={{ color: "var(--c-text-3)" }}>Gate {c.gate}</span>
+              {/* GMRC's connection wording stays verbatim (§6.7); only the gate
+                  label in front of it is ours to translate. */}
+              <span style={{ color: "var(--c-text-3)" }}>
+                {t('journey.gateList', { count: 1, gates: String(c.gate) })}
+              </span>
               <span className="mx-1">·</span>
             </>
           )}

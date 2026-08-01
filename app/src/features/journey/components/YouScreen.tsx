@@ -1,5 +1,8 @@
 import { Moon, Sun, Info, MessageSquare, Database, Building2, ArrowLeft } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../contexts/ThemeContext";
+import { useLanguage } from "../../../i18n/useLanguage";
+import { LANGUAGES } from "../../../data/preferences";
 import { useNavigate } from "react-router-dom";
 import {
   RIDING_TOPICS,
@@ -17,7 +20,14 @@ import { Row, RowDivider, SectionCard, SectionHeader } from "./settingsRows";
 import { SavedSection, HistorySection } from "./SavedData";
 import { PreferencesSection } from "./PreferencesSection";
 
-/** A section of reference-page rows, divided, from the topic catalog. */
+/**
+ * A section of reference-page rows, divided, from the topic catalog.
+ *
+ * **The titles and blurbs stay in English in every language, deliberately.**
+ * They label GMRC's reference content, which §6.7 forbids us from translating
+ * ourselves — a Hindi row opening an English page would promise more than the
+ * page delivers. `EnglishOnlyNote` below says so out loud instead.
+ */
 function TopicRows({ topics, onOpen }: { topics: TopicEntry[]; onOpen: (slug: string) => void }) {
   return (
     <>
@@ -36,16 +46,35 @@ function TopicRows({ topics, onOpen }: { topics: TopicEntry[]; onOpen: (slug: st
   );
 }
 
+/**
+ * Printed under the two reference sections when the app isn't in English.
+ *
+ * A statement about *Metrothi*, not about GMRC: the Do's & Don'ts and Prohibited
+ * Items posters are trilingual at source (§6.7), so "GMRC publishes these in
+ * English only" would be false. What's true is that we haven't transcribed the
+ * other two columns yet, which is §8 phase 7.
+ */
+function EnglishOnlyNote() {
+  const { t, i18n } = useTranslation();
+  if (i18n.language === 'en') return null;
+  return (
+    <div className="px-5 pt-2 text-[11px] font-medium" style={{ color: 'var(--c-text-4)' }}>
+      {t('you.englishOnlyForNow')}
+    </div>
+  );
+}
+
 // ─── Theme toggle ─────────────────────────────────────────────────────────────
 
 function ThemeToggle() {
+  const { t } = useTranslation();
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
 
   return (
     <button
       onClick={toggleTheme}
-      aria-label={`Switch to ${isDark ? 'light' : 'dark'} mode`}
+      aria-label={t(isDark ? 'you.switchToLight' : 'you.switchToDark')}
       className="flex items-center gap-2 transition-all active:scale-95"
     >
       <Sun size={14} style={{ color: isDark ? 'var(--c-text-4)' : '#F59E0B' }} />
@@ -75,28 +104,76 @@ function ThemeToggle() {
   );
 }
 
+// ─── Language selector ───────────────────────────────────────────────────────
+
+/**
+ * Three-way segmented picker (§6.5).
+ *
+ * Each label is written in its own script, so it is legible to the rider who
+ * wants it without depending on the language they're currently stuck in — the
+ * one control on this screen that has to work for someone who can't read the
+ * rest of it. The `lang` attribute goes on each button for the same reason it
+ * goes on `<html>`: it is what picks the right font for that word, and what
+ * tells a screen reader which voice to use.
+ *
+ * Segmented rather than an `ExpandableRow` picker like walking pace: with three
+ * options the whole choice fits on one row, and a collapsed row would have to
+ * print the current language in a script the rider may not read.
+ */
+function LanguagePicker() {
+  const { language, setLanguage } = useLanguage();
+
+  return (
+    <div
+      className="flex items-center gap-1 m-3 p-1 rounded-xl"
+      style={{ background: 'var(--c-card-alt)' }}
+    >
+      {LANGUAGES.map((l) => {
+        const active = language === l.code;
+        return (
+          <button
+            key={l.code}
+            lang={l.code}
+            onClick={() => setLanguage(l.code)}
+            aria-pressed={active}
+            className="flex-1 min-h-[44px] px-2 text-[13px] font-bold rounded-lg transition-all duration-200 active:scale-[0.98]"
+            style={{
+              background: active ? 'var(--c-accent)' : 'transparent',
+              color: active ? 'var(--c-accent-fg)' : 'var(--c-text-2)',
+              boxShadow: active ? '0 2px 10px rgba(0,0,0,0.1)' : 'none',
+            }}
+          >
+            {l.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Main screen ─────────────────────────────────────────────────────────────
 
 export function YouScreen() {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const navigate = useNavigate();
   const openTopic = (slug: string) => navigate(`/you/${slug}`);
   const appStore = officialAppStore();
 
   return (
-    <div className="max-w-[var(--layout-max-width)] mx-auto pb-28" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+    <div className="max-w-[var(--layout-max-width)] mx-auto pb-28" style={{ fontFamily: 'var(--font-app)' }}>
 
       {/* ── Header / Avatar ──────────────────────────────────────────────── */}
       <div className="px-5 pt-8 pb-6 flex items-center justify-between">
         <div>
           <div className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--c-text-3)' }}>
-            {theme === 'dark' ? '🌙 Dark mode' : '☀️ Light mode'}
+            {t(theme === 'dark' ? 'you.darkModeBanner' : 'you.lightModeBanner')}
           </div>
-          <h1 className="text-4xl font-bold tracking-tight" style={{ color: 'var(--c-text)' }}>You</h1>
+          <h1 className="text-4xl font-bold tracking-tight" style={{ color: 'var(--c-text)' }}>{t('you.title')}</h1>
         </div>
         <button
           onClick={() => navigate(-1)}
-          aria-label="Go back"
+          aria-label={t('common.goBack')}
           className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform"
           style={{ background: 'var(--c-card)', border: '1px solid var(--c-border-2)' }}
         >
@@ -108,7 +185,7 @@ export function YouScreen() {
       <AccountCard />
 
       {/* ── Appearance ───────────────────────────────────────────────────── */}
-      <SectionHeader label="Appearance" />
+      <SectionHeader label={t('you.appearance')} />
       <SectionCard>
         <div className="flex items-center gap-4 px-5 py-4">
           <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--c-card-alt)' }}>
@@ -118,13 +195,22 @@ export function YouScreen() {
             }
           </div>
           <div className="flex-1">
-            <div className="text-[14px] font-semibold" style={{ color: 'var(--c-text)' }}>Theme</div>
+            <div className="text-[14px] font-semibold" style={{ color: 'var(--c-text)' }}>{t('you.theme')}</div>
             <div className="text-[11px] font-medium mt-0.5" style={{ color: 'var(--c-text-3)' }}>
-              {theme === 'dark' ? 'Dark' : 'Light'}
+              {t(theme === 'dark' ? 'you.dark' : 'you.light')}
             </div>
           </div>
           <ThemeToggle />
         </div>
+      </SectionCard>
+
+      {/* ── Language ─────────────────────────────────────────────────────────
+          §6.5. Its own section rather than a second row under Appearance: the
+          header names it, so the picker doesn't have to repeat the word in a
+          script the rider might be trying to get away from. */}
+      <SectionHeader label={t('you.language')} />
+      <SectionCard>
+        <LanguagePicker />
       </SectionCard>
 
       {/* ── Riding the metro ─────────────────────────────────────────────────
@@ -133,24 +219,27 @@ export function YouScreen() {
           buried under promises; it stays now that they're real, because a rider
           on this screen is far likelier to want the fare rules than to want to
           change their walking pace. */}
-      <SectionHeader label="Riding the metro" />
+      <SectionHeader label={t('you.ridingTheMetro')} />
       <SectionCard>
         <TopicRows topics={RIDING_TOPICS} onOpen={openTopic} />
       </SectionCard>
+      <EnglishOnlyNote />
 
       {/* ── Help & contact ───────────────────────────────────────────────── */}
-      <SectionHeader label="Help & contact" />
+      <SectionHeader label={t('you.helpAndContact')} />
       <SectionCard>
         <TopicRows topics={HELP_TOPICS} onOpen={openTopic} />
         <RowDivider />
         <Row
           icon={OFFICIAL_APP.icon}
           label={OFFICIAL_APP.title}
-          value={`${OFFICIAL_APP.blurb} · ${appStore.label}`}
+          // GMRC's own blurb, then our sentence about where the link goes.
+          value={`${OFFICIAL_APP.blurb} · ${t('you.opensStore', { store: appStore.store })}`}
           href={appStore.href}
           external
         />
       </SectionCard>
+      <EnglishOnlyNote />
 
       {/* ── Preferences ──────────────────────────────────────────────────────
           Both rows printed their own default as if it were stored (§8.1 phase
@@ -170,15 +259,17 @@ export function YouScreen() {
       {/* ── About & Data ─────────────────────────────────────────────────────
           Every line here is read from the data files' own `_meta`, so the dates
           stop needing a manual edit each time one is regenerated (§4.5.1). */}
-      <SectionHeader label="About & Data" />
+      <SectionHeader label={t('you.aboutAndData')} />
       <SectionCard>
         {dataProvenance().map((row, i) => (
           <div key={row.key}>
             {i > 0 && <RowDivider />}
             <Row
               icon={row.key === "live" ? Info : Database}
-              label={row.label}
-              value={row.detail}
+              label={t(row.labelKey)}
+              // The date keeps GMRC's own dd.mm.yyyy format in every language —
+              // it is the format printed on the timetable poster.
+              value={t(row.detailKey, { date: row.date })}
               {...(row.href ? { href: row.href, external: true } : {})}
             />
           </div>
@@ -188,16 +279,16 @@ export function YouScreen() {
       {/* ── Feedback ─────────────────────────────────────────────────────────
           Split on purpose: a timetable error in *Metrothi* is ours, a complaint
           about *the metro* is GMRC's, and the two must not go to one inbox. */}
-      <SectionHeader label="Feedback" />
+      <SectionHeader label={t('you.feedback')} />
       <SectionCard>
-        <Row icon={MessageSquare} label="Report a timetable issue" value="A departure Metrothi gets wrong" />
+        <Row icon={MessageSquare} label={t('you.reportTimetable')} value={t('you.reportTimetableDetail')} />
         <RowDivider />
-        <Row icon={MessageSquare} label="Suggest a feature" value="Something Metrothi should do" />
+        <Row icon={MessageSquare} label={t('you.suggestFeature')} value={t('you.suggestFeatureDetail')} />
         <RowDivider />
         <Row
           icon={Building2}
-          label="Feedback to GMRC"
-          value="Complaints and suggestions about the metro itself"
+          label={t('you.feedbackGmrc')}
+          value={t('you.feedbackGmrcDetail')}
           href={GMRC_FEEDBACK_URL}
           external
         />
@@ -209,7 +300,7 @@ export function YouScreen() {
           Metrothi · v0.1.0-prototype
         </div>
         <div className="text-[11px] mt-1" style={{ color: 'var(--c-text-4)' }}>
-          Live estimates simulated from the GMRC timetable
+          {t('you.simulatedNote')}
         </div>
       </div>
 

@@ -1,4 +1,5 @@
 import { Info, AlertOctagon, Play, Footprints } from "lucide-react";
+import { Trans, useTranslation } from "react-i18next";
 import { formatDuration, rideMinsOf } from "../../engine/journeyEngine";
 
 /** How many departures the picker shows before deferring to the list below. */
@@ -40,6 +41,7 @@ export function JourneySummary({
   onSelect: (idx: number) => void;
   onStart: () => void;
 }) {
+  const { t } = useTranslation();
   const { fare, ticketInfo, sourceWalkMins = 0, destWalkMins = 0 } = result;
   const isFeasible = active.feasible !== false;
   const isTight = !!active.isTight;
@@ -78,10 +80,10 @@ export function JourneySummary({
                 className="text-[11px] font-bold uppercase tracking-[0.09em]"
                 style={{ color: isTight ? '#f59e0b' : 'var(--c-text-3)' }}
               >
-                {isTight ? 'Leave now — tight' : isNow ? 'Leave' : 'Leave in'}
+                {isTight ? t('journey.leaveNowTight') : isNow ? t('journey.leaveLabel') : t('journey.leaveInLabel')}
               </div>
               <div className="text-[32px] font-bold leading-none tabular-nums mt-1.5" style={{ color: tone }}>
-                {isNow ? 'Now' : formatDuration(leaveIn)}
+                {isNow ? t('journey.now') : formatDuration(leaveIn)}
               </div>
             </div>
 
@@ -95,7 +97,7 @@ export function JourneySummary({
                 {arriveMeridiem && <span className="text-[11px] ml-1">{arriveMeridiem}</span>}
               </div>
               <div className="text-[11px] font-semibold mt-1.5 tabular-nums" style={{ color: 'var(--c-text-4)' }}>
-                {formatDuration(rideMins ?? active.totalMins)} on train
+                {t('journey.onTrain', { duration: formatDuration(rideMins ?? active.totalMins) })}
                 {fare != null && ` · ~₹${fare}`}
               </div>
             </div>
@@ -103,7 +105,7 @@ export function JourneySummary({
 
           {isTight && (
             <p className="text-[12px] font-semibold mt-3 leading-snug" style={{ color: '#f59e0b' }}>
-              The {departTime} train is still catchable, but only if you set off this minute.
+              {t('journey.tightExplain', { time: departTime })}
             </p>
           )}
 
@@ -118,7 +120,7 @@ export function JourneySummary({
                 style={{ color: 'var(--c-text-4)' }}
               >
                 <Footprints size={12} strokeWidth={2.4} className="shrink-0" />
-                Includes {formatDuration(sourceWalkMins + destWalkMins)} walking
+                {t('journey.includesWalking', { duration: formatDuration(sourceWalkMins + destWalkMins) })}
               </div>
             </>
           )}
@@ -130,11 +132,16 @@ export function JourneySummary({
         >
           <div className="flex items-center gap-2 text-red-400 font-bold mb-1.5 text-sm">
             <AlertOctagon size={16} />
-            Route Not Possible
+            {t('journey.routeNotPossible')}
           </div>
           <p className="text-xs font-medium text-red-300/70 leading-snug">
-            You'd be stuck at <strong className="text-red-300">{active.strandedAtLine}</strong>, which has finished
-            service for the day. Pick a different departure below.
+            {/* `Trans` so the emphasised line name can sit where each language
+                puts it, rather than splitting the sentence in two around it. */}
+            <Trans
+              i18nKey="journey.strandedExplain"
+              values={{ line: active.strandedAtLine }}
+              components={{ b: <strong className="text-red-300" /> }}
+            />
           </p>
         </div>
       )}
@@ -149,15 +156,15 @@ export function JourneySummary({
         <div>
           <div className="flex items-baseline justify-between mb-2">
             <span className="text-[11px] font-bold uppercase tracking-[0.09em]" style={{ color: 'var(--c-text-3)' }}>
-              Departures
+              {t('journey.departures')}
             </span>
             {overflow > 0 && (
               <span className="text-[11px] font-semibold" style={{ color: 'var(--c-text-4)' }}>
-                All trains below
+                {t('journey.allTrainsBelow')}
               </span>
             )}
           </div>
-          <div className="grid grid-cols-4 gap-1.5" role="group" aria-label="Choose a departure">
+          <div className="grid grid-cols-4 gap-1.5" role="group" aria-label={t('journey.chooseDeparture')}>
             {picker.map((opt: any, i: number) => {
               const isSel = i === selected;
               const optFeasible = opt.feasible !== false;
@@ -226,7 +233,7 @@ export function JourneySummary({
           className="w-full py-4 rounded-xl font-bold text-[15px] flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(249,115,22,0.3)] active:scale-[0.98] transition-transform"
           style={{ background: 'var(--c-accent)', color: 'var(--c-accent-fg)' }}
         >
-          <Play size={16} fill="currentColor" /> Start Journey
+          <Play size={16} fill="currentColor" /> {t('journey.startJourney')}
         </button>
       )}
     </div>

@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { LocateFixed, Compass, X, MapPin, Clock, Bookmark, ArrowRight, Footprints } from 'lucide-react';
 import {
   STATION_BY_ID,
@@ -58,9 +59,12 @@ const LIVE_COLLAPSED_H = 80;
 const TOP_CHROME_H = 128;
 
 /** Format distance in km or meters based on value. */
-function formatDistance(km: number): string {
-  if (km < 1) return `${Math.round(km * 1000)} m`;
-  return `${km.toFixed(1)} km`;
+function useFormatDistance() {
+  const { t } = useTranslation();
+  return (km: number): string =>
+    km < 1
+      ? t('common.distanceMetres', { value: Math.round(km * 1000) })
+      : t('common.distanceKm', { value: km.toFixed(1) });
 }
 
 /** A pill chip used across the sheet header. `alert` tints it for a
@@ -86,6 +90,7 @@ function Chip({ children, tone = 'default' }: { children: ReactNode; tone?: 'def
  *  Isolated in its own component so the per-minute tick doesn't re-render the
  *  whole screen. */
 function LineChip({ line }: { line: string }) {
+  const { t } = useTranslation();
   const now = useNow();
   const status = estimateLine(line, now);
 
@@ -95,16 +100,19 @@ function LineChip({ line }: { line: string }) {
       note = null;
       break;
     case 'before-first-train':
-      note = `Starts in ${formatDuration(status.minsUntilFirst)}`;
+      // `formatDuration` still returns "12 min" / "1h 05m" in every language —
+      // it lives in the engine, which stays React-free, and localising it is
+      // §6.6 phase 4's job across all twelve of its call sites.
+      note = t('line.startsIn', { duration: formatDuration(status.minsUntilFirst) });
       break;
     case 'after-last-train':
-      note = 'Service ended';
+      note = t('line.serviceEnded');
       break;
     case 'bus-only':
-      note = 'Bus only';
+      note = t('line.busOnly');
       break;
     default:
-      note = 'Service unavailable';
+      note = t('line.unavailable');
   }
 
   return (
@@ -151,6 +159,8 @@ export function HomeScreen({
   onStartJourney,
   onClearResult,
 }: HomeScreenProps) {
+  const { t } = useTranslation();
+  const formatDistance = useFormatDistance();
   const navigate = useNavigate();
   const location = useLocation();
   const { isSaved, toggle: toggleSaved } = useSavedStations();
@@ -256,13 +266,18 @@ export function HomeScreen({
   // sheet's snap/selection resets, without refiring on the 15s clock tick.
   const routeKey = result ? `${result.sourceStation?.id}->${result.destStation?.id}@${result.queryTime}` : null;
 
-  const options: any[] = plan?.options ?? [];
+  // Memoised so the identity only changes when the plan behind it does — a bare
+  // `?? []` mints a new array every render and silently defeats the useMemo below.
+  const options: any[] = useMemo(() => plan?.options ?? [], [plan]);
 
   // The departure is held as its timestamp, not as an index: the option list is
   // rebuilt on every 15s tick and loses its head as trains pull out, so an index
   // would quietly slide onto a different train. A live journey resolves against
   // the frozen result it was started from.
-  const selectionOptions: any[] = journeyMode === 'live' ? (result?.options ?? []) : options;
+  const selectionOptions: any[] = useMemo(
+    () => (journeyMode === 'live' ? (result?.options ?? []) : options),
+    [journeyMode, result, options]
+  );
   const selectedOptionIdx = useMemo(() => {
     const fallback = (journeyMode === 'live' ? result : plan)?.recommendedOptionIdx ?? 0;
     if (selectedDepartMs == null) return fallback;
@@ -419,13 +434,13 @@ export function HomeScreen({
               them when you switch trains; carrying arrival here as well printed
               the same clock time twice, one above the other. */}
           <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-            <Chip>{plan.totalStops} stops</Chip>
-            {plan.numTransfers > 0 && <Chip>{plan.numTransfers} transfer{plan.numTransfers > 1 ? 's' : ''}</Chip>}
+            <Chip>{t('common.stops', { count: plan.totalStops })}</Chip>
+            {plan.numTransfers > 0 && <Chip>{t('common.transfers', { count: plan.numTransfers })}</Chip>}
           </div>
         </div>
         <button
           onClick={(e) => { e.stopPropagation(); onClearResult?.(); }}
-          aria-label="Clear route"
+          aria-label={t('home.clearRoute')}
           className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-transform"
           style={{ background: 'var(--c-bg)' }}
         >
@@ -471,7 +486,7 @@ export function HomeScreen({
               className="text-[10px] font-bold uppercase tracking-widest truncate"
               style={{ color: 'var(--c-accent)' }}
             >
-              {isNearest ? (locFailed ? 'Default station' : 'Nearest station') : 'Station'}
+              {isNearest ? t(locFailed ? 'home.defaultStation' : 'home.nearestStation') : t('home.station')}
             </div>
             <div className="text-[22px] font-bold truncate leading-tight" style={{ color: 'var(--c-text)' }}>
               {station.name}
@@ -486,7 +501,7 @@ export function HomeScreen({
           {isNearest && (
             <button
               onClick={(e) => { e.stopPropagation(); openWalkingDirections(station.id, coords); }}
-              aria-label={`Walking directions to ${station.name}`}
+              aria-label={t('home.walkingDirections', { station: station.name })}
               className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-transform active:scale-95"
               style={{
                 background: 'var(--c-bg)',
@@ -500,7 +515,7 @@ export function HomeScreen({
           <button
             onClick={(e) => { e.stopPropagation(); toggleSaved(station.id); }}
             aria-pressed={isSaved(station.id)}
-            aria-label={isSaved(station.id) ? 'Remove from saved stations' : 'Save this station'}
+            aria-label={t(isSaved(station.id) ? 'home.unsaveStation' : 'home.saveStation')}
             /* Unsaved is a bare bookmark — the icon alone reads as "save", so the
                square icon button keeps the header uncluttered. Saved widens into
                a labelled pill to confirm the state. */
@@ -514,7 +529,7 @@ export function HomeScreen({
             }}
           >
             <Bookmark size={15} strokeWidth={2.2} fill={isSaved(station.id) ? 'currentColor' : 'none'} />
-            {isSaved(station.id) && 'Saved'}
+            {isSaved(station.id) && t('common.saved')}
           </button>
           </div>
         </div>
@@ -534,12 +549,12 @@ export function HomeScreen({
               </Chip>
               <Chip>
                 <Clock size={12} strokeWidth={2.4} style={{ color: 'var(--c-text-4)' }} />
-                {formatDuration(walkMinsForKm(nearest.distanceKm, walkSpeedKmh))} walk
+                {t('common.walk', { duration: formatDuration(walkMinsForKm(nearest.distanceKm, walkSpeedKmh)) })}
               </Chip>
             </>
           )}
 
-          {station.interchange && <Chip>Interchange</Chip>}
+          {station.interchange && <Chip>{t('home.interchange')}</Chip>}
 
           {/* What you can change to here (§4.4.1) — one chip per mode, named
               the way the Station Info tab and the directory name them. Last in
@@ -650,7 +665,7 @@ export function HomeScreen({
               className="w-full h-full flex items-center justify-center"
               style={{ background: 'var(--c-card-alt)', color: 'var(--c-text-4)' }}
             >
-              <span className="text-sm tracking-wide">Loading map…</span>
+              <span className="text-sm tracking-wide">{t('home.loadingMap')}</span>
             </div>
           }
         >
@@ -678,7 +693,7 @@ export function HomeScreen({
         <div className="px-4 pointer-events-auto">
           <SearchBar
             variant="idle"
-            placeholder="Search stations and landmarks"
+            placeholder={t('home.searchPlaceholder')}
             onOpen={() => setSearchOpen(true)}
             onSettings={() => navigate('/you')}
           />
@@ -704,7 +719,7 @@ export function HomeScreen({
       {journeyMode === 'station' && (
         <button
           onClick={() => { setPrefillSource(null); setPrefillDest(null); setPlannerOpen(true); }}
-          aria-label="Plan route"
+          aria-label={t('home.planRoute')}
           className="absolute right-4 z-[600] w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-all duration-200 active:scale-90"
           style={{
             bottom: sheetEdge + 72,
@@ -722,7 +737,7 @@ export function HomeScreen({
       {/* Recentre */}
       <button
         onClick={() => document.dispatchEvent(new CustomEvent('home-recenter'))}
-        aria-label="Recentre map"
+        aria-label={t('home.recentreMap')}
         className="absolute right-4 z-[600] w-11 h-11 rounded-full flex items-center justify-center transition-opacity duration-200 active:scale-95"
         style={{
           bottom: sheetEdge + 16,
@@ -778,7 +793,7 @@ export function HomeScreen({
           <div className="flex items-center justify-end px-4 pt-4 pb-0">
             <button
               onClick={() => { setPlannerOpen(false); setPrefillSource(null); setPrefillDest(null); }}
-              aria-label="Close planner"
+              aria-label={t('home.closePlanner')}
               className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform"
               style={{
                 background: 'var(--c-card)',

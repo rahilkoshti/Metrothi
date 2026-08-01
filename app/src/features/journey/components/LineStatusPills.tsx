@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { estimateLine, formatDuration } from '../engine/journeyEngine';
 import { useNow } from '../hooks/useNow';
 import { LINE_COLORS, LINE_NAMES } from '../constants';
@@ -5,24 +6,31 @@ import { LINE_COLORS, LINE_NAMES } from '../constants';
 const LINES = ['blue', 'red', 'yellow', 'violet'];
 
 // Status text kept to a couple of words — these pills sit over the map and are
-// scanned, not read.
+// scanned, not read. Returns a key and the duration to interpolate, so the tone
+// and the pulse stay decided here while the wording comes from the bundle.
 function label(est: ReturnType<typeof estimateLine>) {
   switch (est.status) {
     case 'running':
-      return { text: 'Live', tone: '#22c55e', pulse: true };
+      return { key: 'line.live', tone: '#22c55e', pulse: true };
     case 'before-first-train':
-      return { text: `In ${formatDuration(est.minsUntilFirst!)}`, tone: '#eab308', pulse: false };
+      return {
+        key: 'line.inDuration',
+        values: { duration: formatDuration(est.minsUntilFirst!) },
+        tone: '#eab308',
+        pulse: false,
+      };
     case 'bus-only':
-      return { text: 'Bus only', tone: '#a855f7', pulse: false };
+      return { key: 'line.busOnly', tone: '#a855f7', pulse: false };
     case 'after-last-train':
     default:
-      return { text: 'Closed', tone: 'var(--c-text-4)', pulse: false };
+      return { key: 'line.closed', tone: 'var(--c-text-4)', pulse: false };
   }
 }
 
 // Tappable status indicators — each pill opens the search overlay scrolled to
 // that line's stations.
 export function LineStatusPills({ onSelectLine }: { onSelectLine?: (line: string) => void }) {
+  const { t } = useTranslation();
   const now = useNow();
 
   return (
@@ -30,19 +38,23 @@ export function LineStatusPills({ onSelectLine }: { onSelectLine?: (line: string
       className="flex gap-2 overflow-x-auto px-4 pb-1"
       style={{ scrollbarWidth: 'none' }}
       role="list"
-      aria-label="Line service status"
+      aria-label={t('line.statusList')}
     >
       {LINES.map((line) => {
         const est = estimateLine(line, now);
-        const { text, tone, pulse } = label(est);
+        const { key, values, tone, pulse } = label(est);
+        const text = t(key, values);
         const color = LINE_COLORS[line];
+        // Safe to derive from `LINE_NAMES` because line names are English in
+        // every language and stay that way (§6.8) — this is not the
+        // `label === "From"` shape, which read a *translated* string back.
         const short = LINE_NAMES[line].replace(' Line', '');
 
         return (
           <button
             key={line}
             role="listitem"
-            aria-label={`${LINE_NAMES[line]}: ${text}. View stations`}
+            aria-label={t('line.pillAria', { line: LINE_NAMES[line], status: text })}
             onClick={() => onSelectLine?.(line)}
             className="shrink-0 flex items-center gap-1.5 rounded-full pl-2 pr-3 py-1.5 active:scale-95 transition-transform"
             style={{

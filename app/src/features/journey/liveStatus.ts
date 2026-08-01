@@ -35,15 +35,35 @@ export function activeLegIndexOf(legOffsets: number[], currentStopIndex: number)
 export type LiveTone = 'normal' | 'alert' | 'good';
 export type LiveIcon = 'walk' | 'wait' | 'train' | 'transfer' | 'flag';
 
+/**
+ * A string this module has decided on but not written — a bundle key plus the
+ * proper nouns to interpolate into it.
+ *
+ * This file is React-free for the same reason the engine is, which used to mean
+ * it composed its sentences in English and every rider read "Board toward X" no
+ * matter what language the rest of the sheet was in. Returning the key instead
+ * keeps i18next out of here and still lets the one caller render it in the
+ * rider's language — and it keeps *which* sentence to show a decision made in
+ * one place, tested without a bundle.
+ *
+ * The values are station names, line names and headings, which stay English in
+ * every language until §6.8's name source lands.
+ */
+export interface LiveText {
+  key: string;
+  values?: Record<string, string>;
+}
+
 export interface LiveStatus {
   /** The line whose colour identifies the bar right now. */
   line: string;
   icon: LiveIcon;
-  /** The one thing to do next, as a sentence. */
-  instruction: string;
+  /** The one thing to do next, as a sentence the caller renders. */
+  instruction: LiveText;
   /** Right-aligned figure, and what it counts down *to*. Null when there is
-   *  nothing left to wait for. */
-  countdown: { value: string; label: string } | null;
+   *  nothing left to wait for. The value is a duration and stays English until
+   *  §6.6 phase 4; the label is a key. */
+  countdown: { value: string; labelKey: string } | null;
   /** Where the rider leaves this train and when. Held separately from the
    *  instruction because it changes once per leg while the instruction changes
    *  every stop — a bar whose bottom line is stable is one you can read at a
@@ -85,8 +105,8 @@ export function liveStatusOf(result: PlanResult, session: SessionSlice): LiveSta
   const clock = (m: number) => (ready && startedAt ? clockTimeAfter(new Date(startedAt), m) : '');
   /** A countdown, or nothing at all until the timeline exists — an unhedged
    *  "0 min" beside "Train departs" is worse than a blank slot. */
-  const inMins = (m: number, label: string) =>
-    ready ? { value: `${Math.max(0, Math.ceil(m))} min`, label } : null;
+  const inMins = (m: number, labelKey: string) =>
+    ready ? { value: `${Math.max(0, Math.ceil(m))} min`, labelKey } : null;
 
   // A door-to-door trip ends at a place a short walk past the last station, so
   // the trip's total and its arrival clock both have to carry that walk.
@@ -122,17 +142,17 @@ export function liveStatusOf(result: PlanResult, session: SessionSlice): LiveSta
 
   switch (currentState) {
     case 'NOT_STARTED':
-      return { ...base, icon: 'walk', instruction: 'Starting…', countdown: null, tone: 'normal' };
+      return { ...base, icon: 'walk', instruction: { key: 'live.starting' }, countdown: null, tone: 'normal' };
 
     case 'WALKING_TO_STATION':
       return {
         ...base,
         icon: 'walk',
-        instruction: `Walk to ${result.sourceStation.name}`,
+        instruction: { key: 'live.walkTo', values: { station: result.sourceStation.name } },
         // The deadline is the train leaving. This bar used to count to
         // `stopTimeline[1]` — an arrival two stations further on, which is both
         // a larger number and one a rider walking to the platform cannot act on.
-        countdown: inMins(departMins - elapsedMins, 'Train departs'),
+        countdown: inMins(departMins - elapsedMins, 'live.trainDeparts'),
         tone: 'normal',
       };
 
@@ -142,8 +162,8 @@ export function liveStatusOf(result: PlanResult, session: SessionSlice): LiveSta
         icon: 'wait',
         // Standing on the platform, the mistake to prevent is the direction, not
         // the station — the rider can see which one they're in.
-        instruction: `Board toward ${leg.headingName}`,
-        countdown: inMins(departMins - elapsedMins, 'Train departs'),
+        instruction: { key: 'live.boardToward', values: { heading: leg.headingName } },
+        countdown: inMins(departMins - elapsedMins, 'live.trainDeparts'),
         tone: 'normal',
       };
 
@@ -153,8 +173,10 @@ export function liveStatusOf(result: PlanResult, session: SessionSlice): LiveSta
         ...base,
         icon: 'train',
         // "On train" told the rider the one thing they already knew.
-        instruction: next ? `Next: ${next.name}` : 'On train',
-        countdown: next ? inMins(at(cs + 1) - elapsedMins, 'Next stop') : null,
+        instruction: next
+          ? { key: 'live.nextStation', values: { station: next.name } }
+          : { key: 'live.onTrain' },
+        countdown: next ? inMins(at(cs + 1) - elapsedMins, 'live.nextStopLabel') : null,
         tone: 'normal',
       };
     }
@@ -164,8 +186,8 @@ export function liveStatusOf(result: PlanResult, session: SessionSlice): LiveSta
       return {
         ...base,
         icon: 'transfer',
-        instruction: `Change at ${stops[changeIdx]?.name ?? ''} — next stop`,
-        countdown: inMins(at(changeIdx) - elapsedMins, 'Get ready'),
+        instruction: { key: 'live.changeAtNext', values: { station: stops[changeIdx]?.name ?? '' } },
+        countdown: inMins(at(changeIdx) - elapsedMins, 'live.getReady'),
         tone: 'alert',
       };
     }
@@ -174,8 +196,11 @@ export function liveStatusOf(result: PlanResult, session: SessionSlice): LiveSta
       return {
         ...base,
         icon: 'transfer',
-        instruction: `Change to ${LINE_NAMES[leg.line] ?? leg.line} · toward ${leg.headingName}`,
-        countdown: inMins(departMins - elapsedMins, 'Train departs'),
+        instruction: {
+          key: 'live.changeToLine',
+          values: { line: LINE_NAMES[leg.line] ?? leg.line, heading: leg.headingName },
+        },
+        countdown: inMins(departMins - elapsedMins, 'live.trainDeparts'),
         tone: 'alert',
       };
 
@@ -183,8 +208,8 @@ export function liveStatusOf(result: PlanResult, session: SessionSlice): LiveSta
       return {
         ...base,
         icon: 'train',
-        instruction: `Get off next — ${stops[lastIdx]?.name ?? ''}`,
-        countdown: inMins(at(lastIdx) - elapsedMins, 'Arrive'),
+        instruction: { key: 'live.getOffNext', values: { station: stops[lastIdx]?.name ?? '' } },
+        countdown: inMins(at(lastIdx) - elapsedMins, 'live.arriveLabel'),
         tone: 'good',
       };
 
@@ -193,14 +218,14 @@ export function liveStatusOf(result: PlanResult, session: SessionSlice): LiveSta
         ? {
             ...base,
             icon: 'walk',
-            instruction: `Walk to ${result.destPlace.name}`,
-            countdown: inMins(totalMins - elapsedMins, 'Walk'),
+            instruction: { key: 'live.walkToPlace', values: { place: result.destPlace.name } },
+            countdown: inMins(totalMins - elapsedMins, 'live.walkLabel'),
             tone: 'good',
           }
         : {
             ...base,
             icon: 'flag',
-            instruction: `Arrived at ${result.destStation.name}`,
+            instruction: { key: 'live.arrivedAt', values: { station: result.destStation.name } },
             countdown: null,
             tone: 'good',
           };
@@ -209,7 +234,7 @@ export function liveStatusOf(result: PlanResult, session: SessionSlice): LiveSta
       return {
         ...base,
         icon: 'flag',
-        instruction: `Arrived · ${result.dest.name}`,
+        instruction: { key: 'live.arrivedAtPlace', values: { place: result.dest.name } },
         countdown: null,
         tone: 'good',
       };

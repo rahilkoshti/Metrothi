@@ -13,12 +13,21 @@ import { _meta as timetableMeta } from "../../data/timetable.json";
 import { _meta as faresMeta } from "../../data/fares.json";
 import { _meta as facilitiesMeta } from "../../data/stationFacilities.json";
 
-/** One "where did this come from, and how old is it" line for About & Data. */
+/**
+ * One "where did this come from, and how old is it" line for About & Data.
+ *
+ * Keys, not sentences. This module is React-free like the engine, and its
+ * strings used to be composed English, which left the About & Data block the
+ * one untranslated section in the middle of a translated settings screen. The
+ * caller renders `t(detailKey, { date })` (§6.2).
+ */
 export interface Provenance {
   key: string;
-  label: string;
-  /** Rendered as the row's second line. */
-  detail: string;
+  labelKey: string;
+  /** Rendered as the row's second line; takes `date` where it has one. */
+  detailKey: string;
+  /** GMRC's own dd.mm.yyyy, which stays that shape in every language. */
+  date?: string;
   /** Present only where the source is a page a rider can actually open. */
   href?: string;
 }
@@ -46,14 +55,16 @@ export function dataProvenance(): Provenance[] {
   return [
     {
       key: "timetable",
-      label: "Timetable",
+      labelKey: "about.timetable",
       // The source is a poster JPEG and a PDF, so there's no page to link.
-      detail: `Effective ${asGmrcDate(timetableMeta.effectiveFrom)} · hand-transcribed from GMRC`,
+      detailKey: "about.timetableDetail",
+      date: asGmrcDate(timetableMeta.effectiveFrom),
     },
     {
       key: "fares",
-      label: "Fares",
-      detail: `Read from GMRC ${asGmrcDate(faresMeta.scrapedOn)} · charged on distance, not stops`,
+      labelKey: "about.fares",
+      detailKey: "about.faresDetail",
+      date: asGmrcDate(faresMeta.scrapedOn),
       href: "https://www.gujaratmetrorail.com/ahmedabad/route-and-fares/",
     },
     {
@@ -63,14 +74,15 @@ export function dataProvenance(): Provenance[] {
       // asserts `passengerInfo.json` still carries the same date. If they ever
       // diverge, that test fails and this becomes two rows rather than a
       // silently-wrong single one.
-      label: "Station & passenger info",
-      detail: `Scraped ${asGmrcDate(facilitiesMeta.scrapedOn)} · gates, lifts, conduct, contacts`,
+      labelKey: "about.reference",
+      detailKey: "about.referenceDetail",
+      date: asGmrcDate(facilitiesMeta.scrapedOn),
       href: "https://www.gujaratmetrorail.com/ahmedabad/",
     },
     {
       key: "live",
-      label: "Live estimates",
-      detail: "Simulated from the timetable — no real-time feed",
+      labelKey: "about.live",
+      detailKey: "about.liveDetail",
     },
   ];
 }

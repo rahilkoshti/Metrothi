@@ -1,4 +1,5 @@
 import { forwardRef, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ArrowRight } from 'lucide-react';
 import { formatDuration, LINE_PATHS } from '../engine/journeyEngine';
 import { LINE_COLORS } from '../constants';
@@ -54,6 +55,7 @@ export const DepartureRow = forwardRef<HTMLElement, DepartureRowProps>(function 
   },
   ref
 ) {
+  const { t } = useTranslation();
   const color = LINE_COLORS[line];
   // Two termini per line ⇒ the badge arrow points at whichever end of the
   // track `destinationId` is — a shape cue reads faster than a colour one,
@@ -102,11 +104,15 @@ export const DepartureRow = forwardRef<HTMLElement, DepartureRowProps>(function 
 
       <div className="flex-1 min-w-0">
         <div className="text-[14px] font-bold truncate" style={{ color: 'var(--c-text)' }}>
-          Towards {destinationName}
+          {t('journey.towards', { station: destinationName })}
         </div>
         <div className="text-[12px] font-semibold" style={{ color: 'var(--c-text-4)' }}>
           {departed ? (
-            waitMins < 0 ? `${Math.abs(waitMins)}m ago` : 'Departed'
+            // The "12m" half is a duration and stays English until §6.6 phase 4;
+            // the sentence around it is ours.
+            waitMins < 0
+              ? t('journey.departedAgo', { duration: `${Math.abs(waitMins)}m` })
+              : t('common.departed')
           ) : (
             <>
               {label && (
@@ -118,8 +124,8 @@ export const DepartureRow = forwardRef<HTMLElement, DepartureRowProps>(function 
                 {primary === 'countdown'
                   ? clockTime
                   : waitMins === 0
-                  ? 'Due now'
-                  : `in ${formatDuration(waitMins)}`}
+                  ? t('journey.dueNow')
+                  : t('journey.inDuration', { duration: formatDuration(waitMins) })}
               </span>
             </>
           )}
@@ -137,14 +143,14 @@ export const DepartureRow = forwardRef<HTMLElement, DepartureRowProps>(function 
             {primary === 'time'
               ? clockTime
               : waitMins <= 0
-              ? 'Due'
+              ? t('journey.due')
               : stackMin
               ? Math.round(waitMins)
               : formatDuration(waitMins)}
           </div>
           {stackMin && (
             <div className="text-[11px] font-semibold mt-0.5" style={{ color: 'var(--c-text-4)' }}>
-              min
+              {t('journey.minUnit')}
             </div>
           )}
         </div>

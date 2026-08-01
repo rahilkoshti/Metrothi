@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { exitGuidanceFor } from "./exitGuidance";
+import { gateNumbers } from "./stationFacilities";
 import { STATIONS } from "./engine/journeyEngine";
 import facilitiesData from "../../data/stationFacilities.json";
 
@@ -29,8 +30,20 @@ describe("exitGuidanceFor", () => {
   it("names the step-free exits GMRC's lift table implies", () => {
     // Sabarmati's three lifts serve gates 2, 3 and 5 — not 1 and 4, which is
     // the whole reason this line is worth printing.
-    expect(exitGuidanceFor("sabarmati")?.stepFree).toBe("Step-free exit at Gates 2, 3 & 5");
-    expect(exitGuidanceFor("kalupur")?.stepFree).toBe("Step-free exit at Gate 1");
+    //
+    // Asserted as gate numbers rather than the rendered sentence: the sentence
+    // is now a bundle key and the singular/plural split is i18next's, so a
+    // string assertion here would be testing en.json through two layers.
+    expect(exitGuidanceFor("sabarmati")?.stepFreeGates).toEqual([2, 3, 5]);
+    expect(exitGuidanceFor("kalupur")?.stepFreeGates).toEqual([1]);
+  });
+
+  it("joins gate numbers without claiming a word in front of them", () => {
+    // The inflecting word ("Gate"/"Gates") belongs to the bundles; this helper
+    // must stay language-free or the composed-sentence problem comes back.
+    expect(gateNumbers([2, 3, 5])).toBe("2, 3 & 5");
+    expect(gateNumbers([1])).toBe("1");
+    expect(gateNumbers([])).toBe("—");
   });
 
   it("keeps the gate out of the wording, since the gate is printed separately", () => {
@@ -66,7 +79,7 @@ describe("exitGuidanceFor", () => {
 
   it("renders for a station with lifts but no interchange", () => {
     const g = exitGuidanceFor("old-high-court")!;
-    expect(g.stepFree).not.toBeNull();
+    expect(g.stepFreeGates.length).toBeGreaterThan(0);
     expect(g.connections).toEqual([]);
   });
 
@@ -75,7 +88,7 @@ describe("exitGuidanceFor", () => {
     // and no connection, so the journey shows its step-free exit alone.
     const g = exitGuidanceFor("pdeu")!;
     expect(g.connections).toEqual([]);
-    expect(g.stepFree).toBe("Step-free exit at Gates 1 & 2");
+    expect(g.stepFreeGates).toEqual([1, 2]);
   });
 
   it("resolves for every station a journey can end at", () => {

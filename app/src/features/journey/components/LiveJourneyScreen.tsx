@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bookmark, Share2, Clock, ChevronDown, Footprints,
@@ -146,6 +147,7 @@ interface LiveJourneyScreenProps {
 }
 
 export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, midBlockRef }: LiveJourneyScreenProps) {
+  const { t } = useTranslation();
   const { currentState, currentStopIndex, fastForward, elapsedMins, stopTimeline } = session;
   useNow(1000); // re-render every second so countdowns and the glow head stay live
 
@@ -228,10 +230,19 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
   }
 
   async function share() {
-    const fareBit = result.fare == null ? "" : ` · ₹${result.fare}`;
-    const text = `Metrothi: ${result.source.name} → ${dest.name} · departs ${activeOption.departClockTime || "now"} · arrives ${activeOption.arriveClockTime || "—"}${fareBit} · ${result.totalStops} stops`;
+    // Two whole keys rather than one with the fare concatenated on: the fare is
+    // optional, and a translated sentence that gets a fragment appended is the
+    // shape that drifts (§6.2). The station names inside stay English (§6.8).
+    const text = t(result.fare == null ? 'live.shareText' : 'live.shareTextWithFare', {
+      from: result.source.name,
+      to: dest.name,
+      depart: activeOption.departClockTime || t('journey.now'),
+      arrive: activeOption.arriveClockTime || "—",
+      fare: result.fare,
+      stops: t('common.stops', { count: result.totalStops }),
+    });
     try {
-      if (navigator.share) await navigator.share({ title: "Metrothi journey", text });
+      if (navigator.share) await navigator.share({ title: t('live.shareTitle'), text });
       else {
         await navigator.clipboard.writeText(text);
         setJustShared(true);
@@ -286,7 +297,7 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
             </div>
             {isActive && !isPassed(li) && (
               <div className="text-[11px] font-medium mt-0.5 transition-colors duration-300" style={{ color: isCurrent(li) ? LINE_TEXT[leg.line] : "var(--c-text-4)" }}>
-                {minsLeftAt(li)} min{minsLeftAt(li) === 1 ? "" : "s"} left
+                {t('live.durationLeft', { duration: fmtMins(minsLeftAt(li)) })}
               </div>
             )}
           </div>
@@ -337,7 +348,7 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
                       printed `departClock` a second time, ~30px under the one
                       the row already right-aligns — the same duplication §4.2
                       removed from the plan sheet's header. */}
-                  <Train size={12} /> Train route <ChevronDown size={12} />
+                  <Train size={12} /> {t('live.trainRoute')} <ChevronDown size={12} />
                 </button>
               </div>
             </div>
@@ -352,7 +363,7 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
                   <motion.span animate={{ rotate: showList ? 180 : 0 }} transition={{ duration: 0.25 }} className="flex">
                     <ChevronDown size={16} style={{ color: "var(--c-text-3)" }} />
                   </motion.span>
-                  Ride {len - 1} stops
+                  {t('live.rideStops', { count: len - 1 })}
                 </span>
                 <span className="flex items-center gap-1 text-[11px] font-semibold shrink-0" style={{ color: "var(--c-text-4)" }}>
                   <Clock size={10} /> {leg.travelMins}min
@@ -390,7 +401,9 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
                 </div>
               </div>
               <div className="flex items-center gap-1.5 mt-1 text-[11px] font-medium" style={{ color: "var(--c-text-4)" }}>
-                {isLastLeg ? <><Flag size={11} /> Final stop</> : <><ArrowLeftRight size={11} /> Change here</>}
+                {isLastLeg
+                  ? <><Flag size={11} /> {t('live.finalStop')}</>
+                  : <><ArrowLeftRight size={11} /> {t('live.changeHere')}</>}
               </div>
               {/* How to leave the station, under the stop you leave it at.
                   Rendered for the whole ride rather than only once the Arrived
@@ -421,17 +434,17 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
           <div className="text-[12px] font-medium flex items-center gap-1.5 flex-wrap min-w-0" style={{ color: "var(--c-text-3)" }}>
             {result.fare != null && <span className="tabular-nums">₹{result.fare}</span>}
             {result.fare != null && <span style={{ color: "var(--c-text-4)" }}>·</span>}
-            <span className="tabular-nums">{result.totalStops} stops</span>
+            <span className="tabular-nums">{t('common.stops', { count: result.totalStops })}</span>
             {result.numTransfers > 0 && (
               <>
                 <span style={{ color: "var(--c-text-4)" }}>·</span>
                 <span className="tabular-nums">
-                  {result.numTransfers} change{result.numTransfers > 1 ? "s" : ""}
+                  {t('live.changes', { count: result.numTransfers })}
                 </span>
               </>
             )}
             <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border shrink-0" style={{ borderColor: "var(--c-border-2)", color: "var(--c-text-4)" }}>
-              Simulated
+              {t('live.simulated')}
             </span>
           </div>
           <div
@@ -439,7 +452,9 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
             style={{ background: pill.bg, color: pill.fg }}
           >
             <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: pill.fg }} />
-            {currentState === "COMPLETED" ? "Done" : `${totalMinsLeft} min left`}
+            {currentState === "COMPLETED"
+              ? t('live.done')
+              : t('live.durationLeft', { duration: `${totalMinsLeft} min` })}
           </div>
         </div>
 
@@ -449,13 +464,13 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
             <span className="w-3.5 h-3.5 rounded-full border-2 border-current flex items-center justify-center">
               <span className="w-1.5 h-1.5 rounded-[2px] bg-current" />
             </span>
-            End
+            {t('common.end')}
           </ActionPill>
           <ActionPill onClick={toggleSave} active={isSaved}>
-            <Bookmark size={14} fill={isSaved ? "currentColor" : "none"} /> {isSaved ? "Saved" : "Save"}
+            <Bookmark size={14} fill={isSaved ? "currentColor" : "none"} /> {isSaved ? t('common.saved') : t('common.save')}
           </ActionPill>
           <ActionPill onClick={share}>
-            {justShared ? <Check size={14} /> : <Share2 size={14} />} {justShared ? "Copied" : "Share"}
+            {justShared ? <Check size={14} /> : <Share2 size={14} />} {justShared ? t('common.copied') : t('common.share')}
           </ActionPill>
           {/* Development only. The session advances on wall-clock time and GPS,
               so walking a trip by hand is the only way to reach its later
@@ -470,7 +485,11 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
               are 271px against a 374px screen and fit on one line, while all
               five need 512px — so Share sat half off the edge and the two
               below could only be reached by a horizontal swipe that competes
-              with the sheet's own drag. */}
+              with the sheet's own drag.
+
+              Left in English on purpose: these two never reach a rider, so a
+              bundle key for each would be three translations of a string only
+              this repo's developers ever see. */}
           {import.meta.env.DEV && (
             <>
               <ActionPill onClick={() => setIsSimulating(s => !s)}>
@@ -495,8 +514,23 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
         {/* Walk to the source station */}
         <ConnectorRow icon={<Footprints size={14} />} passed={walkPassed}>
           <div className="text-[14px] font-semibold leading-snug" style={{ color: "var(--c-text)" }}>
-            Walk{sourcePlace && result.sourceWalkMins ? ` ${fmtMins(result.sourceWalkMins)}` : ""} to {srcSt?.name}
-            {result.initialWaitMins != null && `, then wait up to ${fmtMins(Math.round(result.initialWaitMins))}`}
+            {/* Four whole keys for the four shapes this line takes, rather than
+                a base sentence with two optional fragments concatenated on.
+                English tolerates the concatenation; Hindi and Gujarati put the
+                verb last, so an appended clause lands in the middle of the
+                sentence it was appended to. */}
+            {(() => {
+              const walkMins = sourcePlace && result.sourceWalkMins ? result.sourceWalkMins : null;
+              const waits = result.initialWaitMins != null;
+              const key = walkMins
+                ? (waits ? 'live.walkDurationToThenWait' : 'live.walkDurationTo')
+                : (waits ? 'live.walkToThenWait' : 'live.walkTo');
+              return t(key, {
+                station: srcSt?.name,
+                duration: walkMins ? fmtMins(walkMins) : undefined,
+                wait: waits ? fmtMins(Math.round(result.initialWaitMins)) : undefined,
+              });
+            })()}
           </div>
         </ConnectorRow>
 
@@ -510,7 +544,7 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
                 highlight={currentState === "TRANSFERRING" && cs === legOffsets[k + 1]}
               >
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[14px] font-semibold" style={{ color: "var(--c-text)" }}>Change to</span>
+                  <span className="text-[14px] font-semibold" style={{ color: "var(--c-text)" }}>{t('common.changeTo')}</span>
                   {/* The direction the next line takes you, not the station you
                       are standing in — the row directly above this already
                       names it and says "Change here", so the interchange was
@@ -524,8 +558,10 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
                   </span>
                 </div>
                 <div className="text-[11px] font-medium mt-1" style={{ color: "var(--c-text-4)" }}>
-                  ~{legs[k + 1].bufferMins || 3} min walk
-                  {legs[k + 1].waitMins != null && ` · wait up to ${fmtMins(legs[k + 1].waitMins)}`}
+                  {t(legs[k + 1].waitMins != null ? 'live.transferWalkAndWait' : 'live.transferWalk', {
+                    duration: `${legs[k + 1].bufferMins || 3} min`,
+                    wait: legs[k + 1].waitMins != null ? fmtMins(legs[k + 1].waitMins) : undefined,
+                  })}
                 </div>
               </ConnectorRow>
             )}
@@ -536,7 +572,10 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
         {destPlace && (
           <ConnectorRow icon={<Footprints size={14} />} passed={currentState === "COMPLETED"}>
             <div className="text-[14px] font-semibold leading-snug" style={{ color: "var(--c-text)" }}>
-              Walk{result.destWalkMins ? ` ${fmtMins(result.destWalkMins)}` : ""} to {destPlace.name}
+              {t(result.destWalkMins ? 'live.walkDurationToPlace' : 'live.walkToPlace', {
+                place: destPlace.name,
+                duration: result.destWalkMins ? fmtMins(result.destWalkMins) : undefined,
+              })}
             </div>
           </ConnectorRow>
         )}

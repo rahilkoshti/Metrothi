@@ -143,10 +143,16 @@ export const OFFICIAL_APP = {
  */
 export const GMRC_FEEDBACK_URL = "https://www.gujaratmetrorail.com/ahmedabad/feedback/";
 
-/** Which store link the row should open. Everything not iOS gets Play. */
-export function officialAppStore(): { href: string; label: string } {
+/**
+ * Which store link the row should open. Everything not iOS gets Play.
+ *
+ * Returns the store's name, not the sentence around it — the row's own words
+ * ("Opens …") are Metrothi's and come from the bundle, while "Google Play" and
+ * "the App Store" are proper nouns that stay as they are in every language.
+ */
+export function officialAppStore(): { href: string; store: string } {
   const isIOS = typeof navigator !== "undefined" && /iPad|iPhone|iPod/.test(navigator.userAgent);
   return isIOS
-    ? { href: OFFICIAL_APP.ios, label: "Opens the App Store" }
-    : { href: OFFICIAL_APP.android, label: "Opens Google Play" };
+    ? { href: OFFICIAL_APP.ios, store: "the App Store" }
+    : { href: OFFICIAL_APP.android, store: "Google Play" };
 }

@@ -1,7 +1,6 @@
 import {
   stationFacilities,
   accessibleGates,
-  formatGateList,
   type MultiModalConnection,
 } from "./stationFacilities";
 
@@ -15,8 +14,15 @@ import {
  * stays on the station page, where someone reading *about* a station wants it.
  */
 export interface ExitGuidance {
-  /** "Step-free exit at Gates 2, 3 & 5", or null where GMRC lists no lift. */
-  stepFree: string | null;
+  /**
+   * Gate numbers with a lift, ascending — empty where GMRC lists none.
+   *
+   * The numbers, not the sentence they go in. This used to be the finished
+   * string "Step-free exit at Gates 2, 3 & 5", which put a composed English
+   * sentence in a React-free module and made the line untranslatable without
+   * either importing i18next here or forking the wording (§6.2).
+   */
+  stepFreeGates: number[];
   /** GMRC's connections, gate kept separate from its wording. */
   connections: MultiModalConnection[];
 }
@@ -45,8 +51,7 @@ export function exitGuidanceFor(stationId: string | null | undefined): ExitGuida
   const facilities = stationFacilities(stationId);
   if (!facilities) return null;
 
-  const gates = accessibleGates(facilities);
-  const stepFree = gates.length > 0 ? `Step-free exit at ${formatGateList(gates)}` : null;
+  const stepFreeGates = accessibleGates(facilities);
 
   // Only connections, not `amenities`: parking at PDEU is a fact about the
   // station, not a way onward from it, and it already renders on the station
@@ -56,6 +61,6 @@ export function exitGuidanceFor(stationId: string | null | undefined): ExitGuida
     text: c.text.replace(GATE_PREFIX, ""),
   }));
 
-  if (!stepFree && connections.length === 0) return null;
-  return { stepFree, connections };
+  if (stepFreeGates.length === 0 && connections.length === 0) return null;
+  return { stepFreeGates, connections };
 }

@@ -34,7 +34,21 @@
      would fall under 3:1 on the dark one. */
   --c-success:   #15803d;
   --layout-max-width: 768px;
+
+  /* The app typeface, as a token for the same reason the colours are: the two
+     screens that set `fontFamily` do it in an inline style, which no CSS rule
+     can override, so a `[lang]` selector alone could never switch the font.
+     Space Grotesk stays **first** in every language — fallback is per glyph, and
+     every station name is still Latin (§6.8), so only Devanagari and Gujarati
+     characters reach the Noto family behind it. */
+  --font-app: 'Space Grotesk', sans-serif;
 }
+
+/* Set by `i18n/index.ts` on `<html>` before React mounts, so the first frame
+   already asks for the right font (§6.4). The stylesheet each family needs is
+   injected only for the language that needs it — see `i18n/fonts.ts`. */
+:root[lang="hi"] { --font-app: 'Space Grotesk', 'Noto Sans Devanagari', sans-serif; }
+:root[lang="gu"] { --font-app: 'Space Grotesk', 'Noto Sans Gujarati', sans-serif; }
 
 :root[data-theme="dark"] {
   --c-bg:        #0f0f0f;

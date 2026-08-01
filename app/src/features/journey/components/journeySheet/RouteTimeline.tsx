@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { LINE_META } from "../../engine/journeyEngine";
 import { formatDuration } from "../../engine/journeyEngine";
 import { LineBadge } from "../../../../components/LineBadge";
@@ -13,6 +14,7 @@ import { LINE_DOT_BG, LINE_TRACK_BG } from "../../constants";
  * currently selected departure option, which owns the per-leg heading names.
  */
 export function RouteTimeline({ result, active }: { result: any; active: any }) {
+  const { t } = useTranslation();
   const {
     sourceStation, destStation, sourcePlace, destPlace,
     sourceWalkMins, destWalkMins, stops,
@@ -20,7 +22,7 @@ export function RouteTimeline({ result, active }: { result: any; active: any }) 
 
   return (
     <div className="rounded-2xl p-5" style={{ background: 'var(--c-bg)' }}>
-      <h3 className="text-[9px] font-bold uppercase tracking-widest mb-6" style={{ color: 'var(--c-text-3)' }}>Route</h3>
+      <h3 className="text-[9px] font-bold uppercase tracking-widest mb-6" style={{ color: 'var(--c-text-3)' }}>{t('journey.route')}</h3>
       <div className="relative">
         {sourcePlace && (
           <div className="flex items-stretch gap-4">
@@ -33,7 +35,9 @@ export function RouteTimeline({ result, active }: { result: any; active: any }) 
                 {sourcePlace.name}
               </div>
               <div className="mt-1.5 inline-flex items-center gap-1.5">
-                <span className="text-[11px] font-semibold" style={{ color: 'var(--c-text-4)' }}>Walk {formatDuration(sourceWalkMins)} to {sourceStation.name}</span>
+                <span className="text-[11px] font-semibold" style={{ color: 'var(--c-text-4)' }}>
+                  {t('journey.walkToStation', { duration: formatDuration(sourceWalkMins), station: sourceStation.name })}
+                </span>
               </div>
             </div>
           </div>
@@ -93,25 +97,27 @@ export function RouteTimeline({ result, active }: { result: any; active: any }) 
                     {st.name}
                     {st.operational === false && (
                       <span className="ml-2 text-[9px] font-bold uppercase tracking-wide text-yellow-700 border border-yellow-900 px-1 rounded">
-                        Soon
+                        {t('journey.soon')}
                       </span>
                     )}
                   </div>
                   {isFirst && heading && (
                     <div className="mt-1.5 inline-flex items-center gap-1.5">
-                      <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'var(--c-text-3)' }}>Board</span>
+                      <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'var(--c-text-3)' }}>{t('common.board')}</span>
                       <LineBadge line={lineKey} />
                       <span className="text-[11px] font-semibold" style={{ color: 'var(--c-text-2)' }}>
-                        toward {heading}
+                        {t('common.toward', { heading })}
                       </span>
                     </div>
                   )}
                   {isInterchange && (
                     <div className="mt-1.5 inline-flex items-center gap-1.5">
-                      <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'var(--c-text-3)' }}>Change to</span>
+                      <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: 'var(--c-text-3)' }}>{t('common.changeTo')}</span>
                       <LineBadge line={stops[i + 1]?.viaLine || lineKey} />
                       <span className="text-[11px] font-semibold" style={{ color: 'var(--c-text-2)' }}>
-                        toward {heading || LINE_META[stops[i + 1]?.viaLine]?.name.split('(')[0].trim()}
+                        {t('common.toward', {
+                          heading: heading || LINE_META[stops[i + 1]?.viaLine]?.name.split('(')[0].trim(),
+                        })}
                       </span>
                     </div>
                   )}
@@ -133,7 +139,9 @@ export function RouteTimeline({ result, active }: { result: any; active: any }) 
                 {destPlace.name}
               </div>
               <div className="mt-1.5 inline-flex items-center gap-1.5">
-                <span className="text-[11px] font-semibold" style={{ color: 'var(--c-text-4)' }}>Walk {formatDuration(destWalkMins)} from {destStation.name}</span>
+                <span className="text-[11px] font-semibold" style={{ color: 'var(--c-text-4)' }}>
+                  {t('journey.walkFromStation', { duration: formatDuration(destWalkMins), station: destStation.name })}
+                </span>
               </div>
             </div>
           </div>

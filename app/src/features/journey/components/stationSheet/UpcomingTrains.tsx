@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronRight, Rss } from 'lucide-react';
 import {
   STATION_BY_ID,
@@ -25,6 +26,7 @@ interface NextDeparture {
  * (`StationDetailBody`) in place, keeping the map mounted underneath.
  */
 export function UpcomingTrains({ stationId, onViewAll }: { stationId: string; onViewAll: () => void }) {
+  const { t } = useTranslation();
   const now = useNow();
   const station = STATION_BY_ID[stationId];
 
@@ -63,12 +65,12 @@ export function UpcomingTrains({ stationId, onViewAll }: { stationId: string; on
     <div>
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-[17px] font-bold" style={{ color: 'var(--c-text)' }}>
-          Upcoming Trains
+          {t('journey.upcomingTrains')}
         </h2>
         {anyRunning && (
           <span className="flex items-center gap-1 text-[11px] font-bold text-green-500">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            Live
+            {t('journey.liveBadge')}
           </span>
         )}
         <button
@@ -76,7 +78,7 @@ export function UpcomingTrains({ stationId, onViewAll }: { stationId: string; on
           className="ml-auto flex items-center gap-0.5 text-[13px] font-semibold active:opacity-60"
           style={{ color: 'var(--c-accent)' }}
         >
-          View all
+          {t('journey.viewAll')}
           <ChevronRight size={15} strokeWidth={2.5} />
         </button>
       </div>
@@ -86,7 +88,7 @@ export function UpcomingTrains({ stationId, onViewAll }: { stationId: string; on
           className="rounded-2xl px-4 py-5 text-center text-[13px] font-semibold"
           style={{ background: 'var(--c-bg)', color: 'var(--c-text-4)' }}
         >
-          No more trains today
+          {t('journey.noMoreTrains')}
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -99,7 +101,7 @@ export function UpcomingTrains({ stationId, onViewAll }: { stationId: string; on
               clockTime={d.clockTime}
               waitMins={d.waitMins}
               primary="countdown"
-              label="Next"
+              label={t('journey.next')}
               trailing={anyRunning ? <Rss size={15} strokeWidth={2.4} className="text-green-500" /> : null}
               inset
             />

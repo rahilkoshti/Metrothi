@@ -1,4 +1,5 @@
 import { useEffect, useRef, useMemo } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { ArrowRight, X } from "lucide-react";
 import { SPRING } from "../../../components/sheetMotion";
@@ -92,6 +93,7 @@ export function TrainRouteSheet({
   now: Date;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const route = useMemo(
     () => computeTrainRoute(stationId, line, dir, train, now),
     [stationId, line, dir, train, now]
@@ -149,8 +151,14 @@ export function TrainRouteSheet({
                 <span className="text-base font-bold" style={{ color: "var(--c-text)" }}>{dir.destinationName}</span>
               </div>
               <div className="mt-1 text-sm font-semibold" style={{ color: "var(--c-text-3)" }}>
-                Departs {dir.originName} at{" "}
-                <span style={{ color: color }}>{route[0]?.clockTime}</span>
+                {/* `Trans` because the tinted time has to be able to move: the
+                    two Indic bundles close this sentence after it, English
+                    opens with the verb. */}
+                <Trans
+                  i18nKey="live.departsAt"
+                  values={{ station: dir.originName, time: route[0]?.clockTime }}
+                  components={{ b: <span style={{ color }} /> }}
+                />
               </div>
             </div>
             <button
@@ -232,17 +240,17 @@ export function TrainRouteSheet({
                     </div>
                     {stop.isCurrent && (
                       <div className="text-[11px] font-bold uppercase tracking-widest mt-0.5" style={{ color }}>
-                        You are here
+                        {t('live.youAreHere')}
                       </div>
                     )}
                     {stop.isOrigin && !stop.isCurrent && (
                       <div className="text-[9px] font-bold uppercase tracking-widest mt-0.5" style={{ color: "var(--c-text-4)" }}>
-                        Origin
+                        {t('live.origin')}
                       </div>
                     )}
                     {isLast && !stop.isCurrent && (
                       <div className="text-[9px] font-bold uppercase tracking-widest mt-0.5" style={{ color: "var(--c-text-4)" }}>
-                        Terminus
+                        {t('live.terminus')}
                       </div>
                     )}
                   </div>
@@ -258,7 +266,7 @@ export function TrainRouteSheet({
                     </div>
                     {stop.isPast && !stop.isCurrent && (
                       <div className="text-[9px] uppercase font-bold mt-0.5" style={{ color: "var(--c-text-4)" }}>
-                        Departed
+                        {t('common.departed')}
                       </div>
                     )}
                   </div>

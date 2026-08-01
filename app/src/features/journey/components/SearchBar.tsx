@@ -1,4 +1,5 @@
 import { ArrowLeft, Loader2, Search, Settings, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 // One pill, two states — so the search bar never changes shape between the home
 // screen (idle) and the search overlay (active). The container geometry
@@ -37,6 +38,9 @@ type Props =
     };
 
 export function SearchBar(props: Props) {
+  // `placeholder` stays a prop, not a key: both callers already hold the string
+  // and it is the one label that differs between them.
+  const { t } = useTranslation();
   if (props.variant === 'idle') {
     return (
       <div className={PILL_CLASS} style={PILL_STYLE}>
@@ -54,7 +58,7 @@ export function SearchBar(props: Props) {
             {props.placeholder}
           </span>
         </button>
-        <button onClick={props.onSettings} aria-label="Settings" className={ICON_BTN}>
+        <button onClick={props.onSettings} aria-label={t('home.settings')} className={ICON_BTN}>
           <Settings size={18} style={{ color: 'var(--c-text-3)' }} />
         </button>
       </div>
@@ -63,7 +67,7 @@ export function SearchBar(props: Props) {
 
   return (
     <div className={PILL_CLASS} style={PILL_STYLE}>
-      <button onClick={props.onClose} aria-label="Close search" className={ICON_BTN}>
+      <button onClick={props.onClose} aria-label={t('home.closeSearch')} className={ICON_BTN}>
         <ArrowLeft size={18} style={{ color: 'var(--c-text)' }} />
       </button>
       <input
@@ -79,11 +83,11 @@ export function SearchBar(props: Props) {
         <Loader2 size={15} className="animate-spin shrink-0" style={{ color: 'var(--c-text-4)' }} />
       )}
       {props.value ? (
-        <button onClick={() => props.onChange('')} aria-label="Clear search" className={ICON_BTN}>
+        <button onClick={() => props.onChange('')} aria-label={t('home.clearSearch')} className={ICON_BTN}>
           <X size={16} style={{ color: 'var(--c-text-3)' }} />
         </button>
       ) : (
-        <button onClick={props.onSettings} aria-label="Settings" className={ICON_BTN}>
+        <button onClick={props.onSettings} aria-label={t('home.settings')} className={ICON_BTN}>
           <Settings size={18} style={{ color: 'var(--c-text-3)' }} />
         </button>
       )}

@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { User, Zap, LogOut, RefreshCw, CloudOff, Trash2, CircleAlert } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { Row, RowDivider, SectionCard, SectionHeader } from '../journey/components/settingsRows';
@@ -17,41 +19,53 @@ import type { SyncStatus } from '../../services/syncEngine';
  * removed the old `tappable` flag from `Row`).
  */
 
-function relativeTime(ms: number): string {
+function relativeTime(t: TFunction, ms: number): string {
   const secs = Math.round((Date.now() - ms) / 1000);
-  if (secs < 60) return 'just now';
+  if (secs < 60) return t('account.justNow');
   const mins = Math.round(secs / 60);
-  if (mins < 60) return `${mins} min ago`;
+  if (mins < 60) return t('account.minsAgo', { count: mins });
   const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours} h ago`;
+  if (hours < 24) return t('account.hoursAgo', { count: hours });
+  // Still the browser's locale rather than the app's — a date format, which is
+  // §6.6 phase 4 along with every other one.
   return new Date(ms).toLocaleDateString();
 }
 
-/** One honest sentence per sync state — never a stale success. */
-export function describeSync(sync: SyncStatus): string {
-  const waiting = sync.pending === 1 ? '1 change waiting' : `${sync.pending} changes waiting`;
+/**
+ * One honest sentence per sync state — never a stale success.
+ *
+ * Takes `t` rather than calling `useTranslation` itself: it's a plain function
+ * with two call sites in this file, and `sync.error` is a Supabase message we
+ * pass through untranslated because inventing a Hindi wording for someone
+ * else's error text would be guessing at what went wrong.
+ */
+export function describeSync(t: TFunction, sync: SyncStatus): string {
+  const waiting = t('account.changesWaiting', { count: sync.pending });
   switch (sync.state) {
     case 'disabled':
-      return 'Sync is not configured for this build';
+      return t('account.syncDisabled');
     case 'signed-out':
-      return 'Not signed in — your data stays on this device';
+      return t('account.syncSignedOut');
     case 'offline':
-      return sync.pending > 0 ? `Offline — ${waiting}` : 'Offline';
+      return sync.pending > 0 ? t('account.syncOfflinePending', { waiting }) : t('account.syncOffline');
     case 'syncing':
-      return 'Syncing…';
+      return t('account.syncing');
     case 'error':
       // Says "not synced", not "sync failed": the outbox still holds every
       // unpushed write, so this is a delay, not a loss.
-      return `Not synced — ${sync.error ?? 'will retry'}`;
+      return t('account.syncError', { reason: sync.error ?? t('account.syncWillRetry') });
     case 'idle':
       if (sync.pending > 0) return waiting;
-      return sync.lastSyncedAt ? `Synced ${relativeTime(sync.lastSyncedAt)}` : 'Up to date';
+      return sync.lastSyncedAt
+        ? t('account.syncedAt', { when: relativeTime(t, sync.lastSyncedAt) })
+        : t('account.syncUpToDate');
   }
 }
 
 // ─── Sign-in form ────────────────────────────────────────────────────────────
 
 function AuthForm() {
+  const { t } = useTranslation();
   const { signIn, signUp } = useAuth();
   const [mode, setMode] = useState<'in' | 'up'>('in');
   const [email, setEmail] = useState('');
@@ -73,7 +87,7 @@ function AuthForm() {
       if (error) setError(error);
       // Sign-up with email confirmation on returns a user but no session. Saying
       // nothing here leaves the rider on a form that looks like it failed.
-      else if (needsConfirmation) setNotice('Check your inbox to confirm your email, then sign in.');
+      else if (needsConfirmation) setNotice(t('account.confirmEmail'));
     }
     setBusy(false);
   }
@@ -100,7 +114,7 @@ function AuthForm() {
         type="password"
         value={password}
         onChange={e => setPassword(e.target.value)}
-        placeholder="Password"
+        placeholder={t('account.passwordPlaceholder')}
         // Tells the password manager which field it's looking at; a sign-up
         // form marked `current-password` gets offered the old one.
         autoComplete={mode === 'in' ? 'current-password' : 'new-password'}
@@ -130,7 +144,7 @@ function AuthForm() {
           opacity: busy ? 0.6 : 1,
         }}
       >
-        {busy ? 'Working…' : mode === 'in' ? 'Sign in' : 'Create account'}
+        {busy ? t('account.working') : mode === 'in' ? t('account.signIn') : t('account.createAccount')}
       </button>
 
       <button
@@ -139,7 +153,7 @@ function AuthForm() {
         className="text-[12px] font-semibold pt-1"
         style={{ color: 'var(--c-text-3)' }}
       >
-        {mode === 'in' ? 'No account? Create one' : 'Already have an account? Sign in'}
+        {mode === 'in' ? t('account.toggleToSignUp') : t('account.toggleToSignIn')}
       </button>
     </form>
   );
@@ -148,6 +162,7 @@ function AuthForm() {
 // ─── Account card ────────────────────────────────────────────────────────────
 
 export function AccountCard() {
+  const { t } = useTranslation();
   const { user, loading, configured, sync, signOut } = useAuth();
   const [expanded, setExpanded] = useState(false);
 
@@ -165,10 +180,10 @@ export function AccountCard() {
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-[16px] font-bold truncate" style={{ color: 'var(--c-text)' }}>
-            {user?.email ?? 'Traveller'}
+            {user?.email ?? t('account.traveller')}
           </div>
           <div className="text-[12px] font-medium mt-0.5" style={{ color: 'var(--c-text-3)' }}>
-            {loading ? 'Checking your session…' : describeSync(sync)}
+            {loading ? t('account.checkingSession') : describeSync(t, sync)}
           </div>
         </div>
       </div>
@@ -177,17 +192,17 @@ export function AccountCard() {
         {!configured ? (
           <Row
             icon={CloudOff}
-            label="Sync unavailable"
-            value="This build has no backend configured — everything stays on this device"
+            label={t('account.syncUnavailable')}
+            value={t('account.syncUnavailableDetail')}
           />
         ) : user ? (
-          <Row icon={LogOut} label="Sign out" value="Your data stays on this device" onClick={() => void signOut()} />
+          <Row icon={LogOut} label={t('account.signOut')} value={t('account.signOutDetail')} onClick={() => void signOut()} />
         ) : (
           <>
             <Row
               icon={Zap}
-              label="Sign in to sync your data"
-              value="Saved places, journeys & preferences"
+              label={t('account.signInToSync')}
+              value={t('account.signInToSyncDetail')}
               onClick={() => setExpanded(v => !v)}
             />
             {expanded && <AuthForm />}
@@ -208,31 +223,32 @@ export function AccountCard() {
  * device", not "delete my account", so it must not wipe the rider's other phone.
  */
 export function DataSection() {
+  const { t } = useTranslation();
   const { configured, user, sync, syncNow, clearLocalData } = useAuth();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
 
   return (
     <>
-      <SectionHeader label="Data & sync" />
+      <SectionHeader label={t('account.dataAndSync')} />
       <SectionCard>
         <Row
           icon={sync.state === 'error' ? CircleAlert : RefreshCw}
-          label="Sync status"
-          value={describeSync(sync)}
+          label={t('account.syncStatus')}
+          value={describeSync(t, sync)}
           {...(configured && user ? { onClick: () => void syncNow() } : {})}
         />
         <RowDivider />
         <Row
           icon={Trash2}
           danger
-          label={confirming ? 'Tap again to clear local data' : 'Clear local data'}
+          label={confirming ? t('account.clearLocalDataConfirm') : t('account.clearLocalData')}
           value={
             confirming
-              ? 'Removes saved stations, journeys and history from this device only'
+              ? t('account.clearLocalDataConfirmDetail')
               : user
-                ? 'This device only — your synced data is kept'
-                : 'Removes saved stations, journeys and history'
+                ? t('account.clearLocalDataSignedIn')
+                : t('account.clearLocalDataSignedOut')
           }
           disabled={busy}
           onClick={() => {

@@ -1,4 +1,5 @@
 import { Route } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { STATION_BY_ID } from '../../engine/journeyEngine';
 
 /**
@@ -43,6 +44,7 @@ export function StationSheetActions({
   stationId: string;
   isNearest?: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <button
       onClick={() =>
@@ -56,7 +58,7 @@ export function StationSheetActions({
       style={{ background: 'var(--c-accent)', color: 'var(--c-accent-fg)' }}
     >
       <Route size={16} strokeWidth={2.5} />
-      Start Journey
+      {t('journey.startJourney')}
     </button>
   );
 }

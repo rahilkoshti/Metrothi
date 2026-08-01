@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -35,7 +36,7 @@ import { LINE_NAMES } from "../constants";
 import {
   stationFacilities,
   accessibleGates,
-  formatGateList,
+  gateNumbers,
   MODE_LABELS,
   type StationFacilities,
 } from "../stationFacilities";
@@ -57,6 +58,7 @@ function MergedTrainList({
   /** Deep-link: terminal name whose next train should auto-open on mount. */
   autoOpenDest?: string;
 }) {
+  const { t } = useTranslation();
   const now = useNow();
   const listRef = useRef<HTMLDivElement>(null);
   const nextRef = useRef<HTMLElement>(null);
@@ -124,7 +126,7 @@ function MergedTrainList({
             clockTime={train.clockTime}
             waitMins={train.waitMins}
             primary="time"
-            label={train.isNext ? "Next" : undefined}
+            label={train.isNext ? t('journey.next') : undefined}
             highlight={train.isNext}
             departed={train.departed}
             onClick={() => setSelectedTrain(train)}
@@ -133,7 +135,7 @@ function MergedTrainList({
 
         <div className="py-4 text-center">
           <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--c-text-4)" }}>
-            End of service
+            {t('station.endOfService')}
           </span>
         </div>
       </div>
@@ -168,6 +170,7 @@ function LineScheduleCard({
    *  is itself --c-card, so the card goes grey (--c-bg) instead. */
   surface?: "page" | "sheet";
 }) {
+  const { t } = useTranslation();
   const cardBg = surface === "sheet" ? "var(--c-bg)" : "var(--c-card)";
   const now = useNow();
   const station = STATION_BY_ID[stationId];
@@ -198,7 +201,7 @@ function LineScheduleCard({
       >
         <AlertTriangle size={22} style={{ color: "var(--c-text-3)" }} />
         <p className="font-semibold text-sm" style={{ color: "var(--c-text-3)" }}>
-          Station not yet open
+          {t('station.notYetOpen')}
         </p>
       </div>
     );
@@ -219,29 +222,29 @@ function LineScheduleCard({
             {LINE_NAMES[line]}
           </div>
           <div className="text-[11px] font-semibold" style={{ color: "var(--c-text-4)" }}>
-            Every ~{LINE_META[line].avgFrequencyMins} min · both directions
+            {t('station.everyMinsBothWays', { mins: LINE_META[line].avgFrequencyMins })}
           </div>
         </div>
         <div className="ml-auto flex items-center gap-1.5">
           {status.status === "running" && (
             <span className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-green-500">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              Live
+              {t('line.live')}
             </span>
           )}
           {status.status === "after-last-train" && (
             <span className="text-[9px] font-bold uppercase tracking-widest text-red-400">
-              Service ended
+              {t('line.serviceEnded')}
             </span>
           )}
           {status.status === "before-first-train" && (
             <span className="text-[9px] font-bold uppercase tracking-widest text-yellow-500">
-              Starts in {formatDuration(status.minsUntilFirst)}
+              {t('line.startsIn', { duration: formatDuration(status.minsUntilFirst) })}
             </span>
           )}
           {status.status === "bus-only" && (
             <span className="text-[9px] font-bold uppercase tracking-widest text-purple-400">
-              Bus only
+              {t('line.busOnly')}
             </span>
           )}
         </div>
@@ -311,7 +314,12 @@ function AttributeCard({
   );
 }
 
-/** GMRC's kebab-cased amenity keys, as prose. */
+/**
+ * GMRC's kebab-cased amenity keys, as prose. English in every language: the
+ * keys are GMRC's own names for what the station has, and there are three of
+ * them across 54 stations — a bundle entry per key would be translating the
+ * source rather than our chrome (§6.7).
+ */
 function amenityLabel(key: string): string {
   return key.replace(/-/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
@@ -323,17 +331,18 @@ function amenityLabel(key: string): string {
  * gates, not the built ones, so the total is not ours to state.
  */
 function EntrancesBlock({ facilities, cardBg }: { facilities: StationFacilities; cardBg: string }) {
+  const { t } = useTranslation();
   if (facilities.gates.length === 0) return null;
   return (
     <div>
-      <SectionLabel icon={DoorOpen} text="Entrances" />
+      <SectionLabel icon={DoorOpen} text={t('station.entrances')} />
       <div className="rounded-2xl p-3.5" style={{ background: cardBg, border: "1px solid var(--c-border)" }}>
         <div className="flex flex-wrap gap-2">
           {facilities.gates.map((g) => (
-            <FactChip key={g} text={`Gate ${g}`} />
+            <FactChip key={g} text={t('journey.gateList', { count: 1, gates: String(g) })} />
           ))}
         </div>
-        <FactNote text="Open entry / exit gates. Numbers match the signage at the station." />
+        <FactNote text={t('station.entrancesNote')} />
       </div>
     </div>
   );
@@ -347,14 +356,18 @@ function EntrancesBlock({ facilities, cardBg }: { facilities: StationFacilities;
  * so a rider can match them to the signage.
  */
 function StepFreeBlock({ facilities, cardBg }: { facilities: StationFacilities; cardBg: string }) {
+  const { t } = useTranslation();
   const gates = accessibleGates(facilities);
   if (gates.length === 0) return null;
+  /** "Gate 4" / "Gates 1, 2 & 4" — the inflecting word comes from the bundle,
+   *  the numbers from the language-free helper. */
+  const gateList = (g: number[]) => t('journey.gateList', { count: g.length, gates: gateNumbers(g) });
   return (
     <div>
-      <SectionLabel icon={Accessibility} text="Step-free access" />
+      <SectionLabel icon={Accessibility} text={t('station.stepFreeAccess')} />
       <div className="rounded-2xl overflow-hidden" style={{ background: cardBg, border: "1px solid var(--c-border)" }}>
         <div className="px-4 py-3 text-[13px] font-bold" style={{ color: "var(--c-text)" }}>
-          Step-free entry at {formatGateList(gates)}
+          {t('station.stepFreeEntry', { gates: gateList(gates) })}
         </div>
         {facilities.lifts.map((l) => (
           <div
@@ -363,10 +376,10 @@ function StepFreeBlock({ facilities, cardBg }: { facilities: StationFacilities; 
             style={{ borderTop: "1px solid var(--c-border)" }}
           >
             <div className="flex-1 min-w-0 text-[12px] font-bold" style={{ color: "var(--c-text-3)" }}>
-              Lift {l.lift}
+              {t('station.lift', { number: l.lift })}
             </div>
             <div className="text-[12px] font-bold tabular-nums" style={{ color: "var(--c-text)" }}>
-              {formatGateList(l.gates)}
+              {gateList(l.gates)}
             </div>
           </div>
         ))}
@@ -385,6 +398,7 @@ function StepFreeBlock({ facilities, cardBg }: { facilities: StationFacilities; 
  * connections" line would be a false negative (PRD §4.4.1, §7.6).
  */
 function ConnectionsBlock({ facilities, cardBg }: { facilities: StationFacilities; cardBg: string }) {
+  const { t } = useTranslation();
   const mm = facilities.multiModal;
   // PDEU is the one station with an amenity but no interchange, so this block
   // is keyed off having *something* to say rather than off `modes` alone.
@@ -392,7 +406,7 @@ function ConnectionsBlock({ facilities, cardBg }: { facilities: StationFacilitie
   const hasChips = mm.modes.length > 0 || (mm.amenities?.length ?? 0) > 0;
   return (
     <div>
-      <SectionLabel icon={ArrowLeftRight} text="Connections" />
+      <SectionLabel icon={ArrowLeftRight} text={t('station.connections')} />
       <div className="rounded-2xl overflow-hidden" style={{ background: cardBg, border: "1px solid var(--c-border)" }}>
         {hasChips && (
           <div className="flex flex-wrap gap-2 px-3.5 pt-3.5 pb-1">
@@ -412,9 +426,10 @@ function ConnectionsBlock({ facilities, cardBg }: { facilities: StationFacilitie
           >
             {c.gate !== null && (
               <div className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "var(--c-text-4)" }}>
-                Gate {c.gate}
+                {t('journey.gateList', { count: 1, gates: String(c.gate) })}
               </div>
             )}
+            {/* GMRC's own wording, verbatim (§6.7) — never translated by us. */}
             <div className="text-[12.5px] font-semibold leading-snug" style={{ color: "var(--c-text)" }}>
               {c.text}
             </div>
@@ -454,6 +469,7 @@ function ConnectionsBlock({ facilities, cardBg }: { facilities: StationFacilitie
  * Wi-Fi, ATMs, feeder-bus routes, and a landmark per gate (§5.6).
  */
 function StationInfoPanel({ stationId, surface }: { stationId: string; surface: "page" | "sheet" }) {
+  const { t } = useTranslation();
   const now = useNow();
   const station = STATION_BY_ID[stationId];
   const cardBg = surface === "sheet" ? "var(--c-bg)" : "var(--c-card)";
@@ -493,49 +509,51 @@ function StationInfoPanel({ stationId, surface }: { stationId: string; surface: 
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <SectionLabel icon={Layers} text="Station Overview" />
+        <SectionLabel icon={Layers} text={t('station.overview')} />
         <div className="grid grid-cols-2 gap-2.5">
-          <StatTile cardBg={cardBg} value={lines.length} label={lines.length > 1 ? "Lines" : "Line"} />
-          <StatTile cardBg={cardBg} value={`Phase ${station.phase}`} label="Network Phase" />
+          <StatTile cardBg={cardBg} value={lines.length} label={t('station.lineLabel', { count: lines.length })} />
+          <StatTile cardBg={cardBg} value={t('station.phaseValue', { number: station.phase })} label={t('station.networkPhase')} />
           <StatTile
             cardBg={cardBg}
             value={posOnLine ? `${posOnLine.idx + 1} / ${posOnLine.total + 1}` : "—"}
-            label="Stop on Line"
+            label={t('station.stopOnLine')}
           />
           <StatTile
             cardBg={cardBg}
-            value={station.operational === false ? "Opening soon" : "Operational"}
-            label="Status"
+            value={station.operational === false ? t('search.openingSoon') : t('station.operational')}
+            label={t('station.statusLabel')}
           />
           {facilities && (
             <StatTile
               cardBg={cardBg}
               wide
-              value={facilities.structure === "underground" ? "Underground" : "Elevated"}
-              label="Structure"
+              value={facilities.structure === "underground" ? t('station.underground') : t('station.elevated')}
+              label={t('station.structure')}
             />
           )}
         </div>
       </div>
 
       <div>
-        <SectionLabel icon={Info} text="Station Details" />
+        <SectionLabel icon={Info} text={t('station.details')} />
         <div className="grid grid-cols-2 gap-2.5">
           <AttributeCard
             cardBg={cardBg}
             icon={Waypoints}
-            title={station.interchange ? "Interchange" : "Single Line"}
+            title={station.interchange ? t('home.interchange') : t('station.singleLine')}
             description={
+              // Line names are interpolated, not translated — English in every
+              // language until §6.8's source lands.
               station.interchange && station.secondLine
-                ? `Connects to ${LINE_NAMES[station.secondLine]}`
-                : `Served only by ${LINE_NAMES[station.line]}`
+                ? t('station.connectsToLine', { line: LINE_NAMES[station.secondLine] })
+                : t('station.servedOnlyBy', { line: LINE_NAMES[station.line] })
             }
           />
           <AttributeCard
             cardBg={cardBg}
             icon={Milestone}
-            title={station.terminal ? "Terminus" : "Through Station"}
-            description={station.terminal ? "Start or end of the line" : "Trains pass through both ways"}
+            title={station.terminal ? t('live.terminus') : t('station.throughStation')}
+            description={station.terminal ? t('station.terminusDesc') : t('station.throughStationDesc')}
           />
         </div>
       </div>
@@ -549,7 +567,7 @@ function StationInfoPanel({ stationId, surface }: { stationId: string; surface: 
       )}
 
       <div>
-        <SectionLabel icon={Clock} text="First & Last Train Today" />
+        <SectionLabel icon={Clock} text={t('station.firstAndLastTrain')} />
         <div className="rounded-2xl overflow-hidden" style={{ background: cardBg, border: "1px solid var(--c-border)" }}>
           {timingRows.map((row, i) => (
             <div
@@ -559,11 +577,11 @@ function StationInfoPanel({ stationId, surface }: { stationId: string; surface: 
             >
               <LineBadge line={row.line} size="sm" />
               <div className="flex-1 min-w-0 text-[13px] font-bold truncate" style={{ color: "var(--c-text)" }}>
-                Towards {row.destinationName}
+                {t('journey.towards', { station: row.destinationName })}
               </div>
               <div className="text-right shrink-0">
                 <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--c-text-4)" }}>
-                  First
+                  {t('station.first')}
                 </div>
                 <div className="text-[13px] font-bold tabular-nums" style={{ color: "var(--c-text)" }}>
                   {row.first}
@@ -571,7 +589,7 @@ function StationInfoPanel({ stationId, surface }: { stationId: string; surface: 
               </div>
               <div className="text-right shrink-0">
                 <div className="text-[9px] font-bold uppercase tracking-widest" style={{ color: "var(--c-text-4)" }}>
-                  Last
+                  {t('station.last')}
                 </div>
                 <div className="text-[13px] font-bold tabular-nums" style={{ color: "var(--c-text)" }}>
                   {row.last}
@@ -585,7 +603,9 @@ function StationInfoPanel({ stationId, surface }: { stationId: string; surface: 
       <div className="flex items-start gap-2">
         <Timer size={13} strokeWidth={2.4} className="shrink-0 mt-0.5" style={{ color: "var(--c-text-4)" }} />
         <p className="text-[11px] font-semibold leading-snug" style={{ color: "var(--c-text-4)" }}>
-          {lines.map((l) => `${LINE_NAMES[l]}: every ~${LINE_META[l].avgFrequencyMins} min`).join(" · ")}
+          {lines
+            .map((l) => t('station.frequencyNote', { line: LINE_NAMES[l], mins: LINE_META[l].avgFrequencyMins }))
+            .join(" · ")}
         </p>
       </div>
     </div>
@@ -625,6 +645,7 @@ export function StationDetailBody({
    *  navigates home carrying the intent. */
   onPlanIntent?: (detail: { source?: string } | { dest?: string }) => void;
 }) {
+  const { t } = useTranslation();
   const station = STATION_BY_ID[stationId];
   const [tab, setTab] = useState<"schedule" | "info">("schedule");
 
@@ -659,14 +680,14 @@ export function StationDetailBody({
         className="flex-1 py-4 rounded-2xl text-[14px] font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
         style={{ background: "var(--c-accent)", color: "var(--c-accent-fg)" }}
       >
-        <ArrowUpRight size={16} strokeWidth={2.5} /> From here
+        <ArrowUpRight size={16} strokeWidth={2.5} /> {t('station.fromHere')}
       </button>
       <button
         onClick={() => planWith({ dest: station.id })}
         className="flex-1 py-4 rounded-2xl text-[14px] font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
         style={{ background: "transparent", color: "var(--c-accent)", border: "1px solid var(--c-accent)" }}
       >
-        <MapPin size={16} strokeWidth={2.5} /> To here
+        <MapPin size={16} strokeWidth={2.5} /> {t('station.toHere')}
       </button>
     </div>
   );
@@ -694,19 +715,19 @@ export function StationDetailBody({
                   className="text-[11px] font-bold uppercase tracking-widest px-2 py-1 rounded"
                   style={{ color: "var(--c-text-3)", border: "1px solid var(--c-border-2)" }}
                 >
-                  Phase {station.phase}
+                  {t('station.phaseValue', { number: station.phase })}
                 </span>
                 {station.interchange && (
                   <span
                     className="text-[11px] font-bold uppercase tracking-widest px-2 py-1 rounded"
                     style={{ color: "var(--c-text)", border: "1px solid var(--c-border-2)" }}
                   >
-                    Interchange
+                    {t('home.interchange')}
                   </span>
                 )}
                 {station.operational === false && (
                   <span className="text-[11px] font-bold uppercase tracking-widest text-yellow-600 border border-yellow-900/40 px-2 py-1 rounded">
-                    Opening Soon
+                    {t('search.openingSoon')}
                   </span>
                 )}
               </div>
@@ -721,7 +742,7 @@ export function StationDetailBody({
                 <div className="mt-2 flex items-center gap-1.5">
                   <Navigation2 size={11} style={{ color: "var(--c-text-4)" }} />
                   <span className="text-[11px]" style={{ color: "var(--c-text-4)" }}>
-                    Stop {posOnLine.idx + 1} of {posOnLine.total + 1}
+                    {t('station.stopOfTotal', { index: posOnLine.idx + 1, total: posOnLine.total + 1 })}
                   </span>
                 </div>
               )}
@@ -736,13 +757,13 @@ export function StationDetailBody({
         {/* Schedule / Station Info */}
         <div>
           <div className="grid grid-cols-2 gap-2 mb-4">
-            <TabButton active={tab === "schedule"} onClick={() => setTab("schedule")} icon={Clock} label="Schedule" />
-            <TabButton active={tab === "info"} onClick={() => setTab("info")} icon={Info} label="Station Info" />
+            <TabButton active={tab === "schedule"} onClick={() => setTab("schedule")} icon={Clock} label={t('station.tabSchedule')} />
+            <TabButton active={tab === "info"} onClick={() => setTab("info")} icon={Info} label={t('station.tabInfo')} />
           </div>
 
           {tab === "schedule" ? (
             <>
-              <SectionLabel icon={Clock} text="Tap any train for its full route" />
+              <SectionLabel icon={Clock} text={t('station.tapTrainHint')} />
               <div className="space-y-4">
                 {lines.map((line) => (
                   <LineScheduleCard
@@ -765,6 +786,7 @@ export function StationDetailBody({
 
 // ─── Main page ───────────────────────────────────────────────────────
 export function StationDetail() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -775,10 +797,10 @@ export function StationDetail() {
     return (
       <div className="p-8 text-center pt-24">
         <h2 className="text-xl font-bold" style={{ color: "var(--c-text)" }}>
-          Station not found
+          {t('station.notFound')}
         </h2>
         <button onClick={() => navigate(-1)} className="mt-4 text-yellow-400 font-semibold">
-          Go back
+          {t('common.goBack')}
         </button>
       </div>
     );

@@ -2,6 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { legOffsetsOf, activeLegIndexOf, liveStatusOf } from './liveStatus';
 import type { PlanResult } from './engine/journeyEngine';
 import type { JourneyState } from './hooks/useJourneySession';
+import en from '../../i18n/locales/en.json';
+
+/** Dotted lookup into the bundle; `undefined` for a key that isn't there. */
+function leafAt(obj: unknown, key: string): unknown {
+  return key.split('.').reduce<any>((acc, part) => acc?.[part], obj);
+}
 
 /**
  * A two-leg trip A→B→[C]→D→E, changing at C. The interchange appears once in
@@ -77,16 +83,19 @@ describe('the countdown counts to something the rider can act on', () => {
     // `stopTimeline[currentStopIndex + 1]`, which while walking is stop 1 — an
     // arrival past the origin. Here that would print 11 min instead of 8.
     const s = status('WALKING_TO_STATION', 0, 2)!;
-    expect(s.instruction).toBe('Walk to A');
-    expect(s.countdown).toEqual({ value: '8 min', label: 'Train departs' });
+    expect(s.instruction).toEqual({ key: 'live.walkTo', values: { station: 'A' } });
+    expect(s.countdown).toEqual({ value: '8 min', labelKey: 'live.trainDeparts' });
   });
 
   it('counts a connection to when the connecting train leaves', () => {
     const s = status('TRANSFERRING', 2, 17)!;
     expect(s.line).toBe('red');
-    expect(s.instruction).toBe('Change to Red Line · toward Rx');
+    expect(s.instruction).toEqual({
+      key: 'live.changeToLine',
+      values: { line: 'Red Line', heading: 'Rx' },
+    });
     // 16 at the interchange + 3 buffer + 4 wait = 23.
-    expect(s.countdown).toEqual({ value: '6 min', label: 'Train departs' });
+    expect(s.countdown).toEqual({ value: '6 min', labelKey: 'live.trainDeparts' });
     expect(s.tone).toBe('alert');
   });
 
@@ -98,27 +107,30 @@ describe('the countdown counts to something the rider can act on', () => {
 describe('per-state instruction', () => {
   it('names the next stop rather than saying "On train"', () => {
     const s = status('ON_TRAIN', 1, 12)!;
-    expect(s.instruction).toBe('Next: C');
-    expect(s.countdown).toEqual({ value: '4 min', label: 'Next stop' });
+    expect(s.instruction).toEqual({ key: 'live.nextStation', values: { station: 'C' } });
+    expect(s.countdown).toEqual({ value: '4 min', labelKey: 'live.nextStopLabel' });
   });
 
   it('names the direction while waiting, not the station underfoot', () => {
-    expect(status('WAITING_FOR_TRAIN', 0, 5)!.instruction).toBe('Board toward Bx');
+    expect(status('WAITING_FOR_TRAIN', 0, 5)!.instruction).toEqual({
+      key: 'live.boardToward',
+      values: { heading: 'Bx' },
+    });
   });
 
   // Both APPROACHING_* states are entered only from a GPS proximity check, so
   // a schedule-driven run never reaches them and this is their only coverage.
   it('warns before an interchange', () => {
     const s = status('APPROACHING_TRANSFER', 1, 14)!;
-    expect(s.instruction).toBe('Change at C — next stop');
-    expect(s.countdown).toEqual({ value: '2 min', label: 'Get ready' });
+    expect(s.instruction).toEqual({ key: 'live.changeAtNext', values: { station: 'C' } });
+    expect(s.countdown).toEqual({ value: '2 min', labelKey: 'live.getReady' });
     expect(s.tone).toBe('alert');
     expect(s.line).toBe('blue'); // still riding the first leg
   });
 
   it('warns before the destination', () => {
     const s = status('APPROACHING_DESTINATION', 3, 24)!;
-    expect(s.instruction).toBe('Get off next — E');
+    expect(s.instruction).toEqual({ key: 'live.getOffNext', values: { station: 'E' } });
     expect(s.tone).toBe('good');
   });
 });
@@ -156,12 +168,66 @@ describe('the first frame of a journey', () => {
     // when that spring starts.
     const s = status('WALKING_TO_STATION', 0, 0, trip(), [])!;
     expect(s).not.toBeNull();
-    expect(s.instruction).toBe('Walk to A');
+    expect(s.instruction).toEqual({ key: 'live.walkTo', values: { station: 'A' } });
     expect(s.countdown).toBeNull();
     expect(s.progress).toBe(0);
   });
 
   it('returns nothing at all when there is no route to describe', () => {
     expect(status('ON_TRAIN', 0, 0, trip({ legs: [], stops: [] }))).toBeNull();
+  });
+});
+
+/**
+ * The failure mode this file's key/values shape introduced, and the reason it
+ * gets its own test: a key that doesn't exist in the bundle renders as the
+ * literal string `live.boardToward` in the sheet header. i18next doesn't throw,
+ * `fallbackLng` has nothing to fall back to, and the type system can't help —
+ * `key` is a `string`. Nothing else in the suite would go red.
+ *
+ * Every state is enumerated rather than sampled: the two APPROACHING_* states
+ * are only ever entered from a GPS proximity check, so a typo in either would
+ * otherwise reach a rider before it reached CI.
+ */
+describe('every emitted key exists in the English bundle', () => {
+  const withPlace = trip({
+    destPlace: { name: 'Office' } as never,
+    destWalkMins: 6,
+    dest: { name: 'Office' } as never,
+  });
+
+  const CASES: [JourneyState, number, number, PlanResult][] = [
+    ['NOT_STARTED', 0, 0, trip()],
+    ['WALKING_TO_STATION', 0, 2, trip()],
+    ['WAITING_FOR_TRAIN', 0, 5, trip()],
+    ['ON_TRAIN', 1, 12, trip()],
+    ['ON_TRAIN', 4, 26, trip()], // no next stop — the bare "On train" branch
+    ['APPROACHING_TRANSFER', 1, 14, trip()],
+    ['TRANSFERRING', 2, 17, trip()],
+    ['APPROACHING_DESTINATION', 3, 24, trip()],
+    ['FINAL_WALK', 4, 26, trip()], // station ending
+    ['FINAL_WALK', 4, 26, withPlace], // place ending — a different key
+    ['COMPLETED', 4, 30, trip()],
+  ];
+
+  it.each(CASES)('%s @stop %i', (state, stop, elapsed, result) => {
+    const s = status(state, stop, elapsed, result)!;
+    expect(leafAt(en, s.instruction.key), s.instruction.key).toBeTypeOf('string');
+    if (s.countdown) {
+      expect(leafAt(en, s.countdown.labelKey), s.countdown.labelKey).toBeTypeOf('string');
+    }
+  });
+
+  it('interpolates every placeholder the English string asks for', () => {
+    // The other half of the same defect: a key that resolves but is handed no
+    // `station` renders "Walk to " — a complete-looking sentence missing the
+    // only word that mattered.
+    for (const [state, stop, elapsed, result] of CASES) {
+      const { key, values } = status(state, stop, elapsed, result)!.instruction;
+      const wanted = [...String(leafAt(en, key)).matchAll(/\{\{(\w+)\}\}/g)].map(m => m[1]);
+      for (const name of wanted) {
+        expect(values?.[name], `${key} got no ${name}`).toBeTruthy();
+      }
+    }
   });
 });

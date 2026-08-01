@@ -14,11 +14,16 @@
  * use it and nothing here pulls a component tree onto the boot path. Theme is
  * absent on purpose: it needs a synchronous first-paint read and lives in
  * `ThemeContext` with its own `localStorage` mirror (§5.7).
+ *
+ * Language keeps a first-paint mirror too (`i18n/index.ts`) and is still *here*,
+ * because unlike theme it has a preset list to parse a stored string against —
+ * which is this module's whole job. Only the mirror lives elsewhere.
  */
 
 /** Pref row names. These are the primary keys in the `prefs` table — never rename one. */
 export const PREF_WALK_SPEED = 'walkSpeedKmh';
 export const PREF_DEFAULT_DEPARTURE = 'defaultDepartureStationId';
+export const PREF_LANGUAGE = 'language';
 
 // ─── Walking speed ───────────────────────────────────────────────────────────
 
@@ -31,9 +36,9 @@ export const PREF_DEFAULT_DEPARTURE = 'defaultDepartureStationId';
  * default, so an existing rider's estimates don't move when this ships.
  */
 export const WALK_SPEED_PRESETS = [
-  { kmh: 4, label: 'Relaxed', detail: '4 km/h — allow a little more time' },
-  { kmh: 5, label: 'Normal', detail: '5 km/h — the default estimate' },
-  { kmh: 6, label: 'Brisk', detail: '6 km/h — walking with purpose' },
+  { kmh: 4, labelKey: 'you.paceRelaxed', detailKey: 'you.paceRelaxedDetail' },
+  { kmh: 5, labelKey: 'you.paceNormal', detailKey: 'you.paceNormalDetail' },
+  { kmh: 6, labelKey: 'you.paceBrisk', detailKey: 'you.paceBriskDetail' },
 ] as const;
 
 export const DEFAULT_WALK_SPEED_KMH = 5;
@@ -44,10 +49,17 @@ export function readWalkSpeed(raw: string | null): number {
   return WALK_SPEED_PRESETS.some(p => p.kmh === kmh) ? kmh : DEFAULT_WALK_SPEED_KMH;
 }
 
-/** The preset label for a speed, for the settings row's summary line. */
-export function walkSpeedLabel(kmh: number): string {
-  const preset = WALK_SPEED_PRESETS.find(p => p.kmh === kmh);
-  return preset ? `${preset.label} (${preset.kmh} km/h)` : `${kmh} km/h`;
+/**
+ * The preset behind a speed, or null for a speed we have no name for — which is
+ * reachable, since a pref can sync down from a build offering a fourth pace.
+ *
+ * Returns the preset, not a rendered label. This module has to stay free of
+ * React *and* of i18next (it is imported by `db.ts` and by the boot path), so
+ * the row composes the sentence from `labelKey`; the previous version returned
+ * "Normal (5 km/h)" and was English in every language.
+ */
+export function walkSpeedPreset(kmh: number): (typeof WALK_SPEED_PRESETS)[number] | null {
+  return WALK_SPEED_PRESETS.find(p => p.kmh === kmh) ?? null;
 }
 
 // ─── Default departure station ───────────────────────────────────────────────
@@ -66,3 +78,35 @@ export function readDefaultDeparture(raw: string | null): string | null {
 
 /** The sentinel written when the rider picks "Use my location" again. */
 export const DEPARTURE_USE_GPS = '';
+
+// ─── Language ────────────────────────────────────────────────────────────────
+
+/**
+ * The three languages offered (PRD §6).
+ *
+ * Each label is written in its own script, so the selector identifies itself to
+ * a rider who cannot read the other two. All three are left-to-right, so
+ * nothing here implies a layout mirror.
+ */
+export const LANGUAGES = [
+  { code: 'en', label: 'English' },
+  { code: 'hi', label: 'हिंदी' },
+  { code: 'gu', label: 'ગુજરાતી' },
+] as const;
+
+export type LanguageCode = (typeof LANGUAGES)[number]['code'];
+
+export const DEFAULT_LANGUAGE: LanguageCode = 'en';
+
+/**
+ * The stored language, or English if it's unset or not one we ship.
+ *
+ * Also used on the way *out* of i18next, whose `language` can be a region
+ * subtag (`hi-IN`) or a fallback chain entry we never wrote — so the same parse
+ * guards the store and the library, and neither can put an unknown code in
+ * front of the font rules or the selector.
+ */
+export function readLanguage(raw: string | null | undefined): LanguageCode {
+  const code = (raw ?? '').split('-')[0];
+  return LANGUAGES.some(l => l.code === code) ? (code as LanguageCode) : DEFAULT_LANGUAGE;
+}

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { Trans, useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { ArrowUpDown, ArrowRight, MapPin, History, Clock, ChevronDown, X } from "lucide-react";
 import { StationInput } from "./StationInput";
@@ -29,6 +30,7 @@ interface PlannerProps {
 }
 
 export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSource, prefillDest: prefillDestProp }: PlannerProps) {
+  const { t } = useTranslation();
   const prefillSourceId = prefillSource;
   const prefillDestId = prefillDestProp;
 
@@ -40,7 +42,11 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
   const [activeField, setActiveField] = useState<string | null>(null);
   const [places, setPlaces] = useState<PlaceNode[]>([]);
   const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
-  const [placesError, setPlacesError] = useState<string | null>(null);
+  // Held as a reason, not a sentence: the effect that sets it runs on a query
+  // and a network state, and storing translated prose there would either freeze
+  // the message in the language it failed in or put `t` in the dependency list
+  // and re-fire the search on every language change.
+  const [placesError, setPlacesError] = useState<'offline' | 'unavailable' | null>(null);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const online = useOnlineStatus();
 
@@ -125,9 +131,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
     // the doomed fetch when offline and surface the reason immediately.
     if (!online) {
       setPlaces([]);
-      setPlacesError(
-        "You're offline — place search needs a connection. Metro stations still search normally above."
-      );
+      setPlacesError('offline');
       return;
     }
     const timer = setTimeout(async () => {
@@ -136,9 +140,9 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
       try {
         const res = await GeocodingService.searchPlaces(activeQuery);
         setPlaces(res);
-      } catch (e) {
+      } catch {
         setPlaces([]);
-        setPlacesError("Place search is unavailable right now");
+        setPlacesError('unavailable');
       } finally {
         setIsSearchingPlaces(false);
       }
@@ -196,8 +200,8 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
   return (
     <div className="p-5 max-w-[var(--layout-max-width)] mx-auto pt-6 flex flex-col" onClick={() => setActiveField(null)}>
       <div className="mb-7">
-        <div className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--c-text-3)' }}>Journey Planner</div>
-        <h1 className="text-4xl font-bold tracking-tight leading-none" style={{ color: 'var(--c-text)' }}>Where to?</h1>
+        <div className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--c-text-3)' }}>{t('planner.eyebrow')}</div>
+        <h1 className="text-4xl font-bold tracking-tight leading-none" style={{ color: 'var(--c-text)' }}>{t('planner.title')}</h1>
       </div>
 
       <div
@@ -224,7 +228,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
 
           <div className="flex-1 min-w-0 px-1">
             <StationInput
-              label="From" value={sourceQuery} isAuto={sourceIsAuto} hideIcon
+              field="source" value={sourceQuery} isAuto={sourceIsAuto} hideIcon
               onFocus={() => setActiveField("source")}
               onChange={(v) => { setSourceQuery(v); setSourceIsAuto(false); setActiveField("source"); if (source && v !== source.name) setSource(null); }}
               onClear={() => { setSourceQuery(""); setSource(null); setSourceIsAuto(false); setActiveField("source"); }}
@@ -232,7 +236,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
             />
             <div style={{ height: '1px', background: 'var(--c-border)' }} />
             <StationInput
-              label="To" value={destQuery} hideIcon
+              field="dest" value={destQuery} hideIcon
               onFocus={() => setActiveField("destination")}
               onChange={(v) => { setDestQuery(v); setActiveField("destination"); if (destination && v !== destination.name) setDestination(null); }}
               onClear={() => { setDestQuery(""); setDestination(null); setActiveField("destination"); }}
@@ -244,7 +248,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
         <button
           onClick={handleSwap}
           disabled={!source && !destination}
-          aria-label="Swap"
+          aria-label={t('planner.swap')}
           className="absolute right-4 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center transition-all disabled:opacity-30 hover:scale-110 active:scale-95"
           style={{ background: 'var(--c-card-alt)', color: 'var(--c-text-2)' }}
         >
@@ -263,7 +267,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
             transition={{ duration: 0.2, ease: 'easeOut' }}
           >
             {results.length > 0 && (
-              <div className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-neutral-500 bg-neutral-50 dark:bg-neutral-800/50">Stations</div>
+              <div className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-neutral-500 bg-neutral-50 dark:bg-neutral-800/50">{t('planner.stations')}</div>
             )}
             {results.map((s: any, idx: number) => {
               const isFocused = idx === focusedIndex;
@@ -297,13 +301,13 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
 
             {activeQuery.length >= 3 && (
               <div className="px-4 py-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-neutral-500 bg-neutral-50 dark:bg-neutral-800/50">
-                <span>Places</span>
-                {isSearchingPlaces && <span className="animate-pulse text-blue-500">Searching...</span>}
+                <span>{t('planner.places')}</span>
+                {isSearchingPlaces && <span className="animate-pulse text-blue-500">{t('planner.searching')}</span>}
               </div>
             )}
             {placesError ? (
               <div className="px-4 py-3 text-[13px] text-red-500 font-medium">
-                {placesError}
+                {t(placesError === 'offline' ? 'planner.placesOffline' : 'planner.placesUnavailable')}
               </div>
             ) : places.map((p, idx) => {
               const isFocused = (idx + results.length) === focusedIndex;
@@ -324,7 +328,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-[14px] font-semibold truncate" style={{ color: 'var(--c-text)' }}>{p.name}</div>
-                    <div className="text-[11px] text-neutral-500 truncate">Select to find nearest station</div>
+                    <div className="text-[11px] text-neutral-500 truncate">{t('planner.placeHint')}</div>
                   </div>
                 </button>
               );
@@ -343,16 +347,16 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
             never both" is the shape of the code and not a rule to remember. */}
         {sourceIsAuto && (defaultDeparture ? (
           <div className="text-xs font-medium px-1" style={{ color: 'var(--c-text-3)' }}>
-            Your default departure station
+            {t('planner.defaultDeparture')}
           </div>
         ) : (
           <>
             <LocationNotice status={locStatus} onRetry={onRetryLocation} compact />
             {nearest?.distanceKm != null && (
               <div className="text-xs font-medium flex items-center gap-2 px-1" style={{ color: 'var(--c-text-3)' }}>
-                <span>~{Math.round(nearest.distanceKm * 1000)}m away</span>
+                <span>{t('planner.metresAway', { metres: Math.round(nearest.distanceKm * 1000) })}</span>
                 <span>·</span>
-                <span>{formatDuration(walkMinsForKm(nearest.distanceKm, walkSpeedKmh))} walk</span>
+                <span>{t('common.walk', { duration: formatDuration(walkMinsForKm(nearest.distanceKm, walkSpeedKmh)) })}</span>
               </div>
             )}
           </>
@@ -360,35 +364,42 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
         {sourceStatus?.status === "running" && (
           <div className="flex items-center gap-2 text-xs font-semibold p-3 rounded-xl text-green-600" style={{ background: 'rgba(74,222,128,0.06)' }}>
             <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            Next train in <strong>{formatDuration(sourceStatus.waitMins!)}</strong>
-            <span className="ml-auto opacity-60">every {formatDuration(sourceStatus.currentFrequencyMins!)}</span>
+            {/* `Trans` rather than two strings, so the bold duration can sit
+                where each language puts it — Hindi and Gujarati both close the
+                sentence after it, English opens with it. */}
+            <Trans
+              i18nKey="planner.nextTrainIn"
+              values={{ duration: formatDuration(sourceStatus.waitMins!) }}
+              components={{ b: <strong /> }}
+            />
+            <span className="ml-auto opacity-60">{t('planner.everyDuration', { duration: formatDuration(sourceStatus.currentFrequencyMins!) })}</span>
           </div>
         )}
         {sourceStatus?.status === "before-first-train" && (
           <div className="text-xs font-semibold p-3 rounded-xl" style={{ background: 'var(--c-card)', color: 'var(--c-text-2)' }}>
-            Service starts in {formatDuration(sourceStatus.minsUntilFirst!)}
+            {t('planner.serviceStartsIn', { duration: formatDuration(sourceStatus.minsUntilFirst!) })}
           </div>
         )}
         {sourceStatus?.status === "after-last-train" && (
           <div className="text-xs font-bold p-3 rounded-xl" style={{ background: 'var(--c-card)', color: 'var(--c-text-3)' }}>
-            Service has ended for today
+            {t('planner.serviceEndedToday')}
           </div>
         )}
         {sourceStatus?.status === "bus-only" && (
           <div className="text-xs font-semibold p-3 rounded-xl text-purple-400" style={{ background: 'rgba(168,85,247,0.06)' }}>
-            Bus service only — trains resume in {formatDuration(sourceStatus.resumesInMins!)}
+            {t('planner.busOnlyResumes', { duration: formatDuration(sourceStatus.resumesInMins!) })}
           </div>
         )}
         {sameStation && (
           <div className="text-sm font-semibold p-3 rounded-xl text-center text-red-400" style={{ background: 'rgba(239,68,68,0.06)' }}>
-            Please select different stations
+            {t('planner.sameStation')}
           </div>
         )}
       </div>
 
       {!showSuggestions && recentTrips.length > 0 && (
         <div className="mb-6 -mx-1">
-          <div className="text-[11px] font-bold uppercase tracking-widest mb-1 px-2" style={{ color: 'var(--c-text-3)' }}>Recent</div>
+          <div className="text-[11px] font-bold uppercase tracking-widest mb-1 px-2" style={{ color: 'var(--c-text-3)' }}>{t('common.recent')}</div>
           {recentTrips.map((trip) => (
             <button
               key={trip.key}
@@ -399,13 +410,13 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
                 <History size={16} style={{ color: 'var(--c-text-3)' }} />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-[15px] font-semibold truncate" style={{ color: 'var(--c-text)' }}>{trip.dest?.name ?? 'Trip'}</div>
-                <div className="text-[12px] truncate" style={{ color: 'var(--c-text-3)' }}>from {trip.source?.name ?? '—'}</div>
+                <div className="text-[15px] font-semibold truncate" style={{ color: 'var(--c-text)' }}>{trip.dest?.name ?? t('common.trip')}</div>
+                <div className="text-[12px] truncate" style={{ color: 'var(--c-text-3)' }}>{t('common.fromStation', { name: trip.source?.name ?? '—' })}</div>
               </div>
               <div
                 role="button"
                 tabIndex={0}
-                aria-label="Remove recent trip"
+                aria-label={t('planner.removeRecentTrip')}
                 onClick={(e) => removeTrip(e, trip.key)}
                 className="shrink-0 w-9 h-9 -mr-1 rounded-full flex items-center justify-center transition-colors hover:bg-black/5 dark:hover:bg-white/10"
                 style={{ color: 'var(--c-text-3)' }}
@@ -425,9 +436,15 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
         >
           <Clock size={16} style={{ color: 'var(--c-text-3)' }} />
           <span>
+            {/* The date itself is still formatted in the *browser's* locale, not
+                the app's. That's §6.6 phase 4's call to make along with the
+                pending Western-vs-Indic numeral decision (§6.3); pre-empting it
+                here would settle it for one label. */}
             {timeMode === 'now'
-              ? 'Leave now'
-              : `${timeMode === 'depart' ? 'Depart' : 'Arrive'} ${new Date(timeStr).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`}
+              ? t('planner.leaveNow')
+              : t(timeMode === 'depart' ? 'planner.departAtTime' : 'planner.arriveByTime', {
+                  time: new Date(timeStr).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }),
+                })}
           </span>
           <ChevronDown size={16} style={{ color: 'var(--c-text-3)', transform: timeExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
         </button>
@@ -458,7 +475,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
                     boxShadow: timeMode === mode ? '0 2px 10px rgba(0,0,0,0.1)' : 'none'
                   }}
                 >
-                  {mode === 'now' ? 'Leave Now' : mode === 'depart' ? 'Depart At' : 'Arrive By'}
+                  {t(mode === 'now' ? 'planner.modeNow' : mode === 'depart' ? 'planner.modeDepart' : 'planner.modeArrive')}
                 </button>
               ))}
             </div>
@@ -504,7 +521,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
             : { background: 'var(--c-card)', color: 'var(--c-text-4)', cursor: 'not-allowed' }
           }
         >
-          View Route Options <ArrowRight size={18} strokeWidth={2.5} />
+          {t('planner.submit')} <ArrowRight size={18} strokeWidth={2.5} />
         </button>
       </div>
     </div>

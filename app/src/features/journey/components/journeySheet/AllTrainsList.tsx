@@ -1,4 +1,5 @@
 import { AlertOctagon } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { formatDuration, formatLeaveIn, rideMinsOf } from "../../engine/journeyEngine";
 
 /**
@@ -17,15 +18,16 @@ export function AllTrainsList({
   onSelect: (idx: number) => void;
   sourceName: string;
 }) {
+  const { t } = useTranslation();
   return (
     <div>
       <h3 className="text-[9px] font-bold uppercase tracking-widest mb-4" style={{ color: 'var(--c-text-3)' }}>
-        All trains today
+        {t('journey.allTrainsToday')}
       </h3>
 
       {options.length === 0 ? (
         <div className="p-4 text-center text-sm font-medium rounded-xl" style={{ background: 'var(--c-bg)', color: 'var(--c-text-3)' }}>
-          No more trains from {sourceName} today.
+          {t('journey.noMoreTrainsFrom', { station: sourceName })}
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -53,7 +55,9 @@ export function AllTrainsList({
                         same train read as two different departures. */}
                     <div className="text-[18px] font-bold leading-none" style={{ color: isSelected ? 'var(--c-accent-fg)' : 'var(--c-text)' }}>{opt.departClockTime ?? opt.leaveClockTime}</div>
                     <div className="text-[11px] font-semibold mt-0.5 uppercase tracking-wide" style={{ color: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--c-text-4)' }}>
-                      {optFeasible ? `arrive ${opt.arriveClockTime}` : `stuck at ${opt.strandedAtLine}`}
+                      {optFeasible
+                        ? t('journey.arriveAt', { time: opt.arriveClockTime })
+                        : t('journey.strandedAt', { line: opt.strandedAtLine })}
                     </div>
                   </div>
                   <div className="text-right">
@@ -63,7 +67,9 @@ export function AllTrainsList({
                       className="text-[11px] font-semibold mt-0.5 uppercase tracking-wide"
                       style={{ color: isSelected ? 'rgba(255,255,255,0.7)' : isTight ? '#f59e0b' : 'var(--c-text-4)' }}
                     >
-                      {isTight ? 'tight connection' : `leave ${formatLeaveIn(opt.leaveInMins)}`}
+                      {isTight
+                        ? t('journey.tightConnection')
+                        : t('journey.leaveAt', { when: formatLeaveIn(opt.leaveInMins) })}
                     </div>
                   </div>
                 </div>
@@ -72,7 +78,7 @@ export function AllTrainsList({
                 )}
                 {isSelected && opt.warnings?.length > 0 && (
                   <div className="px-4 py-2 text-[11px] font-bold text-black/60 flex items-center gap-1">
-                    <AlertOctagon size={11} /> Warnings on this departure
+                    <AlertOctagon size={11} /> {t('journey.warningsOnDeparture')}
                   </div>
                 )}
               </button>

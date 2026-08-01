@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface CountdownProps {
   targetMs: number;
 }
 
 export function Countdown({ targetMs }: CountdownProps) {
+  const { t } = useTranslation();
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -32,7 +34,7 @@ export function Countdown({ targetMs }: CountdownProps) {
   const remaining = targetMs - now;
 
   if (remaining < 0) {
-    return <span>Missed</span>;
+    return <span>{t('journey.missed')}</span>;
   }
   if (remaining === 0) {
     return <span>0s</span>;

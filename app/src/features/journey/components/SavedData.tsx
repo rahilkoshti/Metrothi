@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { BookMarked, Train, Clock, X } from 'lucide-react';
 import { ExpandableRow, RowDivider, SectionCard, SectionHeader } from './settingsRows';
@@ -94,14 +95,13 @@ function EntryRow({
   );
 }
 
-/** Plural-aware count: "1 station" / "4 stations". */
-function plural(count: number, one: string, many: string): string {
-  return count === 1 ? `1 ${one}` : `${count} ${many}`;
-}
-
 // ─── Saved ───────────────────────────────────────────────────────────────────
 
 export function SavedSection() {
+  // The hand-rolled `plural(count, one, many)` this replaced hardcoded English's
+  // two-form rule at the call site. i18next resolves the form per language from
+  // CLDR, which is the whole reason §6.1 chose it.
+  const { t } = useTranslation();
   const navigate = useNavigate();
   // The favourites hook, not a second copy of it: it already owns both the live
   // read and the write-then-sync, and this was the only site in the app writing
@@ -121,16 +121,16 @@ export function SavedSection() {
 
   return (
     <>
-      <SectionHeader label="Saved" />
+      <SectionHeader label={t('common.saved')} />
       <SectionCard>
         <ExpandableRow
           icon={BookMarked}
-          label="Saved places"
+          label={t('you.savedPlaces')}
           expandable={stations.length > 0}
           value={
             stations.length === 0
-              ? 'Tap the star on any station to save it'
-              : plural(stations.length, 'station', 'stations')
+              ? t('you.savedPlacesEmpty')
+              : t('you.stationCount', { count: stations.length })
           }
         >
           {stations.map(s => (
@@ -138,33 +138,33 @@ export function SavedSection() {
               key={s.id}
               line={s.line}
               title={s.name}
-              meta={s.secondLine ? 'Interchange' : undefined}
+              meta={s.secondLine ? t('home.interchange') : undefined}
               onOpen={() => navigate(`/stations/${s.id}`)}
               onRemove={() => toggle(s.id)}
-              removeLabel={`Remove ${s.name} from saved places`}
+              removeLabel={t('you.removeSavedPlace', { station: s.name })}
             />
           ))}
         </ExpandableRow>
         <RowDivider />
         <ExpandableRow
           icon={Train}
-          label="Saved journeys"
+          label={t('you.savedJourneys')}
           expandable={savedJourneys.length > 0}
           value={
             savedJourneys.length === 0
-              ? 'Save a route while planning to keep it here'
-              : plural(savedJourneys.length, 'route', 'routes')
+              ? t('you.savedJourneysEmpty')
+              : t('you.routeCount', { count: savedJourneys.length })
           }
         >
           {savedJourneys.map(j => {
             const dest = j.destId ? STATION_BY_ID[j.destId] : undefined;
-            const title = j.destName || dest?.name || j.destId || 'Journey';
+            const title = j.destName || dest?.name || j.destId || t('you.journeyFallback');
             return (
               <EntryRow
                 key={j.key}
                 line={dest?.line}
                 title={title}
-                meta={`from ${j.sourceName || j.sourceId || 'somewhere'}`}
+                meta={t('common.fromStation', { name: j.sourceName || j.sourceId || t('you.somewhere') })}
                 // Opens the destination, the same landing the search overlay
                 // gives a saved journey. Planning re-runs from the home sheet,
                 // which isn't mounted on this route.
@@ -176,7 +176,7 @@ export function SavedSection() {
                   sourceName: j.sourceName,
                   destName: j.destName,
                 }).then(() => syncNow())}
-                removeLabel={`Remove the saved journey to ${title}`}
+                removeLabel={t('you.removeSavedJourney', { name: title })}
               />
             );
           })}
@@ -189,37 +189,43 @@ export function SavedSection() {
 // ─── Journey history ─────────────────────────────────────────────────────────
 
 export function HistorySection() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const trips = useLiveQuery(listRecentTrips, [], [] as RecentTrip[]);
 
   return (
     <>
-      <SectionHeader label="Journey History" />
+      <SectionHeader label={t('you.journeyHistory')} />
       <SectionCard>
         <ExpandableRow
           icon={Clock}
-          label="Past trips"
+          label={t('you.pastTrips')}
           expandable={trips.length > 0}
           value={
             trips.length === 0
-              ? 'Trips you plan are kept here'
-              : `${plural(trips.length, 'trip', 'trips')} · last ${RECENT_TRIP_LIMIT} kept`
+              ? t('you.pastTripsEmpty')
+              : t('you.tripsKept', {
+                  trips: t('you.tripCount', { count: trips.length }),
+                  limit: RECENT_TRIP_LIMIT,
+                })
           }
         >
-          {trips.map(t => {
+          {/* `trip`, not `t` — the row's own strings need the translate
+              function, and the old parameter name shadowed it. */}
+          {trips.map(trip => {
             // A trip end is a station or a resolved landmark (§4.2), and only
             // the former has a page to open.
-            const dest = typeof t.dest?.id === 'string' ? STATION_BY_ID[t.dest.id] : undefined;
-            const title = t.dest?.name ?? 'Trip';
+            const dest = typeof trip.dest?.id === 'string' ? STATION_BY_ID[trip.dest.id] : undefined;
+            const title = trip.dest?.name ?? t('common.trip');
             return (
               <EntryRow
-                key={t.key}
+                key={trip.key}
                 line={dest?.line}
                 title={title}
-                meta={t.source?.name ? `from ${t.source.name}` : undefined}
+                meta={trip.source?.name ? t('common.fromStation', { name: trip.source.name }) : undefined}
                 onOpen={dest ? () => navigate(`/stations/${dest.id}`) : undefined}
-                onRemove={() => void removeRecentTrip(t.key).then(() => syncNow())}
-                removeLabel={`Remove the trip to ${title} from history`}
+                onRemove={() => void removeRecentTrip(trip.key).then(() => syncNow())}
+                removeLabel={t('you.removeTrip', { name: title })}
               />
             );
           })}

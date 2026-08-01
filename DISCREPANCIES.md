@@ -115,6 +115,62 @@ _(no open entries)_
       cleanup pass should make.
       *(Out of scope for the cleanup pass; logged rather than fixed.)*
 
+## Localization (`app/src/i18n/`, PRD §6)
+
+- [ ] **`i18next` + `react-i18next` cost 21.2 KB gzip on the boot path, and the
+      argument that chose them is weaker than the number.** Measured over the
+      build both ways, summed across every file `index.html` loads: 690,835 raw
+      / 210,397 gzip before, 754,903 / 231,624 with the library and the English
+      bundle only. That is **four times** what taking `/you` off the boot path
+      bought back (5.32 KB, 2026-07-31), on the map-first path §5.6 exists to
+      protect. §6.1 chose i18next over a hand-rolled context "on the plural /
+      interpolation cost", and the shipped string set does not exercise it:
+      interpolation is `{{placeholder}}` substitution, and the only two plurals
+      (`home.stops`, `home.transfers`) use **identical wording at `one` and
+      `other` in both Hindi and Gujarati**, so CLDR's plural rules are currently
+      buying one English `s`. Not swapped here because it is this document's own
+      decision and reversing it is a product call, not a cleanup — but the
+      decision was made without a measurement and now has one.
+      **If it is revisited, what a replacement must keep:** `<Trans>`-style
+      inline markup (**three** call sites after phase 2 — `planner.nextTrainIn`,
+      `journey.strandedExplain`, `live.departsAt`), per-key fallback to English,
+      and the `languageChanged` event `i18n/index.ts` hangs the `<html lang>` /
+      font / paint-hint side effects off.
+      **Updated 2026-08-02:** the plural argument is now *stronger* than when
+      this was written, which cuts against swapping the library. Phase 2 added
+      six more plural pairs (`common.stops`, `common.transfers`, `live.changes`,
+      `live.rideStops`, `journey.gateList`, `you.stationCount`/`routeCount`/
+      `tripCount`), and two of them are the shape a hand-rolled resolver gets
+      wrong: `journey.gateList` and `station.lineLabel` select on `count` while
+      rendering something else entirely, so "the count is in the string" is no
+      longer a safe simplifying assumption. The 21.2 KB is still 21.2 KB; what
+      it buys is no longer one English `s`.
+
+- [ ] **The two Indic bundles ship on the boot path and are unread by ~every
+      rider — and the size that was going to flip this decision has arrived.**
+      Originally 2.68 KB gzip: 764,853 raw / 234,304 gzip with all three against
+      754,903 / 231,624 with English alone. Deliberate, and the reason is in
+      `i18n/index.ts`: splitting them would put a frame of English on every
+      Hindi or Gujarati cold start, which is the theme flash §5.7 made theme the
+      one synchronous exception to avoid. It was logged rather than fixed
+      "because the trade flips if the bundles grow — phase 2 has ~20 more files
+      to sweep, and at some size a `hi`/`gu` split with `en` kept static (it is
+      the fallback and needed either way) becomes the right call."
+      **Updated 2026-08-02, phase 2 complete:** the bundles went **15,930 raw
+      to 61,126** (en 3,879 → 14,259; hi 6,047 → 23,677; gu 6,004 → 23,190) —
+      **3.8×**, and the two Indic files are now 46,867 of it, three quarters of
+      the total. Boot payload, summed across every file `index.html` loads:
+      811,141 raw / **247,551 gzip**, against 234,304 before — **+13.2 KB gzip
+      on every cold start**, most of it two scripts the median rider cannot
+      read. That is 2.5× what the whole i18next library was flagged for and
+      **five times** what taking `/you` off the boot path bought back.
+      **This is now the largest single boot-path item with a known fix**, and
+      the condition this entry set for revisiting it is met. What a split has
+      to keep is unchanged: `en` static (fallback, needed either way), and no
+      frame of English on a Hindi cold start — which means resolving the chunk
+      *before* `createRoot`, not inside a `Suspense`. Not done here because it
+      is a change to the boot sequence and this was a string sweep.
+
 ## PWA / offline deviations
 
 - [x] **Dexie deliberately not implemented — reversed 2026-07-30.** PRD §5.2/§5.3

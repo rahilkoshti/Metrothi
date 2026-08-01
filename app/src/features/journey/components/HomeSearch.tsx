@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { MapPin, Navigation, History, Star } from 'lucide-react';
 import {
@@ -90,6 +91,7 @@ function Row({
   meta?: string;
   badge?: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       className="flex items-center gap-3 px-4 transition-colors"
@@ -136,7 +138,7 @@ function Row({
       {onDirections && (
         <button
           onClick={onDirections}
-          aria-label="Plan a trip here"
+          aria-label={t('search.planTripHere')}
           className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-transform"
           style={{ background: 'var(--c-card)' }}
         >
@@ -162,6 +164,7 @@ export function HomeSearch({
   focusLine?: string | null;
   nearestId?: string | null;
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [places, setPlaces] = useState<PlaceNode[]>([]);
   const [loadingPlaces, setLoadingPlaces] = useState(false);
@@ -240,7 +243,7 @@ export function HomeSearch({
         <div className="px-4">
           <SearchBar
             variant="active"
-            placeholder="Search stations and landmarks"
+            placeholder={t('home.searchPlaceholder')}
             value={query}
             onChange={setQuery}
             onClose={onClose}
@@ -261,14 +264,14 @@ export function HomeSearch({
                 {nearestId && (
                   <Chip
                     icon={<Navigation size={14} style={{ color: 'var(--c-accent)' }} />}
-                    label="Nearest station"
+                    label={t('home.nearestStation')}
                     onClick={() => onSelectStation(nearestId)}
                   />
                 )}
                 {savedJourneys.length > 0 && (
                   <Chip
                     icon={<Star size={14} style={{ color: 'var(--c-accent)' }} />}
-                    label="Saved"
+                    label={t('common.saved')}
                     onClick={() => scrollToEl(savedRef.current)}
                   />
                 )}
@@ -283,13 +286,13 @@ export function HomeSearch({
           <>
             {savedJourneys.length > 0 && (
               <div ref={savedRef}>
-                <SectionLabel icon={<Star size={12} style={{ color: 'var(--c-accent)' }} />} text="Saved" />
+                <SectionLabel icon={<Star size={12} style={{ color: 'var(--c-accent)' }} />} text={t('common.saved')} />
                 {savedJourneys.map((j: any) => (
                   <Row
                     key={j.key}
                     icon={<Star size={16} style={{ color: 'var(--c-text-3)' }} />}
                     title={j.destName || j.destId}
-                    meta={`from ${j.sourceName || j.sourceId}`}
+                    meta={t('common.fromStation', { name: j.sourceName || j.sourceId })}
                     onClick={() => onSelectStation(j.destId)}
                   />
                 ))}
@@ -297,13 +300,13 @@ export function HomeSearch({
             )}
             {recentTrips.length > 0 && (
               <>
-                <SectionLabel icon={<History size={12} style={{ color: 'var(--c-text-3)' }} />} text="Recent" />
+                <SectionLabel icon={<History size={12} style={{ color: 'var(--c-text-3)' }} />} text={t('common.recent')} />
                 {recentTrips.map((j: any) => (
                   <Row
                     key={j.key}
                     icon={<History size={16} style={{ color: 'var(--c-text-3)' }} />}
-                    title={j.dest?.name ?? 'Trip'}
-                    meta={`from ${j.source?.name ?? ''}`}
+                    title={j.dest?.name ?? t('common.trip')}
+                    meta={t('common.fromStation', { name: j.source?.name ?? '' })}
                     onClick={() => onPlanTo(j.dest)}
                   />
                 ))}
@@ -311,7 +314,7 @@ export function HomeSearch({
             )}
             {savedJourneys.length === 0 && recentTrips.length === 0 && (
               <p className="px-4 pt-5 text-[12px]" style={{ color: 'var(--c-text-4)' }}>
-                Search any landmark to find the metro stop closest to it — or pick a station below.
+                {t('search.emptyHint')}
               </p>
             )}
             <AllStations onSelectStation={onSelectStation} onPlanTo={onPlanTo} focusLine={focusLine} />
@@ -323,7 +326,7 @@ export function HomeSearch({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
           >
-            {stationResults.length > 0 && <SectionLabel text="Stations" />}
+            {stationResults.length > 0 && <SectionLabel text={t('search.stations')} />}
             {stationResults.map((s) => (
               <Row
                 key={s.id}
@@ -332,20 +335,20 @@ export function HomeSearch({
                 // The connection is what explains a row that matched no part of
                 // the name — "bus" returning Vadaj only reads as an answer once
                 // the row says BRTS.
-                meta={stationMeta(s, [s.interchange ? 'Interchange' : null])}
+                meta={stationMeta(s, [s.interchange ? t('home.interchange') : null])}
                 onClick={() => onSelectStation(s.id)}
                 onDirections={() => onPlanTo(s)}
               />
             ))}
 
-            {places.length > 0 && <SectionLabel text="Landmarks" />}
+            {places.length > 0 && <SectionLabel text={t('search.landmarks')} />}
             {places.map((p) => {
               const near = nearestStationTo(p);
               return (
                 <Row
                   key={p.id}
                   icon={<MapPin size={16} style={{ color: 'var(--c-text-3)' }} />}
-                  eyebrow={`Nearest to ${p.name}`}
+                  eyebrow={t('search.nearestTo', { place: p.name })}
                   title={
                     near ? (
                       <span className="flex items-center gap-2">
@@ -358,11 +361,13 @@ export function HomeSearch({
                   }
                   meta={
                     near
-                      ? `${near.km < 1
-                        ? `${Math.round(near.km * 1000)} m`
-                        : `${near.km.toFixed(1)} km`
-                      } · ${formatDuration(walkMinsForKm(near.km, walkSpeedKmh))} walk`
-                      : 'No station nearby'
+                      ? [
+                          near.km < 1
+                            ? t('common.distanceMetres', { value: Math.round(near.km * 1000) })
+                            : t('common.distanceKm', { value: near.km.toFixed(1) }),
+                          t('common.walk', { duration: formatDuration(walkMinsForKm(near.km, walkSpeedKmh)) }),
+                        ].join(' · ')
+                      : t('search.noStationNearby')
                   }
                   onClick={() => near && onSelectStation(near.station.id)}
                   onDirections={() => onPlanTo(p)}
@@ -372,7 +377,7 @@ export function HomeSearch({
 
             {stationResults.length === 0 && places.length === 0 && !loadingPlaces && (
               <p className="px-4 py-8 text-center text-[13px]" style={{ color: 'var(--c-text-4)' }}>
-                Nothing found for “{query}”.
+                {t('search.nothingFound', { query })}
               </p>
             )}
           </motion.div>
@@ -401,6 +406,7 @@ function AllStations({
   onPlanTo: (item: StationRecord) => void;
   focusLine?: string | null;
 }) {
+  const { t } = useTranslation();
   const focusRef = useRef<HTMLDivElement>(null);
   const [facet, setFacet] = useState<TransportMode | null>(null);
   const facetIds = facet ? CONNECTION_FACETS.find((f) => f.mode === facet)?.ids : null;
@@ -416,7 +422,12 @@ function AllStations({
 
   return (
     <>
-      <SectionLabel text={facet ? `Connects to ${MODE_LABELS[facet]}` : 'All stations'} />
+      {/* `MODE_LABELS` stays English in every language: BRTS, GSRTC and Indian
+          Railways are the operators' own names, and "High-speed rail" is how
+          GMRC names that mode on the MMI page (§6.7). Only the frame is ours. */}
+      <SectionLabel
+        text={facet ? t('search.connectsTo', { mode: MODE_LABELS[facet] }) : t('search.allStations')}
+      />
 
       {/* Scrolls horizontally like the quick-chip row above it: four labels this
           long don't fit 375px, and wrapping them would push the first line group
@@ -450,9 +461,9 @@ function AllStations({
             </div>
             {stns.map((s) => {
               const meta = stationMeta(s, [
-                `Ph.${s.phase}`,
-                s.interchange ? 'Interchange' : null,
-                s.operational === false ? 'Opening soon' : null,
+                t('search.phase', { number: s.phase }),
+                s.interchange ? t('home.interchange') : null,
+                s.operational === false ? t('search.openingSoon') : null,
               ]);
               return (
                 <Row

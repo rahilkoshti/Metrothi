@@ -96,11 +96,20 @@ export function accessibleGates(facilities: StationFacilities): number[] {
   return [...gates].sort((a, b) => a - b);
 }
 
-/** "Gate 1, 2 & 4" — for prose. Falls back to an em dash when there are none. */
-export function formatGateList(gates: number[]): string {
+/**
+ * "1, 2 & 4" — the numbers alone, in the order GMRC lists them. Falls back to
+ * an em dash when there are none.
+ *
+ * The word in front of them ("Gate"/"Gates") is *not* here, deliberately: it
+ * inflects, so it belongs to a `_one`/`_other` pair in the bundles (§6.2) and
+ * the caller wraps this with `t('journey.gateList', { count, gates })`. This
+ * used to return the whole phrase, which made it a composed English sentence
+ * inside a React-free module — the shape §6 keeps finding.
+ */
+export function gateNumbers(gates: number[]): string {
   if (gates.length === 0) return "—";
-  if (gates.length === 1) return `Gate ${gates[0]}`;
-  return `Gates ${gates.slice(0, -1).join(", ")} & ${gates[gates.length - 1]}`;
+  if (gates.length === 1) return String(gates[0]);
+  return `${gates.slice(0, -1).join(", ")} & ${gates[gates.length - 1]}`;
 }
 
 /** Stations with a published interchange, for a "connects to BRTS" filter. */

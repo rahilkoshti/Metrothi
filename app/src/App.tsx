@@ -10,6 +10,7 @@ import { useJourneySession } from './features/journey/hooks/useJourneySession';
 import { InfoPageFallback } from './features/info/InfoPageFallback';
 import { YouScreenFallback } from './features/journey/components/YouScreenFallback';
 import { ScrollReset } from './components/ScrollReset';
+import { LanguageSync } from './i18n/useLanguage';
 import { recordRecentTrip, migrateFromLocalStorage } from './data/db';
 import { syncNow } from './services/syncEngine';
 
@@ -141,13 +142,18 @@ function MainApp() {
   return (
     <div
       className="min-h-[100dvh] w-full flex flex-col transition-colors duration-300"
-      style={{ background: 'var(--c-bg)', color: 'var(--c-text)', fontFamily: "'Space Grotesk', sans-serif" }}
+      style={{ background: 'var(--c-bg)', color: 'var(--c-text)', fontFamily: 'var(--font-app)' }}
     >
       <div className="w-full flex-1 relative flex flex-col">
         <main className="flex-1 overflow-y-auto">
           {/* Sits inside <main> so its walk up the tree passes the two elements
               that could own the page scroll. */}
           <ScrollReset />
+          {/* Applies the stored language once IndexedDB is read, and again when
+              one syncs down from another device. A leaf for the same reason
+              ScrollReset is: its `useLiveQuery` must not re-render the route
+              tree, and i18next notifies the text components itself (§6.1). */}
+          <LanguageSync />
           {/* This used to be wrapped in `animate-in fade-in duration-300`,
               which generated no CSS — the project is on Tailwind v4 with no
               animate plugin, so the fade never happened for anyone. It is

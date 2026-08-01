@@ -1,4 +1,5 @@
 import { MapPin, Train, Flag, ChevronUp, ChevronDown, Footprints, ArrowLeftRight, ArrowRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { SheetSnap } from "../../../../components/DraggableSheet";
 import type { useJourneySession } from "../../hooks/useJourneySession";
 import { liveStatusOf, type LiveIcon, type LiveTone } from "../../liveStatus";
@@ -34,12 +35,13 @@ const TONE: Record<LiveTone, string> = {
  * below this height rather than a target, so the peek resolves to the header
  * itself (`DraggableSheet`'s `Math.max`) and a band that grows — a wrapped
  * instruction, a longer name — takes the peek with it instead of being sliced
- * off at the fold.
+ * off at the fold. Indic strings run longer than English, so that floor is what
+ * keeps a wrapped Gujarati instruction from being cut in half rather than a
+ * width this file gets to assume.
  *
- * Still English in every language, like the rest of the live journey: §6.6
- * phase 2 owns `LiveJourneyScreen` and this file as one unit, and translating
- * only the header would put a Hindi status line above an English timeline in
- * the same sheet.
+ * The instruction is rendered here but *chosen* in `liveStatus.ts`, which hands
+ * over a key and its proper nouns rather than a finished sentence — that module
+ * is React-free and must stay i18next-free with it (§6.2).
  */
 export function LiveJourneySummary({
   result,
@@ -52,6 +54,7 @@ export function LiveJourneySummary({
   snap: SheetSnap;
   onMaximize: () => void;
 }) {
+  const { t } = useTranslation();
   const status = liveStatusOf(result, session);
   if (!status) return null;
 
@@ -59,7 +62,8 @@ export function LiveJourneySummary({
   // actually goes rather than always up.
   const Chevron = snap === 'full' ? ChevronDown : ChevronUp;
 
-  const { line, instruction, countdown, alight, tone, progress } = status;
+  const { line, countdown, alight, tone, progress } = status;
+  const instruction = t(status.instruction.key, status.instruction.values);
   const Icon = ICONS[status.icon];
   // Both maps are keyed by the same line ids the engine emits, so a miss means
   // a line we don't know about — fall back to a literal hex either way, since
@@ -72,7 +76,10 @@ export function LiveJourneySummary({
       type="button"
       onClick={onMaximize}
       aria-expanded={snap !== 'collapsed'}
-      aria-label={`Live journey: ${instruction}. ${snap === 'full' ? 'Collapse' : 'Expand'} journey details`}
+      /* A whole sentence per direction, not one with "Collapse"/"Expand"
+         swapped into it — a label built from a translated fragment is the shape
+         that drifts silently (see `StationInput`). */
+      aria-label={t(snap === 'full' ? 'live.ariaCollapse' : 'live.ariaExpand', { instruction })}
       className="w-full text-left"
     >
       {/* Band 1 — progress. Full-bleed and only 3px tall: it reads as an edge of
@@ -113,7 +120,7 @@ export function LiveJourneySummary({
                   className="text-[9px] font-bold uppercase tracking-widest"
                   style={{ color: "var(--c-text-4)" }}
                 >
-                  {countdown.label}
+                  {t(countdown.labelKey)}
                 </div>
               </div>
             )}
@@ -129,13 +136,13 @@ export function LiveJourneySummary({
           <div className="flex items-center gap-1.5 mt-2 text-[12px] font-semibold min-w-0">
             <ArrowRight size={12} strokeWidth={2.6} className="shrink-0" style={{ color: "var(--c-text-4)" }} />
             <span className="truncate" style={{ color: "var(--c-text-2)" }}>
-              {alight.final ? alight.name : `Get off at ${alight.name}`}
+              {alight.final ? alight.name : t('live.getOffAt', { station: alight.name })}
             </span>
             {alight.clock && (
               <>
                 <span style={{ color: "var(--c-text-4)" }}>·</span>
                 <span className="tabular-nums shrink-0" style={{ color: "var(--c-text-3)" }}>
-                  {alight.final ? `arr ${alight.clock}` : alight.clock}
+                  {alight.final ? t('live.arrivalClock', { time: alight.clock }) : alight.clock}
                 </span>
               </>
             )}

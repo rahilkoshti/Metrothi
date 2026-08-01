@@ -1,4 +1,5 @@
 import { useParams, useNavigate, Navigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft } from "lucide-react";
 import { SectionLabel } from "../../components/FactPrimitives";
 import { BlockView } from "./blocks";
@@ -16,6 +17,10 @@ import { getTopic } from "./topics";
  * map-first app (§5.6).
  */
 export default function InfoPage() {
+  // Only the back button's label: the topic's title, blurb, section labels and
+  // every block below are GMRC's reference content, which stays English in all
+  // three languages and says so on the YOU screen that links here (§6.7).
+  const { t } = useTranslation();
   const { topic: slug } = useParams();
   const navigate = useNavigate();
   const topic = getTopic(slug);
@@ -42,7 +47,7 @@ export default function InfoPage() {
         <button
           type="button"
           onClick={() => navigate(-1)}
-          aria-label="Go back"
+          aria-label={t('common.goBack')}
           className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
           style={{ background: "var(--c-card)" }}
         >
