@@ -1,4 +1,5 @@
-import { MapPin, Train, Flag, ChevronUp, Footprints, ArrowLeftRight, ArrowRight } from "lucide-react";
+import { MapPin, Train, Flag, ChevronUp, ChevronDown, Footprints, ArrowLeftRight, ArrowRight } from "lucide-react";
+import type { SheetSnap } from "../../../../components/DraggableSheet";
 import type { useJourneySession } from "../../hooks/useJourneySession";
 import { liveStatusOf, type LiveIcon, type LiveTone } from "../../liveStatus";
 import { LINE_COLORS, LINE_TEXT } from "../../constants";
@@ -19,7 +20,8 @@ const TONE: Record<LiveTone, string> = {
 
 /**
  * Live-journey summary shown in the home sheet header once a trip is underway.
- * Tapping it maximizes the full-screen LiveJourneyScreen.
+ * Tapping it walks the sheet up a step — collapsed to mid, mid to full — the
+ * same ladder the station and planned-route headers use.
  *
  * Three bands, because this is the state a rider spends most of the journey in
  * and it has to answer more than one question without being expanded:
@@ -42,14 +44,20 @@ const TONE: Record<LiveTone, string> = {
 export function LiveJourneySummary({
   result,
   session,
+  snap,
   onMaximize,
 }: {
   result: any;
   session: ReturnType<typeof useJourneySession>;
+  snap: SheetSnap;
   onMaximize: () => void;
 }) {
   const status = liveStatusOf(result, session);
   if (!status) return null;
+
+  // The chevron is the bar's only affordance, so it has to point where the tap
+  // actually goes rather than always up.
+  const Chevron = snap === 'full' ? ChevronDown : ChevronUp;
 
   const { line, instruction, countdown, alight, tone, progress } = status;
   const Icon = ICONS[status.icon];
@@ -63,7 +71,8 @@ export function LiveJourneySummary({
     <button
       type="button"
       onClick={onMaximize}
-      aria-label={`Live journey: ${instruction}. Open journey details`}
+      aria-expanded={snap !== 'collapsed'}
+      aria-label={`Live journey: ${instruction}. ${snap === 'full' ? 'Collapse' : 'Expand'} journey details`}
       className="w-full text-left"
     >
       {/* Band 1 — progress. Full-bleed and only 3px tall: it reads as an edge of
@@ -110,7 +119,7 @@ export function LiveJourneySummary({
             )}
             {/* Always present, including the arrived states where there is no
                 countdown left to sit beside — it is the bar's only affordance. */}
-            <ChevronUp size={16} style={{ color: "var(--c-text-4)" }} />
+            <Chevron size={16} style={{ color: "var(--c-text-4)" }} />
           </div>
         </div>
 

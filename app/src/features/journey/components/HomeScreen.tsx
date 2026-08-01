@@ -176,8 +176,10 @@ export function HomeScreen({
   const [sheetEdge, setSheetEdge] = useState(COLLAPSED_H);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  // Wraps everything the station sheet shows above the fold at its mid snap.
-  const stationBlockRef = useRef<HTMLDivElement>(null);
+  // Wraps everything the sheet shows above the fold at its mid snap. Only one
+  // body is mounted at a time, so the station sheet and the live journey share
+  // the ref rather than each carrying their own.
+  const midBlockRef = useRef<HTMLDivElement>(null);
 
   // The nearest station lands asynchronously; adopt it until the user picks.
   useEffect(() => {
@@ -353,19 +355,20 @@ export function HomeScreen({
   // so the fold lands just under the departures preview, leaving more map.
   const midRatio = journeyMode === 'station' ? 0.48 : 0.42;
 
-  // The station sheet's mid snap fits its own content instead of a fixed
-  // fraction: it rests exactly at the end of the departures block, so an
-  // interchange's four cards all fit and "Today's Schedule" stays below the
-  // fold. Measured rather than derived from constants because the card count,
-  // the chip row's wrapping and the location notice all move it.
-  const [stationBlockH, setStationBlockH] = useState(0);
+  // Two of the three modes fit their mid snap to their own content instead of a
+  // fixed fraction, so the fold lands on a boundary rather than part-way through
+  // a row: the station sheet rests at the end of the departures block, and the
+  // live journey at the end of its controls. Measured rather than derived from
+  // constants because the card count, the chip row's wrapping, the location
+  // notice and the action row's scroll all move it.
+  const [midBlockH, setMidBlockH] = useState(0);
   useLayoutEffect(() => {
-    const el = stationBlockRef.current;
-    if (journeyMode !== 'station' || !el) {
-      setStationBlockH(0);
+    const el = midBlockRef.current;
+    if (journeyMode === 'plan' || !el) {
+      setMidBlockH(0);
       return;
     }
-    const measure = () => setStationBlockH(el.offsetHeight);
+    const measure = () => setMidBlockH(el.offsetHeight);
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     measure();
@@ -391,7 +394,12 @@ export function HomeScreen({
       <LiveJourneySummary
         result={result}
         session={session}
-        onMaximize={() => setSnap(snap === 'collapsed' ? 'full' : 'collapsed')}
+        snap={snap}
+        // The same ladder the other two headers use: a tap opens the sheet a
+        // step, it never dismisses it. Mid was previously unreachable by tap —
+        // this jumped straight to full — which left the snap with no way in but
+        // a drag, and nothing sized to rest at.
+        onMaximize={() => setSnap(snap === 'full' ? 'mid' : snap === 'mid' ? 'full' : 'mid')}
       />
     );
   } else if (journeyMode === 'plan' && plan) {
@@ -566,6 +574,7 @@ export function HomeScreen({
         result={result}
         activeOptionIdx={selectedOptionIdx}
         session={session}
+        midBlockRef={midBlockRef}
         onEnd={() => onClearResult?.()}
       />
     );
@@ -596,7 +605,7 @@ export function HomeScreen({
       <>
         {/* Everything down to the last departure card. The sheet's mid snap is
             sized to this block's height, so its bottom edge is the fold. */}
-        <div ref={stationBlockRef}>
+        <div ref={midBlockRef}>
           {locFailed && (
             <div className="px-5 pt-4">
               <LocationNotice status={locStatus} onRetry={onRetryLocation} />
@@ -738,7 +747,7 @@ export function HomeScreen({
         onSnapChange={setSnap}
         collapsedHeight={collapsedHeight}
         midRatio={midRatio}
-        midContentHeight={journeyMode === 'station' && stationBlockH > 0 ? stationBlockH : undefined}
+        midContentHeight={midBlockH > 0 ? midBlockH : undefined}
         header={sheetHeader}
         onCoverageChange={setSheetCovers}
         onRestEdgeChange={setSheetEdge}

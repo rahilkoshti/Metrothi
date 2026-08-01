@@ -139,9 +139,13 @@ interface LiveJourneyScreenProps {
   activeOptionIdx?: number;
   onEnd: () => void;
   session: ReturnType<typeof useJourneySession>;
+  /** Wraps everything the sheet should show above the fold at its mid snap.
+   *  The host measures it and rests the sheet exactly at its bottom edge, so
+   *  mid ends on the controls rather than part-way through a station row. */
+  midBlockRef?: React.Ref<HTMLDivElement>;
 }
 
-export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session }: LiveJourneyScreenProps) {
+export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, midBlockRef }: LiveJourneyScreenProps) {
   const { currentState, currentStopIndex, fastForward, elapsedMins, stopTimeline } = session;
   useNow(1000); // re-render every second so countdowns and the glow head stay live
 
@@ -400,26 +404,38 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session }: L
 
   return (
     <div className="relative">
-      {/* ── Route title + live-state pill ── */}
-      <div className="px-5 pt-1 pb-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h2 className="text-[20px] font-bold leading-tight truncate" style={{ color: "var(--c-text)" }}>
-              {dest.name}
-            </h2>
-            <div className="text-[12px] font-medium mt-0.5 flex items-center gap-1.5 truncate" style={{ color: "var(--c-text-3)" }}>
-              from {result.source.name}{result.fare == null ? "" : ` · ₹${result.fare}`}
-              <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border shrink-0" style={{ borderColor: "var(--c-border-2)", color: "var(--c-text-4)" }}>
-                Simulated
-              </span>
-            </div>
+      {/* ── Trip facts + live-state pill ──
+          Deliberately *not* the route title any more. The collapsed bar above
+          this is always on screen and already names the destination and its
+          arrival clock, so repeating them here cost a 20px heading to say the
+          same thing twice. What is left is what the bar has no room for: what
+          the trip costs, how long it is, and where the times come from. The
+          pill stays because "18 min left overall" is a different question from
+          the bar's "2 min to the next stop". */}
+      <div ref={midBlockRef} className="px-5 pt-1 pb-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-[12px] font-medium flex items-center gap-1.5 flex-wrap min-w-0" style={{ color: "var(--c-text-3)" }}>
+            {result.fare != null && <span className="tabular-nums">₹{result.fare}</span>}
+            {result.fare != null && <span style={{ color: "var(--c-text-4)" }}>·</span>}
+            <span className="tabular-nums">{result.totalStops} stops</span>
+            {result.numTransfers > 0 && (
+              <>
+                <span style={{ color: "var(--c-text-4)" }}>·</span>
+                <span className="tabular-nums">
+                  {result.numTransfers} change{result.numTransfers > 1 ? "s" : ""}
+                </span>
+              </>
+            )}
+            <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border shrink-0" style={{ borderColor: "var(--c-border-2)", color: "var(--c-text-4)" }}>
+              Simulated
+            </span>
           </div>
           <div
             className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold transition-colors duration-500"
             style={{ background: pill.bg, color: pill.fg }}
           >
             <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: pill.fg }} />
-            {currentState === "COMPLETED" ? "Done" : `${totalMinsLeft} min`}
+            {currentState === "COMPLETED" ? "Done" : `${totalMinsLeft} min left`}
           </div>
         </div>
 
