@@ -333,7 +333,11 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-semibold active:scale-95 transition-transform"
                   style={{ background: "var(--c-bg)", border: "1px solid var(--c-border)", color: "var(--c-text-2)" }}
                 >
-                  <Train size={12} /> {departClock} <ChevronDown size={12} />
+                  {/* Names what it opens rather than repeating the clock. This
+                      printed `departClock` a second time, ~30px under the one
+                      the row already right-aligns — the same duplication §4.2
+                      removed from the plan sheet's header. */}
+                  <Train size={12} /> Train route <ChevronDown size={12} />
                 </button>
               </div>
             </div>
@@ -453,18 +457,36 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
           <ActionPill onClick={share}>
             {justShared ? <Check size={14} /> : <Share2 size={14} />} {justShared ? "Copied" : "Share"}
           </ActionPill>
-          <ActionPill onClick={() => setIsSimulating(s => !s)}>
-            Simulate
-            <span className="w-8 h-[18px] rounded-full relative transition-colors" style={{ background: isSimulating ? "#22C55E" : "var(--c-border-2)" }}>
-              <span
-                className="absolute top-[2px] w-3.5 h-3.5 rounded-full bg-white shadow transition-all"
-                style={{ left: isSimulating ? 18 : 2 }}
-              />
-            </span>
-          </ActionPill>
-          <ActionPill onClick={() => fastForward(5)}>
-            <FastForward size={14} /> +5 min
-          </ActionPill>
+          {/* Development only. The session advances on wall-clock time and GPS,
+              so walking a trip by hand is the only way to reach its later
+              states without riding the metro — but these two are the one
+              control on the screen that makes it lie. A rider who taps +5 min
+              moves the state machine off the train they are actually on, and
+              every countdown, the glow head and the arrival clock follow it.
+              `import.meta.env.DEV` is inlined by Vite, so both pills leave the
+              production bundle rather than being hidden in it.
+
+              They were also what made the row a scroller: End, Save and Share
+              are 271px against a 374px screen and fit on one line, while all
+              five need 512px — so Share sat half off the edge and the two
+              below could only be reached by a horizontal swipe that competes
+              with the sheet's own drag. */}
+          {import.meta.env.DEV && (
+            <>
+              <ActionPill onClick={() => setIsSimulating(s => !s)}>
+                Simulate
+                <span className="w-8 h-[18px] rounded-full relative transition-colors" style={{ background: isSimulating ? "#22C55E" : "var(--c-border-2)" }}>
+                  <span
+                    className="absolute top-[2px] w-3.5 h-3.5 rounded-full bg-white shadow transition-all"
+                    style={{ left: isSimulating ? 18 : 2 }}
+                  />
+                </span>
+              </ActionPill>
+              <ActionPill onClick={() => fastForward(5)}>
+                <FastForward size={14} /> +5 min
+              </ActionPill>
+            </>
+          )}
         </div>
       </div>
 
@@ -489,11 +511,16 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
               >
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-[14px] font-semibold" style={{ color: "var(--c-text)" }}>Change to</span>
+                  {/* The direction the next line takes you, not the station you
+                      are standing in — the row directly above this already
+                      names it and says "Change here", so the interchange was
+                      printed three times running. Same badge-plus-heading chip
+                      the boarding row uses, so it reads the same way. */}
                   <span
                     className="inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full text-[12px] font-semibold"
                     style={{ background: "var(--c-bg)", border: "1px solid var(--c-border)", color: "var(--c-text-2)" }}
                   >
-                    <LineBadge line={legs[k + 1].line} size="xs" /> {stops[legOffsets[k + 1]]?.name}
+                    <LineBadge line={legs[k + 1].line} size="xs" /> {legs[k + 1].headingName}
                   </span>
                 </div>
                 <div className="text-[11px] font-medium mt-1" style={{ color: "var(--c-text-4)" }}>
