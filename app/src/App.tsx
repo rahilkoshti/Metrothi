@@ -10,6 +10,7 @@ import { useJourneySession } from './features/journey/hooks/useJourneySession';
 import { InfoPageFallback } from './features/info/InfoPageFallback';
 import { YouScreenFallback } from './features/journey/components/YouScreenFallback';
 import { ScrollReset } from './components/ScrollReset';
+import { Insights } from './components/Insights';
 import { LanguageSync } from './i18n/useLanguage';
 import { recordRecentTrip, migrateFromLocalStorage } from './data/db';
 import { syncNow } from './services/syncEngine';
@@ -196,6 +197,10 @@ function App() {
     <AuthProvider>
       <ThemeProvider>
         <BrowserRouter>
+          {/* A leaf, for the reason ScrollReset and LanguageSync are: it reads
+              the location to attribute a route (§8.2 phase A) and must not
+              re-render the route tree — map included — to do it. */}
+          <Insights />
           <MainApp />
         </BrowserRouter>
       </ThemeProvider>
