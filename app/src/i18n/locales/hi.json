@@ -258,6 +258,7 @@
     "feedbackGmrc": "GMRC को प्रतिक्रिया",
     "feedbackGmrcDetail": "मेट्रो के बारे में शिकायतें और सुझाव",
     "simulatedNote": "लाइव अनुमान GMRC की समय-सारणी से बनाए गए हैं",
+    "designCredit": "डिज़ाइन और विकास",
     "preferences": "प्राथमिकताएँ",
     "walkingSpeed": "चलने की गति",
     "walkSpeedValue": "{{label}} ({{kmh}} किमी/घंटा) — स्टेशन तक और वहाँ से पैदल चलने के लिए",

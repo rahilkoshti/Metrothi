@@ -258,6 +258,7 @@
     "feedbackGmrc": "Feedback to GMRC",
     "feedbackGmrcDetail": "Complaints and suggestions about the metro itself",
     "simulatedNote": "Live estimates simulated from the GMRC timetable",
+    "designCredit": "Design & development",
     "preferences": "Preferences",
     "walkingSpeed": "Walking speed",
     "walkSpeedValue": "{{label}} ({{kmh}} km/h) — used for walks to and from stations",

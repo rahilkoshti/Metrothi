@@ -19,6 +19,7 @@ import { AccountCard, DataSection } from "../../account/AccountCard";
 import { Row, RowDivider, SectionCard, SectionHeader } from "./settingsRows";
 import { SavedSection, HistorySection } from "./SavedData";
 import { PreferencesSection } from "./PreferencesSection";
+import koshtiWordmark from "../../../assets/koshti-wordmark.png";
 
 /**
  * A section of reference-page rows, divided, from the topic catalog.
@@ -147,6 +148,65 @@ function LanguagePicker() {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+// ─── Maker credit ────────────────────────────────────────────────────────────
+
+/**
+ * The Koshti wordmark under the version line.
+ *
+ * **A noun label, not "Designed by", and that is an i18n decision.** The name
+ * sits *below* its label here, so a verb-and-preposition line would put the
+ * verb before the name — which is the order English wants and the order Hindi
+ * and Gujarati don't (§6.4, the same reason `live.walkTo` is four whole keys
+ * rather than a sentence with fragments appended). "Design & development" is a
+ * heading rather than a clause, so the name reads as its value in all three.
+ *
+ * **The asset is a mask, not a picture.** It ships as a single alpha-channel
+ * PNG tinted with `currentColor`, so the mark takes the footer's own muted
+ * colour in both themes — a black-and-white pair of images would need a theme
+ * conditional and would print at full contrast in a block that is deliberately
+ * the quietest thing on the screen. `mask-size: contain` letterboxes inside the
+ * box, so the aspect ratio holds without the numbers having to be exact.
+ *
+ * Not a link: there is no URL for it in the repo, and inventing one would send
+ * riders somewhere we haven't checked.
+ */
+function MakerCredit() {
+  const { t } = useTranslation();
+
+  return (
+    <div className="px-5 pb-4 flex flex-col items-center gap-2">
+      <div
+        className="text-[10px] font-bold uppercase tracking-widest"
+        style={{ color: 'var(--c-text-4)' }}
+      >
+        {t('you.designCredit')}
+      </div>
+      {/* Proper noun — never translated, and here it isn't even text (§6.8). */}
+      <div
+        role="img"
+        aria-label="Koshti"
+        style={{
+          width: 96,
+          height: 12,
+          color: 'var(--c-text-3)',
+          background: 'currentColor',
+          WebkitMaskImage: `url(${koshtiWordmark})`,
+          maskImage: `url(${koshtiWordmark})`,
+          WebkitMaskSize: 'contain',
+          maskSize: 'contain',
+          WebkitMaskRepeat: 'no-repeat',
+          maskRepeat: 'no-repeat',
+          WebkitMaskPosition: 'center',
+          maskPosition: 'center',
+        }}
+      />
+      <div className="text-[10px] font-medium" style={{ color: 'var(--c-text-4)' }}>
+        © {new Date().getFullYear()}
+      </div>
     </div>
   );
 }
@@ -295,7 +355,7 @@ export function YouScreen() {
       </SectionCard>
 
       {/* ── App version ──────────────────────────────────────────────────── */}
-      <div className="px-5 pt-8 pb-4 text-center">
+      <div className="px-5 pt-8 pb-6 text-center">
         <div className="text-[11px] font-semibold" style={{ color: 'var(--c-text-4)' }}>
           Metrothi · v0.1.0-prototype
         </div>
@@ -303,6 +363,11 @@ export function YouScreen() {
           {t('you.simulatedNote')}
         </div>
       </div>
+
+      {/* ── Who made it ──────────────────────────────────────────────────────
+          Last thing on the screen, below the version block: it is the one line
+          here that is about Metrothi rather than about the metro. */}
+      <MakerCredit />
 
     </div>
   );
