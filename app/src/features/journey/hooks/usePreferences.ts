@@ -9,8 +9,13 @@ import {
   DEPARTURE_USE_GPS,
   readWalkSpeed,
   readDefaultDeparture,
+  PREF_ANALYTICS,
+  ANALYTICS_ON,
+  ANALYTICS_OFF,
+  readAnalyticsEnabled,
 } from '../../../data/preferences';
 import { syncNow } from '../../../services/syncEngine';
+import { setAnalyticsEnabled } from '../../../services/analytics';
 
 /**
  * Dexie-backed preference hooks (PRD §5.7, §8.1 phase E).
@@ -73,4 +78,34 @@ export function useDefaultDeparture(): {
   }, []);
 
   return { defaultDepartureId, defaultDeparture, setDefaultDeparture };
+}
+
+/**
+ * Whether product analytics may run, and a setter (§5.8).
+ *
+ * Opt-out, so the first frame's default is `true` — same reasoning as the two
+ * hooks above, but the consequence differs and is worth stating: being wrong
+ * for one frame here means the *toggle* reads "on" for a moment on a device
+ * where it is off. Nothing is sent on the strength of it. `track()` keeps its
+ * own cached copy for the synchronous path and the drain re-reads the stored
+ * value, so this hook is the display, never the gate.
+ *
+ * The setter updates that cache directly rather than waiting for the write to
+ * land, so turning it off takes effect on the next `track()` call rather than
+ * on the next `useLiveQuery` tick — and `setAnalyticsEnabled` clears whatever
+ * is already queued.
+ */
+export function useAnalyticsPref() {
+  const analyticsEnabled = useLiveQuery(
+    () => getPref(PREF_ANALYTICS).then(readAnalyticsEnabled),
+    [],
+    true,
+  );
+
+  const setAnalyticsPref = useCallback((next: boolean) => {
+    void setAnalyticsEnabled(next);
+    void setPref(PREF_ANALYTICS, next ? ANALYTICS_ON : ANALYTICS_OFF).then(() => syncNow());
+  }, []);
+
+  return { analyticsEnabled, setAnalyticsPref };
 }

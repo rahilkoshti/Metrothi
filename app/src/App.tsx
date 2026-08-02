@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { HomeScreen } from './features/journey/components/HomeScreen';
 import { LocationService, type LocationErrorKind } from './services/LocationService';
@@ -14,6 +14,8 @@ import { Insights } from './components/Insights';
 import { LanguageSync } from './i18n/useLanguage';
 import { recordRecentTrip, migrateFromLocalStorage } from './data/db';
 import { syncNow } from './services/syncEngine';
+import { hydrateAnalytics, startAnalyticsTriggers, track, trackAppOpen } from './services/analytics';
+import { planEvents } from './features/journey/planAnalytics';
 
 // The reference pages (§4.5.1) carry ~19 KB of GMRC prose in the two JSON files
 // their topic registry imports. None of it is needed to draw a map or plan a
@@ -101,11 +103,31 @@ function MainApp() {
     const r = planJourney(srcArg, destArg, config);
     setResult(r);
     setActiveJourney(false);
+
+    // Analytics (§5.8). Every plan passes through here — `HomeScreen`'s own
+    // `planJourney` call only recomputes a result that already exists, to keep
+    // its clocks live — so this is the one place the funnel and both accuracy
+    // watches can be measured. Which events a result warrants is decided in
+    // `planAnalytics.ts`, off the React tree, so the branch is testable against
+    // real engine output rather than only by driving the planner.
+    for (const e of planEvents(r)) {
+      track(e.name, { fromStation: e.fromStation, toStation: e.toStation, props: e.props });
+    }
+
     // No route navigation needed — the planned route renders in HomeScreen's
     // sheet and on its map. Ensure we're on "/" so the map is mounted.
     if (location.pathname !== "/") navigate("/");
   }
-  function handleBack() { setResult(null); setActiveJourney(false); }
+  function handleBack() {
+    // Leaving a *live* journey before ARRIVED is the rider dropping out of the
+    // §4.2 state machine; `atState` is where. Clearing a plan they never
+    // started is not an abandonment and is deliberately not recorded.
+    if (activeJourney && journeySession.currentState !== 'COMPLETED') {
+      track('journey_abandoned', { props: { atState: journeySession.currentState } });
+    }
+    setResult(null);
+    setActiveJourney(false);
+  }
 
   // No tab bar — --nav-h is always 0.
   useEffect(() => {
@@ -119,6 +141,37 @@ function MainApp() {
   useEffect(() => {
     void migrateFromLocalStorage().catch(() => { /* nothing to recover; local data is untouched */ });
   }, []);
+
+  // Analytics (§5.8). The opt-out read is fired without `await` for the same
+  // reason the migration above is — an IndexedDB read on the boot path is what
+  // a map-first app can't afford — and `track()` treats analytics as enabled
+  // until it resolves, which is why hydration *deletes* the queue if it finds
+  // the pref off rather than merely stopping later writes.
+  useEffect(() => {
+    void hydrateAnalytics().catch(() => { /* opt-out unreadable; drain re-checks the stored value */ });
+    trackAppOpen();
+    return startAnalyticsTriggers();
+  }, []);
+
+  // Reaching COMPLETED is the one arrival signal the state machine gives, and
+  // it is a state rather than a callback — so it's watched here rather than
+  // fired from inside `useJourneySession`, which would put analytics inside a
+  // hook four other things depend on.
+  //
+  // The ref is load-bearing, not defensive. `elapsedMins` has to be in the
+  // deps to be read without a stale closure, and it changes every tick — so
+  // without the guard a rider who sits on the arrival screen emits one
+  // `journey_completed` per tick for as long as they leave it open. Reset when
+  // the journey ends, so the next one can report.
+  const completedRef = useRef(false);
+  useEffect(() => {
+    if (!activeJourney) { completedRef.current = false; return; }
+    if (journeySession.currentState !== 'COMPLETED' || completedRef.current) return;
+    completedRef.current = true;
+    track('journey_completed', {
+      props: { elapsedMins: Math.round(journeySession.elapsedMins) },
+    });
+  }, [activeJourney, journeySession.currentState, journeySession.elapsedMins]);
 
   // The map + sheet stay mounted through planning and live journeys, so
   // HomeScreen always hosts them and reflects journey state in its sheet — the
@@ -136,6 +189,10 @@ function MainApp() {
     onStartJourney: (_idx: number, currentResult: any) => {
       setResult(currentResult);
       setActiveJourney(true);
+      track('journey_started', {
+        fromStation: currentResult?.sourceStation?.id,
+        toStation: currentResult?.destStation?.id,
+      });
     },
     onClearResult: handleBack,
   };

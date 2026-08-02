@@ -34,7 +34,7 @@ _(no open entries)_
 
 ## Settings / You screen (`app/src/features/journey/components/YouScreen.tsx`)
 
-_(no open entries)_
+- [ ] The app version is hardcoded as the literal `Metrothi · v0.1.0-prototype` (`YouScreen.tsx:300`), and there is now a second source for the same fact: `vite.config.ts` reads `package.json` into `import.meta.env.VITE_APP_VERSION`, which every analytics row carries (§5.8). They agree today at `0.1.0` and will silently diverge the first time `package.json` is bumped — the screen will keep claiming the old version while the events report the new one, which is exactly the comparison the `app_version` column exists to support. Fix by rendering `import.meta.env.VITE_APP_VERSION` and keeping only the `-prototype` suffix (or moving that suffix into `package.json` too). Found while wiring §8.2 phase D; out of scope for it.
 
 ## Reference pages (`app/src/features/info/topics.ts`)
 

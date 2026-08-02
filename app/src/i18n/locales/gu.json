@@ -100,7 +100,7 @@
     "serviceEndedToday": "આજની સેવા સમાપ્ત થઈ ગઈ છે",
     "busOnlyResumes": "ફક્ત બસ સેવા — ટ્રેન {{duration}}માં ફરી શરૂ થશે",
     "sameStation": "કૃપા કરીને અલગ સ્ટેશન પસંદ કરો",
-    "removeRecentTrip":"તાજેતરની યાત્રા દૂર કરો",
+    "removeRecentTrip": "તાજેતરની યાત્રા દૂર કરો",
     "leaveNow": "હમણાં નીકળો",
     "departAtTime": "પ્રસ્થાન {{time}}",
     "arriveByTime": "આગમન {{time}}",
@@ -291,7 +291,10 @@
     "tripCount_other": "{{count}} યાત્રાઓ",
     "tripsKept": "{{trips}} · છેલ્લી {{limit}} રખાય છે",
     "removeTrip": "{{name}} સુધીની યાત્રા ઇતિહાસમાંથી દૂર કરો",
-    "opensStore": "{{store}} ખોલે છે"
+    "opensStore": "{{store}} ખોલે છે",
+    "usageData": "અનામી વપરાશ ડેટા",
+    "usageDataOn": "ચાલુ — તમારું ખાતું, સ્થાન કે શોધ ક્યારેય નહીં",
+    "usageDataOff": "બંધ — આ ડિવાઇસમાંથી કંઈ મોકલાતું નથી"
   },
   "about": {
     "timetable": "સમયપત્રક",

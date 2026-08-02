@@ -157,6 +157,58 @@ export function ExpandableRow({
   );
 }
 
+/**
+ * A plain on/off switch, sized to sit in a {@link Row}'s trailing slot.
+ *
+ * Lives here rather than beside its one caller for the reason the file header
+ * gives: a local copy in one screen is how two drift. `ThemeToggle` in
+ * `YouScreen` is deliberately *not* refactored into this — it is a sun/moon
+ * three-part control with an icon either side, not a switch with a label, and
+ * collapsing them would mean a `variant` prop that exists to serve two
+ * unrelated designs.
+ *
+ * `role="switch"` with `aria-checked` rather than a styled checkbox: the track
+ * and knob are divs, so without the role a screen reader is handed a button
+ * with no state at all.
+ */
+export function Switch({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  /** Announced name — the row's visible label is not tied to this control. */
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={() => onChange(!checked)}
+      className="relative rounded-full shrink-0 transition-colors duration-200 active:scale-95"
+      style={{
+        width: 44,
+        height: 26,
+        background: checked ? 'var(--c-accent)' : 'var(--c-border-2)',
+      }}
+    >
+      <span
+        className="absolute top-1 rounded-full transition-all duration-200"
+        style={{
+          width: 18,
+          height: 18,
+          background: checked ? 'var(--c-accent-fg)' : '#fff',
+          left: checked ? 22 : 4,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
+        }}
+      />
+    </button>
+  );
+}
+
 /** The rounded card every section's rows sit in. */
 export function SectionCard({ children }: { children: React.ReactNode }) {
   return (

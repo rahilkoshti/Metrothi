@@ -291,7 +291,10 @@
     "tripCount_other": "{{count}} यात्राएँ",
     "tripsKept": "{{trips}} · आख़िरी {{limit}} रखी जाती हैं",
     "removeTrip": "{{name}} तक की यात्रा इतिहास से हटाएँ",
-    "opensStore": "{{store}} खोलता है"
+    "opensStore": "{{store}} खोलता है",
+    "usageData": "गुमनाम उपयोग डेटा",
+    "usageDataOn": "चालू — आपका खाता, स्थान या खोज कभी नहीं",
+    "usageDataOff": "बंद — इस डिवाइस से कुछ नहीं भेजा जाता"
   },
   "about": {
     "timetable": "समय-सारणी",

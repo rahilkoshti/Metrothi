@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { getPref, setPref } from '../data/db';
 import { syncNow } from '../services/syncEngine';
+import { track } from '../services/analytics';
 import { PREF_LANGUAGE, readLanguage, type LanguageCode } from '../data/preferences';
 
 /**
@@ -23,6 +24,10 @@ export function useLanguage() {
     (code: LanguageCode) => {
       void i18n.changeLanguage(code);
       void setPref(PREF_LANGUAGE, code).then(() => syncNow());
+      // §6 is a large, measurable bet — +13.2 KB gzip on every cold start,
+      // three quarters of it for scripts most riders can't read. This is the
+      // only thing that will ever say whether anyone switched (§5.8).
+      track('language_changed', { props: { to: code } });
     },
     [i18n],
   );

@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Footprints, MapPin, Check } from 'lucide-react';
-import { ExpandableRow, Row, RowDivider, SectionCard, SectionHeader } from './settingsRows';
+import { Footprints, MapPin, Check, BarChart3 } from 'lucide-react';
+import { ExpandableRow, Row, RowDivider, SectionCard, SectionHeader, Switch } from './settingsRows';
 import { LineBadge } from '../../../components/LineBadge';
 import { STATIONS } from '../engine/journeyEngine';
 import { LINE_NAMES } from '../constants';
-import { useWalkSpeed, useDefaultDeparture } from '../hooks/usePreferences';
+import { useWalkSpeed, useDefaultDeparture, useAnalyticsPref } from '../hooks/usePreferences';
 import { WALK_SPEED_PRESETS, walkSpeedPreset, DEPARTURE_USE_GPS } from '../../../data/preferences';
 
 /**
@@ -140,6 +140,41 @@ function DefaultDepartureRow() {
   );
 }
 
+// ─── Usage data ──────────────────────────────────────────────────────────────
+
+/**
+ * The analytics opt-out (§5.8, §8.2 phase E).
+ *
+ * A `prefs` row like the two above, so the choice follows the rider to their
+ * next device — which is the only reading of "off" anyone would accept.
+ *
+ * The value line states what is *not* collected rather than what is. "Helps us
+ * improve the app" is the usual wording and says nothing a rider can weigh;
+ * the three things they would actually worry about here are their account,
+ * their location and what they type into the search box, and none of the three
+ * is ever recorded (§5.8). Two whole sentences, one per state, for the reason
+ * `WalkSpeedRow` uses two: an appended clause lands mid-sentence in Hindi and
+ * Gujarati (§6.2).
+ */
+function UsageDataRow() {
+  const { t } = useTranslation();
+  const { analyticsEnabled, setAnalyticsPref } = useAnalyticsPref();
+
+  return (
+    <Row
+      icon={BarChart3}
+      label={t('you.usageData')}
+      value={analyticsEnabled ? t('you.usageDataOn') : t('you.usageDataOff')}
+    >
+      <Switch
+        checked={analyticsEnabled}
+        onChange={setAnalyticsPref}
+        label={t('you.usageData')}
+      />
+    </Row>
+  );
+}
+
 // ─── Section ─────────────────────────────────────────────────────────────────
 
 export function PreferencesSection() {
@@ -151,6 +186,8 @@ export function PreferencesSection() {
         <WalkSpeedRow />
         <RowDivider />
         <DefaultDepartureRow />
+        <RowDivider />
+        <UsageDataRow />
       </SectionCard>
     </>
   );

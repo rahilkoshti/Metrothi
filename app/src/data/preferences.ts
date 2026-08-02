@@ -24,6 +24,7 @@
 export const PREF_WALK_SPEED = 'walkSpeedKmh';
 export const PREF_DEFAULT_DEPARTURE = 'defaultDepartureStationId';
 export const PREF_LANGUAGE = 'language';
+export const PREF_ANALYTICS = 'analytics';
 
 // ─── Walking speed ───────────────────────────────────────────────────────────
 
@@ -109,4 +110,35 @@ export const DEFAULT_LANGUAGE: LanguageCode = 'en';
 export function readLanguage(raw: string | null | undefined): LanguageCode {
   const code = (raw ?? '').split('-')[0];
   return LANGUAGES.some(l => l.code === code) ? (code as LanguageCode) : DEFAULT_LANGUAGE;
+}
+
+// ─── Analytics opt-out ───────────────────────────────────────────────────────
+
+/**
+ * The two stored values.
+ *
+ * `'on'` is written explicitly rather than deleting the row, so the choice
+ * syncs as a choice: a pref that is merely absent on the other device is
+ * indistinguishable from one that has not arrived yet (§5.7's tombstone
+ * argument, in miniature). Only `'off'` is *read* as off — see below.
+ */
+export const ANALYTICS_ON = 'on';
+export const ANALYTICS_OFF = 'off';
+
+/**
+ * Whether product analytics may run (PRD §5.8).
+ *
+ * **Opt-out, not opt-in, and only `'off'` counts as off.** Every other reading
+ * of the parse rule at the top of this file would be wrong here: an unset pref,
+ * a corrupt one, and one written by a newer build must not all silently mean
+ * "no analytics", because that would make a failed read indistinguishable from
+ * a rider's explicit choice — and the failure mode of *this* pref is the one
+ * that matters legally, not just behaviourally.
+ *
+ * Being a `prefs` row rather than a `localStorage` flag means the choice syncs
+ * (§5.7): turning it off on a phone turns it off on the tablet too, which is
+ * the only reading of "off" a rider would accept.
+ */
+export function readAnalyticsEnabled(raw: string | null): boolean {
+  return raw !== ANALYTICS_OFF;
 }

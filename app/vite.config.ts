@@ -1,9 +1,22 @@
+import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// The app's own version, read here rather than typed twice. It reaches the
+// client as `import.meta.env.VITE_APP_VERSION` and ends up on every analytics
+// row (§5.8), which is what lets a spike in `plan_impossible` be told apart
+// from a rollout that caused it. Read with `fs` rather than imported: this
+// file's tsconfig has no `resolveJsonModule`, so a JSON import fails `tsc -b`.
+const pkg = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
+) as { version: string }
+
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(pkg.version),
+  },
   plugins: [
     react(),
     VitePWA({

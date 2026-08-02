@@ -33,6 +33,7 @@ import {
 } from '../../../data/db';
 import { LINE_BADGE_BG, LINE_NAMES } from '../constants';
 import { useWalkSpeed } from '../hooks/usePreferences';
+import { track } from '../../../services/analytics';
 
 const SEARCHABLE = STATIONS.filter((s) => s.operational !== false);
 
@@ -216,9 +217,17 @@ export function HomeSearch({
     setLoadingPlaces(true);
     const timer = setTimeout(async () => {
       try {
-        setPlaces(await GeocodingService.searchPlaces(q));
+        const found = await GeocodingService.searchPlaces(q);
+        setPlaces(found);
+        // §7.4, recorded as a boolean and nothing else. The query text is the
+        // single most identifying thing a rider types into this app — "GIFT
+        // City Club" at 08:30 on a stable device id is a person — so what
+        // leaves is whether the geocoder resolved it, never what it was
+        // (§5.8). `q.length` is a coarse bucket, not the string.
+        track('place_resolved', { props: { matched: found.length > 0, queryLength: q.length } });
       } catch {
         setPlaces([]);
+        track('place_resolved', { props: { matched: false, failed: true } });
       } finally {
         setLoadingPlaces(false);
       }

@@ -93,10 +93,46 @@ export interface OutboxEntry {
   queuedAt: number;
 }
 
-/** Internal bookkeeping: migration flag, pull cursor, last synced user. */
+/** Internal bookkeeping: migration flag, pull cursor, last synced user, device id. */
 export interface MetaRow {
   key: string;
   value: string;
+}
+
+/**
+ * A queued analytics event (PRD §5.8).
+ *
+ * **Not a sync table, and deliberately not in `syncOutbox`.** Everything above
+ * is user data the rider owns: it tombstones, it pulls, it reconciles by
+ * last-write-wins. An event is a fact that already happened — there is no
+ * conflict to resolve, nothing to pull back, and no tombstone to keep, so
+ * routing it through `syncEngine.ts` would put it in a reconciler with no work
+ * to do and break it signed-out, which is the common case.
+ *
+ * `id` is generated here rather than by the server: the drain is at-least-once,
+ * so a batch that was delivered but whose acknowledgement was lost gets
+ * replayed, and the insert is `on conflict (id) do nothing`. A server-assigned
+ * key would turn each of those replays into a duplicate row.
+ *
+ * No `deviceId` field. The drain stamps it from `meta` at send time, which
+ * keeps `track()` synchronous — it cannot await an IndexedDB read on the boot
+ * path (§5.6), and the device id is a property of the device rather than of the
+ * moment the event fired.
+ */
+export interface QueuedEvent {
+  /** Client-generated uuid. See above — this is what makes a replay idempotent. */
+  id: string;
+  /** New per app launch. Ties events in one visit together without a stable id. */
+  sessionId: string;
+  /** One of the names allowlisted in `supabase/analytics.sql`. */
+  name: string;
+  /** Epoch ms from the browser. Preserves ordering for events queued underground. */
+  at: number;
+  fromStation?: string;
+  toStation?: string;
+  appVersion?: string;
+  /** Numbers and enums only — never free text, never a place name (§5.8). */
+  props: Record<string, string | number | boolean | null>;
 }
 
 export class MetrothiDB extends Dexie {
@@ -106,6 +142,7 @@ export class MetrothiDB extends Dexie {
   prefs!: Table<Pref, string>;
   syncOutbox!: Table<OutboxEntry, [SyncTable, string]>;
   meta!: Table<MetaRow, string>;
+  events!: Table<QueuedEvent, string>;
 
   constructor() {
     super('metrothi');
@@ -117,6 +154,14 @@ export class MetrothiDB extends Dexie {
       // Compound primary key, so re-queueing a row overwrites rather than appends.
       syncOutbox: '[table+rowId], queuedAt',
       meta: 'key',
+    });
+    // v2 adds the analytics queue (§5.8). Dexie treats `stores()` as a delta, so
+    // the six tables above carry forward untouched and an existing rider's data
+    // is not rewritten by the upgrade.
+    this.version(2).stores({
+      // `at` is indexed because every read of this table is ordered by it:
+      // oldest-first to evict, oldest-first to drain.
+      events: 'id, at',
     });
   }
 }
@@ -163,6 +208,7 @@ export function setMeta(key: string, value: string) {
 export const META_MIGRATED = 'migratedFromLocalStorage';
 export const META_PULL_CURSOR = 'lastPullAt';
 export const META_SYNCED_USER = 'lastSyncedUserId';
+export const META_DEVICE_ID = 'analyticsDeviceId';
 
 // ─── Saved stations ──────────────────────────────────────────────────────────
 
@@ -278,6 +324,61 @@ export async function setPref(name: string, value: string): Promise<void> {
     await db.prefs.put({ name, value, updatedAt: Date.now(), deletedAt: null });
     await queueForSync('prefs', name);
   });
+}
+
+// ─── Analytics queue (§5.8) ──────────────────────────────────────────────────
+
+/**
+ * How many queued events survive.
+ *
+ * A rider offline for a week must not grow IndexedDB without bound, and when
+ * something has to go it is the oldest events — they are the least useful and
+ * the most likely to have been superseded. Chosen as roughly a fortnight of
+ * ordinary use rather than tuned to a byte budget; each row is a few hundred
+ * bytes, so the whole queue at cap is well under a megabyte.
+ */
+export const EVENT_QUEUE_LIMIT = 500;
+
+/**
+ * Append an event and enforce the cap in one transaction.
+ *
+ * **Eviction deletes rather than tombstones, and that is not a violation of the
+ * rule above.** A tombstone exists so a delete can be *replayed* against a
+ * server that may still hold the row; this table never pulls, so a dropped
+ * event has nowhere to come back from. Tombstoning here would keep the row
+ * forever under a different name and defeat the cap it is enforcing.
+ */
+export async function enqueueEvent(event: QueuedEvent): Promise<void> {
+  await db.transaction('rw', db.events, async () => {
+    await db.events.put(event);
+    const overflow = (await db.events.count()) - EVENT_QUEUE_LIMIT;
+    if (overflow > 0) {
+      const stale = await db.events.orderBy('at').limit(overflow).primaryKeys();
+      await db.events.bulkDelete(stale);
+    }
+  });
+}
+
+/** The oldest `limit` queued events — the order they should be sent in. */
+export function listEventsToDrain(limit: number): Promise<QueuedEvent[]> {
+  return db.events.orderBy('at').limit(limit).toArray();
+}
+
+/**
+ * Drop events the server has accepted.
+ *
+ * Called only after a successful insert. A failed drain leaves every row in
+ * place and retries, because the one guarantee an offline queue cannot make is
+ * "delivered exactly once" — and a duplicate costs a no-op at the other end
+ * (`on conflict do nothing`) whereas a premature delete costs the event.
+ */
+export async function dropEvents(ids: string[]): Promise<void> {
+  if (ids.length > 0) await db.events.bulkDelete(ids);
+}
+
+/** Discard the whole queue — used when the rider opts out (§5.8). */
+export async function clearEvents(): Promise<void> {
+  await db.events.clear();
 }
 
 // ─── localStorage migration ──────────────────────────────────────────────────
@@ -408,11 +509,16 @@ export async function enqueueFullResync(): Promise<number> {
  * it must not push a wave of deletes to the server and wipe the rider's other
  * phone. The migration flag stays set so the legacy `localStorage` keys aren't
  * re-imported straight back.
+ *
+ * The analytics queue goes too, **and so does the device id**: "forget this
+ * device" that left a stable pseudonymous identifier behind would be a lie, and
+ * the id is the only thing tying one rider's events together across sessions
+ * (§5.8). The next event starts a new identity.
  */
 export async function clearLocalUserData(): Promise<void> {
   await db.transaction(
     'rw',
-    [db.savedStations, db.savedJourneys, db.recentTrips, db.prefs, db.syncOutbox, db.meta],
+    [db.savedStations, db.savedJourneys, db.recentTrips, db.prefs, db.syncOutbox, db.meta, db.events],
     async () => {
       await Promise.all([
         db.savedStations.clear(),
@@ -420,9 +526,11 @@ export async function clearLocalUserData(): Promise<void> {
         db.recentTrips.clear(),
         db.prefs.clear(),
         db.syncOutbox.clear(),
+        db.events.clear(),
       ]);
       await db.meta.delete(META_PULL_CURSOR);
       await db.meta.delete(META_SYNCED_USER);
+      await db.meta.delete(META_DEVICE_ID);
     },
   );
 }

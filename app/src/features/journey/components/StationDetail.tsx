@@ -42,6 +42,7 @@ import {
 } from "../stationFacilities";
 import { TrainRouteSheet } from "./TrainRouteSheet";
 import { DepartureRow } from "./DepartureRow";
+import { track } from "../../../services/analytics";
 
 // ─── Merged schedule list (both directions, time-sorted) ─────────────
 type MergedTrain = DayTrain & { dir: DayScheduleDirection };
@@ -792,6 +793,13 @@ export function StationDetail() {
   const location = useLocation();
 
   const station = id ? STATION_BY_ID[id] : undefined;
+
+  // §5.8. Above the not-found early return, because a hook cannot live below
+  // one. Keyed on `station`, which is a stable module-constant lookup, so this
+  // reports each station navigated to and not each re-render of the same page.
+  useEffect(() => {
+    if (station) track('station_viewed', { fromStation: station.id });
+  }, [station]);
 
   if (!id || !station) {
     return (

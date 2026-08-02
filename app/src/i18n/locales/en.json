@@ -291,7 +291,10 @@
     "tripCount_other": "{{count}} trips",
     "tripsKept": "{{trips}} · last {{limit}} kept",
     "removeTrip": "Remove the trip to {{name}} from history",
-    "opensStore": "Opens {{store}}"
+    "opensStore": "Opens {{store}}",
+    "usageData": "Anonymous usage data",
+    "usageDataOn": "On — never your account, location or searches",
+    "usageDataOff": "Off — nothing leaves this device"
   },
   "about": {
     "timetable": "Timetable",
