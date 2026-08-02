@@ -152,8 +152,69 @@ create policy events_insert_any on public.events
   for insert to anon, authenticated
   with check (true);
 
-revoke select, update, delete on public.events from anon, authenticated;
-grant insert on public.events to anon, authenticated;
+-- ─── The client writes through a function, not the table ─────────────────────
+--
+-- The obvious implementation — `grant insert`, and let the client POST to
+-- /rest/v1/events — cannot work here, and the reason is worth writing down
+-- because nothing about it is guessable:
+--
+--   The drain is at-least-once, so a redelivered batch must be a no-op. That
+--   is `on conflict (id) do nothing`, which PostgREST spells as the request
+--   header `Prefer: resolution=ignore-duplicates`. **That mode requires
+--   `select` on the table.** Measured against a live project: a plain insert
+--   reaches the check constraint below (23514), and the identical insert with
+--   `ignore-duplicates` returns 42501 with the hint `GRANT SELECT ON
+--   public.events`. So a direct table write can dedupe, or it can stay
+--   unreadable, but not both — and this file's whole reason for existing is
+--   that it stays unreadable.
+--
+-- A `security definer` function resolves it and lands somewhere stronger than
+-- the original design: it runs as its OWNER, so the client needs no privilege
+-- on `events` at all. Not select, not insert, not the `truncate` a default
+-- Supabase grant leaves behind (which RLS does not restrain, and which would
+-- have let anyone holding the public anon key empty this table).
+--
+-- The constraints still apply — they are on the table, and this inserts into
+-- the table — so a name outside the allowlist still comes back as 23514 and
+-- the client still drops that batch rather than retrying it forever.
+--
+-- `set search_path = public` is not decoration on a security definer function:
+-- without it a caller-controlled search_path can resolve `events` to something
+-- else entirely.
+
+create or replace function public.record_events(rows jsonb)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  insert into public.events
+    (id, device_id, session_id, name, at, from_station, to_station, app_version, props)
+  select
+    (r->>'id')::uuid,
+    (r->>'device_id')::uuid,
+    (r->>'session_id')::uuid,
+    r->>'name',
+    (r->>'at')::bigint,
+    r->>'from_station',
+    r->>'to_station',
+    r->>'app_version',
+    coalesce(r->'props', '{}'::jsonb)
+  from jsonb_array_elements(rows) r
+  on conflict (id) do nothing;
+$$;
+
+-- `revoke all`, not `revoke select, update, delete`: the narrower form leaves
+-- `truncate`, `references` and `trigger` behind from Supabase's default grant
+-- on the public schema, and "the anon key buys append and nothing else" is not
+-- true while it can truncate the table.
+revoke all on public.events from anon, authenticated;
+grant execute on function public.record_events(jsonb) to anon, authenticated;
+
+-- The insert policy above still matters. `security definer` means the function
+-- inserts as its owner, so RLS does not gate it — but the policy is what keeps
+-- the table's own posture explicit, and the day someone grants `insert` back
+-- for a one-off script, it is the thing standing between that and a free-for-all.
 
 -- ─── Rollup views ────────────────────────────────────────────────────────────
 -- `security_invoker = true` on every one of them. Without it the view runs as

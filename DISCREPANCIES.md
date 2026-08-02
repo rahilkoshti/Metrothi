@@ -188,9 +188,62 @@ _(no open entries)_
       `localStorage` offers none of the three. See §5.2 for the full reasoning
       and §5.7 for the architecture.
 
+## Analytics (`app/src/services/analytics.ts`, `supabase/analytics.sql`, PRD §5.8)
+
+- [ ] **The `hidden` drain can't finish, and on mobile usually won't.**
+      `startAnalyticsTriggers` (line ~305) fires `drainEvents()` on
+      `visibilitychange → hidden`, which the comment correctly calls "the last
+      moment a mobile browser reliably gives you". But the send is an ordinary
+      `fetch` through supabase-js — no `keepalive: true`, no `sendBeacon` — and
+      the chain before it is long: `getPref` (Dexie) → `deviceId()` (Dexie read
+      + possible write) → `getSupabase()` (a **dynamic import** that may need a
+      network fetch of the SDK chunk) → the insert. A page frozen or killed
+      right after `hidden` aborts all of it. Events aren't lost (the queue is
+      durable and retries), but the trigger that was chosen precisely because
+      riders background the app is the one least likely to complete. Worth
+      either a `keepalive` insert via plain `fetch` on the `hidden` path, or
+      warming `getSupabase()` earlier so only the request itself is in flight.
+      Found 2026-08-02 while diagnosing the grant issue below.
+
+- [ ] **`--probe` should run in CI, or this class of bug returns silently.** See
+      the resolved entry below: nothing that reads as `service_role` — Studio,
+      `list_tables`, the phase-F dashboard — can observe what a rider's anon key
+      actually experiences, and all of them reported a healthy system while no
+      event had ever been accepted. `scripts/analytics-dashboard.mjs --probe` is
+      currently the only check on that path, and it is run by hand.
+
 ---
 
 ## Resolved / Fixed
+
+- **[Fixed 2026-08-02]** The analytics drain could never insert, on any project,
+  from the day §8.2 phase C shipped. `drain()` sent
+  `.upsert(rows, { onConflict: 'id', ignoreDuplicates: true })` — the
+  at-least-once dedupe §5.8 requires — and **PostgREST's
+  `resolution=ignore-duplicates` needs `select` on the target table**, which
+  §5.8 forbids as its central rule. Confirmed against the live project by
+  varying only the header: a plain insert returns `23514` (reaches the
+  allowlist), the identical insert with `ignore-duplicates` returns `42501`
+  hinting `GRANT SELECT ON public.events`. The existing comment reasoned
+  correctly about not chaining `.select()`; `ignoreDuplicates` pulls in the same
+  privilege through a side door, and neither the Supabase client's types nor its
+  docs say so.
+  **The first diagnosis in this file was wrong** — it read the `42501` as a
+  missing `INSERT` grant, because the dashboard showed an "API Disabled / custom
+  Data API permissions" badge on that table and the two fit. Granting `insert`
+  changed nothing; the header experiment is what actually isolated it. Worth
+  remembering that a plausible cause matching a symptom is not a diagnosis.
+  Fixed by inserting through `public.record_events(jsonb)`, a `security definer`
+  function: it runs as its owner, so `anon` now holds **no privilege on `events`
+  at all** — `revoke all`, not the narrower `revoke select, update, delete`,
+  which had been leaving `truncate` behind from Supabase's default schema grant
+  (RLS does not restrain `truncate`, so the public key could have emptied the
+  table). Table constraints still fire inside the function, so a poisoned batch
+  still returns `23514` and is still dropped. `analytics.ts`, `analytics.sql`,
+  §5.8, and the test stub — which now throws if anything reaches for
+  `.from('events')` — all updated. Verified end to end: queue drained to empty
+  in a live browser, two rows landed, and `--probe` confirms `events` is still
+  unreadable to `anon`.
 
 - **[Fixed 2026-07-31]** `/you` is a `lazy()` route, so the settings screen is
   no longer boot weight. One `lazy()` around `YouScreen` plus a `Suspense`

@@ -255,14 +255,22 @@ async function drain(): Promise<void> {
     props: e.props,
   }));
 
-  // `ignoreDuplicates` is `on conflict (id) do nothing` — the replay of an
-  // acknowledged-but-unrecorded batch costs a no-op instead of a duplicate row.
-  // No `.select()` chained, deliberately: v2 returns nothing by default, and
-  // asking for the rows back would need a `select` policy the table does not
-  // have and must not be given (§5.8).
-  const { error } = await client
-    .from('events')
-    .upsert(rows, { onConflict: 'id', ignoreDuplicates: true });
+  // Sent through the `record_events` RPC, not `.from('events')`, and that is the
+  // only shape that satisfies §5.8. The dedupe this needs is `on conflict (id)
+  // do nothing`, which PostgREST spells `resolution=ignore-duplicates` — and
+  // **that mode requires `select` on the table**, which §5.8 forbids outright.
+  // (Measured against the live project: a plain insert reaches the check
+  // constraint, the same insert with `ignore-duplicates` returns 42501 with the
+  // hint `GRANT SELECT ON public.events`.) Chaining `.select()` was already
+  // known to need it; `ignoreDuplicates` pulls in the same requirement through
+  // a side door, so a direct table write cannot both dedupe and stay unreadable.
+  //
+  // The function is `security definer` and owned by `postgres`, so it inserts on
+  // the client's behalf while `anon` holds **no privilege on `events` at all** —
+  // not select, not insert, not the truncate a default grant would leave behind.
+  // The allowlist and shape constraints still fire inside it, so a poisoned row
+  // still comes back as 23514 and is still dropped below.
+  const { error } = await client.rpc('record_events', { rows });
 
   // Anything unsent stays queued and retries. The exception is a rejection the
   // server will never accept — a name outside the allowlist, a `props` blob

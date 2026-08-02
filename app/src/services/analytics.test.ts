@@ -173,14 +173,28 @@ describe('the drain', () => {
     return mod;
   }
 
-  /** A Supabase stand-in whose `upsert` resolves to whatever the test wants. */
+  /** A Supabase stand-in whose `rpc` resolves to whatever the test wants. */
   function stubClient(result: { error: { code?: string } | null }) {
-    const upsert = vi.fn().mockResolvedValue(result);
+    const rpc = vi.fn().mockResolvedValue(result);
     vi.doMock('./supabase', () => ({
       isSupabaseConfigured: true,
-      getSupabase: () => Promise.resolve({ from: () => ({ upsert }) }),
+      getSupabase: () =>
+        Promise.resolve({
+          rpc,
+          // Deliberately explodes rather than returning a chainable stub. The
+          // dedupe this drain needs (`on conflict do nothing`) is PostgREST's
+          // `resolution=ignore-duplicates`, and that mode requires `select` on
+          // `events` — which §5.8 forbids, so a direct table write can never
+          // both dedupe and stay unreadable. Reverting to `.from('events')`
+          // has to fail here, not silently against a live project.
+          from: () => {
+            throw new Error(
+              'analytics must insert through the record_events RPC, not .from("events") — §5.8',
+            );
+          },
+        }),
     }));
-    return upsert;
+    return rpc;
   }
 
   it('keeps every event when the insert fails, and retries next time', async () => {
@@ -216,18 +230,21 @@ describe('the drain', () => {
     vi.stubEnv('VITE_SUPABASE_URL', 'https://example.supabase.co');
     vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'anon');
     const { db, getMeta, META_DEVICE_ID } = await seed(2);
-    const upsert = stubClient({ error: null });
+    const rpc = stubClient({ error: null });
     const { drainEvents } = await import('./analytics');
 
     await drainEvents();
     expect(await db.events.count()).toBe(0);
 
-    const rows = upsert.mock.calls[0][0] as Array<Record<string, unknown>>;
+    // `rpc(name, params)` — the rows travel as one jsonb argument, which is what
+    // lets the whole batch dedupe inside a `security definer` function instead
+    // of needing table privileges out here.
+    expect(rpc.mock.calls[0][0]).toBe('record_events');
+    const rows = (rpc.mock.calls[0][1] as { rows: Array<Record<string, unknown>> }).rows;
     expect(rows).toHaveLength(2);
     // Snake-cased for Postgres, and carrying a device id the queued row never had.
     expect(rows[0].device_id).toEqual(expect.any(String));
     expect(rows[0].from_station).toBeNull();
-    expect(upsert.mock.calls[0][1]).toEqual({ onConflict: 'id', ignoreDuplicates: true });
 
     // Persisted, so the id survives a reload rather than fragmenting every
     // session into a separate "device".
@@ -238,7 +255,7 @@ describe('the drain', () => {
     vi.stubEnv('VITE_SUPABASE_URL', 'https://example.supabase.co');
     vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'anon');
     const { db, setPref } = await seed(3);
-    const upsert = stubClient({ error: null });
+    const rpc = stubClient({ error: null });
     const { ANALYTICS_OFF, PREF_ANALYTICS } = await import('../data/preferences');
     await setPref(PREF_ANALYTICS, ANALYTICS_OFF);
     const { drainEvents } = await import('./analytics');
@@ -247,7 +264,7 @@ describe('the drain', () => {
 
     // Checked against the stored pref rather than the in-memory cache, so an
     // opt-out made in another tab or synced from another device still stops it.
-    expect(upsert).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
     expect(await db.events.count()).toBe(0);
   });
 });
