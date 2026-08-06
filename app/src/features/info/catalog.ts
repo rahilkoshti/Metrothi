@@ -144,6 +144,35 @@ export const OFFICIAL_APP = {
 export const GMRC_FEEDBACK_URL = "https://www.gujaratmetrorail.com/ahmedabad/feedback/";
 
 /**
+ * Where reports about *Metrothi* go — the other half of the split above.
+ *
+ * The two rows that used this ("Report a timetable issue", "Suggest a feature")
+ * shipped with no `onClick` and no `href`, so they rendered as inert text. A
+ * settings screen that lists two things it will not do is worse than one that
+ * doesn't list them, and being honest about the split is the whole reason the
+ * section exists.
+ *
+ * `mailto:` rather than a form: the app has to stay fully usable with no
+ * account and no backend, and a hosted form is a service to run. The subject
+ * lines are English on purpose — they are addressed to the maintainer, not to
+ * the rider, and a bug report whose subject arrives in a script the reader
+ * can't search for is a report that gets lost.
+ */
+export const FEEDBACK_EMAIL = "koshtirahil@gmail.com";
+
+/** `mailto:` for a Metrothi report, with the app version already filled in so
+ *  a report can be tied to the build that produced it (§5.8). */
+export function feedbackMailto(subject: string): string {
+  const version = import.meta.env.VITE_APP_VERSION ?? "unknown";
+  const body = `\n\n---\nMetrothi ${version}\n`;
+  return (
+    `mailto:${FEEDBACK_EMAIL}` +
+    `?subject=${encodeURIComponent(`Metrothi — ${subject}`)}` +
+    `&body=${encodeURIComponent(body)}`
+  );
+}
+
+/**
  * Which store link the row should open. Everything not iOS gets Play.
  *
  * Returns the store's name, not the sentence around it — the row's own words

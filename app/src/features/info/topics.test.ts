@@ -192,6 +192,112 @@ describe("prohibited items — reordered for the rider, not the statute", () => 
     const offensive = sections.find((s) => s.label === "Offensive materials")!;
     expect(offensive.blocks.some((b) => b.kind === "note" && b.text.includes("transplant"))).toBe(true);
   });
+
+  // The Act's citation used to print under Offensive materials alone, so a
+  // rider reading the pets rule could not see it was law. These two assert the
+  // *placement* of a composed sentence, which is the class of defect the
+  // 2026-07-29 audit found this file had no check for — structure was green
+  // while a sentence sat under the wrong heading.
+  it("cites the Act on every statutory list, not just one of them", () => {
+    const sections = getTopic("prohibited")!.sections;
+    const statutory = ["Pets & live animals", "Dangerous materials", "Offensive materials"];
+    for (const label of statutory) {
+      const section = sections.find((s) => s.label === label)!;
+      const cited = section.blocks.some(
+        (b) => b.kind === "note" && b.text.includes("Metro Rail (O&M) Act, 2002"),
+      );
+      expect(cited, `${label} should carry the Act citation`).toBe(true);
+    }
+    // Each of the three is the Act's own wording, which is *why* each is cited —
+    // if a re-scrape reworded them, the citation is the thing to re-check.
+    for (const label of statutory) {
+      const section = sections.find((s) => s.label === label)!;
+      const opening = section.blocks.find((b) => b.kind === "prose")!;
+      expect(opening.text, `${label} should open with the Act's phrasing`).toMatch(
+        /^No person shall take or cause to be taken/,
+      );
+    }
+  });
+
+  it("does not extend the Act's citation to the luggage limits", () => {
+    // Luggage comes from `metroInfo.luggage` (GMRC's fare-rules and
+    // train-information pages) with no legal basis stated. A page-level
+    // citation would sweep it in, which is the §7.6 overclaim in reverse.
+    const luggage = getTopic("prohibited")!.sections.find((s) => s.label === "Luggage")!;
+    expect(luggage.blocks.some((b) => b.kind === "note" && b.text.includes("Act"))).toBe(false);
+  });
+});
+
+describe("the conduct poster's trilingual note covers the page, not one column", () => {
+  // §6.7 hangs off this sentence: GMRC's poster carries Gujarati and Hindi
+  // columns, so this is the one topic whose content has an authoritative
+  // translation available. It used to sit inside the Don't section, which told
+  // a translator the Don't column was sourced and nothing about the Do column,
+  // which has the same poster behind it.
+  it("carries the note as a page-level sourceNote", () => {
+    const conduct = getTopic("conduct")!;
+    expect(conduct.sourceNote).toBeDefined();
+    expect(conduct.sourceNote).toMatch(/Gujarati/);
+    expect(conduct.sourceNote).toMatch(/Hindi/);
+  });
+
+  it("no longer attaches it to either column", () => {
+    // The real regression risk is it coming back as a section block *as well*,
+    // which would print it twice — so assert absence in every section, not just
+    // in Don't.
+    const conduct = getTopic("conduct")!;
+    for (const section of conduct.sections) {
+      const leaked = section.blocks.some(
+        (b) => "text" in b && typeof b.text === "string" && b.text.includes("Gujarati"),
+      );
+      expect(leaked, `${section.label} should not carry the poster note`).toBe(false);
+    }
+  });
+
+  it("does not claim a translated source on pages that have none", () => {
+    // Every other topic is transcribed from an English-only GMRC page. A
+    // sourceNote appearing on one of them would be a localization claim the
+    // repo cannot back.
+    for (const entry of ALL_TOPICS.filter((t) => t.slug !== "conduct")) {
+      expect(getTopic(entry.slug)!.sourceNote, `${entry.slug}`).toBeUndefined();
+    }
+  });
+});
+
+describe("lost & found rows do not repeat their own labels", () => {
+  // GMRC publishes "Lost & Found office, Apparel Park Depot" and "10:30 to
+  // 18:10 hrs"; both rows are labelled, so both prefixes are trimmed. These
+  // assert the *output* rather than the source wording, so they keep holding
+  // however GMRC rewords the fields — which is the thing the old exact-string
+  // `.replace()` calls could not do: they degraded to a no-op in silence.
+  const rows = () => {
+    const section = getTopic("lost-and-found")!.sections.find((s) => s.label === "Where to go")!;
+    const kv = section.blocks.find((b) => b.kind === "keyValue")!;
+    return Object.fromEntries(kv.rows.map((r) => [r.label, r.value]));
+  };
+
+  it("does not print 'Lost & Found office' under a row labelled Office", () => {
+    const office = rows()["Office"];
+    expect(office).toBeTruthy();
+    expect(office.toLowerCase()).not.toContain("lost & found");
+    expect(office.toLowerCase()).not.toContain("office");
+  });
+
+  it("does not print the unit under a row labelled Open", () => {
+    const open = rows()["Open"];
+    expect(open).toBeTruthy();
+    expect(open).not.toMatch(/\b(hrs?|hours)\b/i);
+    // The strip must take the unit and nothing else — a greedier pattern that
+    // ate the times would still pass the assertion above.
+    expect(open).toMatch(/\d/);
+  });
+
+  it("still names the actual place and times", () => {
+    // Guards the other failure direction: a pattern broad enough to empty the
+    // value would satisfy every "does not contain" check above.
+    expect(rows()["Office"]).toBe("Apparel Park Depot");
+    expect(rows()["Open"]).toBe("10:30 to 18:10");
+  });
 });
 
 describe("no page prints an instruction meant for whoever builds it", () => {

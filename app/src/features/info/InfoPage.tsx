@@ -1,9 +1,11 @@
+import { useEffect } from "react";
 import { useParams, useNavigate, Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft } from "lucide-react";
 import { SectionLabel } from "../../components/FactPrimitives";
 import { BlockView } from "./blocks";
 import { getTopic } from "./topics";
+import { track } from "../../services/analytics";
 
 /**
  * One reference-content screen for all eight topics of §4.5.1 — the generic
@@ -28,6 +30,19 @@ export default function InfoPage() {
   // Scroll is reset on route change by `<ScrollReset />` in `App.tsx`, once for
   // every route rather than here for this one.
 
+  // §5.8: which reference topics riders actually open. Above the early return
+  // because hooks cannot sit after one.
+  //
+  // `topic.slug` and deliberately not the `slug` URL param: the param is
+  // whatever someone typed after `/you/`, and sending that would put arbitrary
+  // free text in `props` — the one thing this file's props are never allowed to
+  // carry. Resolving it through `getTopic` first means the value can only be one
+  // of the eight §4.5.1 slugs, and an unknown one records nothing.
+  const resolvedSlug = topic?.slug;
+  useEffect(() => {
+    if (resolvedSlug) track('topic_viewed', { props: { topic: resolvedSlug } });
+  }, [resolvedSlug]);
+
   // An unknown slug is a stale link, not an error worth a page of its own —
   // send it back to the list it came from.
   if (!topic) return <Navigate to="/you" replace />;
@@ -37,23 +52,25 @@ export default function InfoPage() {
       {/* Sticky top bar — same chrome as the station page, so "a page you
           pushed onto the stack" looks the same everywhere in the app. */}
       <div
-        className="sticky top-0 z-30 px-4 py-3 flex items-center gap-3 transition-colors"
+        className="sticky top-0 z-30 px-4 pb-3 flex items-center gap-3 transition-colors"
         style={{
-          background: "var(--c-blur)",
+          paddingTop: 'calc(var(--sat) + var(--sp-3))',
+          background: "var(--surface-float)",
           borderBottom: "1px solid var(--c-border)",
-          backdropFilter: "blur(20px)",
+          backdropFilter: "var(--blur-float)",
+          WebkitBackdropFilter: "var(--blur-float)",
         }}
       >
         <button
           type="button"
           onClick={() => navigate(-1)}
           aria-label={t('common.goBack')}
-          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+          className="hit-44 w-9 h-9 rounded-full flex items-center justify-center shrink-0"
           style={{ background: "var(--c-card)" }}
         >
           <ArrowLeft size={18} style={{ color: "var(--c-text)" }} />
         </button>
-        <span className="font-bold text-[14px] truncate" style={{ color: "var(--c-text)" }}>
+        <span className="text-headline truncate" style={{ color: "var(--c-text)" }}>
           {topic.title}
         </span>
       </div>
@@ -64,12 +81,19 @@ export default function InfoPage() {
           otherwise read as a text drag — nothing here is draggable, and a
           reference page is a document, where copying an address or a rule is
           the expected thing to do. */}
-      <div className="select-text p-5 max-w-[var(--layout-max-width)] mx-auto">
+      {/* `--measure-read`, not `--layout-max-width`. The layout cap is right for
+          rows and wrong for prose: these pages were setting 13px text across the
+          full 768px, which is ≈110 characters a line against a 45–75 optimum —
+          a measure you lose your place in. 34rem is ≈68. Below 400px nothing
+          changes; this is what the page does when it has room. */}
+      <div className="select-text p-5 max-w-[var(--measure-read)] mx-auto">
         <header className="pt-4 pb-2">
-          <h1 className="text-4xl font-bold tracking-tight leading-tight" style={{ color: "var(--c-text)" }}>
+          <h1 className="text-read-title" style={{ color: "var(--c-text)" }}>
             {topic.title}
           </h1>
-          <p className="text-[13px] font-semibold mt-2" style={{ color: "var(--c-text-3)" }}>
+          {/* A lede, so it is set as prose rather than as a caption — this is
+              the one screen in the app that is read rather than scanned. */}
+          <p className="text-read-body mt-2" style={{ color: "var(--c-text-3)" }}>
             {topic.blurb}
           </p>
         </header>
@@ -87,7 +111,17 @@ export default function InfoPage() {
           ))}
         </div>
 
+        {/* Source footer. A `sourceNote` is a fact about the transcription — on
+            the conduct page, that GMRC's poster carries Gujarati and Hindi
+            columns too — so it sits with the link to the original rather than
+            inside the content, where it would attach to whichever section
+            happened to be last. */}
         <div className="mt-6" style={{ borderTop: "1px solid var(--c-border)" }}>
+          {topic.sourceNote && (
+            <p className="pt-3 px-1 text-read-label" style={{ color: "var(--c-text-4)" }}>
+              {topic.sourceNote}
+            </p>
+          )}
           <BlockView block={{ kind: "sourceLink", href: topic.source }} />
         </div>
       </div>

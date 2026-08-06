@@ -1,6 +1,6 @@
 import { useEffect, useRef, useMemo } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, X } from "lucide-react";
 import { SPRING } from "../../../components/sheetMotion";
 import {
@@ -12,7 +12,9 @@ import {
 } from "../engine/journeyEngine";
 import type { DayScheduleDirection, DayTrain } from "../engine/journeyEngine";
 import { LineBadge } from "../../../components/LineBadge";
-import { LINE_COLORS, LINE_NAMES } from "../constants";
+import { useDialog } from "../../../components/useDialog";
+import { LINE_COLOR, LINE_NAMES } from "../constants";
+import { track } from "../../../services/analytics";
 
 // ─── Route stop type ────────────────────────────────────────────────
 interface RouteStop {
@@ -101,13 +103,43 @@ export function TrainRouteSheet({
 
   const currentRef = useRef<HTMLDivElement>(null);
 
+  // §5.8: which schedules riders actually open. Tracked here rather than at the
+  // two call sites (`StationDetail` and `LiveJourneyScreen`) for the reason
+  // `DepartureRow` is one component — the pair drifted apart once already, and a
+  // metric measured in two places is a metric that disagrees with itself.
+  //
+  // A station, a line and an hour is what identifies a train. `train.hour` is
+  // fractional, so it is floored to the departure hour: the question is which
+  // services get looked at, and 53 stations x 4 lines x 24 hours is already a
+  // wide enough table without splitting 08:15 from 08:47.
+  const trainHour = Math.floor(train.hour);
+  useEffect(() => {
+    track('train_viewed', { fromStation: stationId, props: { line, hour: trainHour } });
+  }, [stationId, line, trainHour]);
+
+  // The second sheet in the app that can sit over the first, and the one place
+  // "Escape closes the topmost layer" has to mean something: opened from a live
+  // journey it lands on top of the draggable sheet, and one Escape should peel
+  // one layer. Station names stay English inside the label like everywhere else
+  // (§6.8).
+  const { ref: dialogRef, dialogProps } = useDialog<HTMLDivElement>({
+    onClose,
+    label: t('live.routeSheetAria', { from: dir.originName, to: dir.destinationName }),
+  });
+
+  // An explicit `behavior` in JS wins over the `scroll-behavior: auto` the
+  // reduced-motion rule in index.css sets, so this is the one scroll that has
+  // to ask.
+  const reduceMotion = useReducedMotion();
   useEffect(() => {
     setTimeout(() => {
-      currentRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      currentRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
     }, 150);
+    // Only on mount: the sheet opens parked on the rider's own station.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const color = LINE_COLORS[line as keyof typeof LINE_COLORS];
+  const color = LINE_COLOR[line as keyof typeof LINE_COLOR];
 
   return (
     <>
@@ -124,6 +156,8 @@ export function TrainRouteSheet({
           would need `AnimatePresence` in both callers, which is a behaviour
           nobody has asked for and not what was being restored here. */}
       <motion.div
+        ref={dialogRef}
+        {...dialogProps}
         className="fixed bottom-0 left-0 right-0 z-50 rounded-t-3xl"
         style={{ background: "var(--c-bg)", maxHeight: "85vh", display: "flex", flexDirection: "column" }}
         initial={{ y: "100%" }}
@@ -163,7 +197,8 @@ export function TrainRouteSheet({
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1"
+              aria-label={t('common.close')}
+              className="hit-44 w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1"
               style={{ background: "var(--c-card)" }}
             >
               <X size={15} style={{ color: "var(--c-text-3)" }} />

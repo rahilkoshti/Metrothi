@@ -1,6 +1,6 @@
-import { Moon, Sun, Info, MessageSquare, Database, Building2, ArrowLeft } from "lucide-react";
+import { Moon, Sun, SunMoon, Info, MessageSquare, Database, Building2, ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useTheme } from "../../../contexts/ThemeContext";
+import { useTheme, type ThemePref } from "../../../contexts/ThemeContext";
 import { useLanguage } from "../../../i18n/useLanguage";
 import { LANGUAGES } from "../../../data/preferences";
 import { useNavigate } from "react-router-dom";
@@ -9,6 +9,7 @@ import {
   HELP_TOPICS,
   OFFICIAL_APP,
   GMRC_FEEDBACK_URL,
+  feedbackMailto,
   officialAppStore,
   type TopicEntry,
 } from "../../info/catalog";
@@ -65,43 +66,60 @@ function EnglishOnlyNote() {
   );
 }
 
-// ─── Theme toggle ─────────────────────────────────────────────────────────────
+// ─── Theme picker ────────────────────────────────────────────────────────────
 
-function ThemeToggle() {
+/**
+ * System / Light / Dark, not a two-way switch.
+ *
+ * The switch it replaces had no System option and the app never read
+ * `prefers-color-scheme`, so it shipped light — its least-tested theme, and the
+ * one where nineteen of the app's contrast failures lived — to every rider
+ * whose phone is set to dark. Respecting the OS preference is the default, and
+ * an explicit choice overrides it.
+ *
+ * Segmented for the same reason the language picker is: three options fit one
+ * row, and the alternative (a collapsed row naming the current value) spends a
+ * tap to say something the control can already show. It also replaces a 26px
+ * target and two hard-coded colours with 44px cells drawn from tokens.
+ */
+const THEME_OPTIONS: { value: ThemePref; labelKey: string; icon: typeof Sun }[] = [
+  { value: 'system', labelKey: 'you.themeSystem', icon: SunMoon },
+  { value: 'light', labelKey: 'you.themeLight', icon: Sun },
+  { value: 'dark', labelKey: 'you.themeDark', icon: Moon },
+];
+
+function ThemePicker() {
   const { t } = useTranslation();
-  const { theme, toggleTheme } = useTheme();
-  const isDark = theme === 'dark';
+  const { pref, setPref } = useTheme();
 
   return (
-    <button
-      onClick={toggleTheme}
-      aria-label={t(isDark ? 'you.switchToLight' : 'you.switchToDark')}
-      className="flex items-center gap-2 transition-all active:scale-95"
+    <div
+      className="flex items-center gap-1 m-3 p-1 rounded-control"
+      style={{ background: 'var(--c-card-alt)' }}
+      role="group"
+      aria-label={t('you.theme')}
     >
-      <Sun size={14} style={{ color: isDark ? 'var(--c-text-4)' : '#F59E0B' }} />
-      {/* Track */}
-      <div
-        className="relative rounded-full transition-colors duration-300"
-        style={{
-          width: 44,
-          height: 26,
-          background: isDark ? 'var(--c-accent)' : 'var(--c-border-2)',
-        }}
-      >
-        {/* Knob */}
-        <div
-          className="absolute top-1 rounded-full transition-all duration-300"
-          style={{
-            width: 18,
-            height: 18,
-            background: isDark ? '#000' : '#fff',
-            left: isDark ? 22 : 4,
-            boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
-          }}
-        />
-      </div>
-      <Moon size={14} style={{ color: isDark ? 'var(--c-accent)' : 'var(--c-text-4)' }} />
-    </button>
+      {THEME_OPTIONS.map(({ value, labelKey, icon: Icon }) => {
+        const active = pref === value;
+        return (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setPref(value)}
+            aria-pressed={active}
+            className="flex-1 flex items-center justify-center gap-1.5 px-2 text-footnote font-bold rounded-chip transition-all duration-200 active:scale-[0.97]"
+            style={{
+              minHeight: 'var(--touch-min)',
+              background: active ? 'var(--c-accent)' : 'transparent',
+              color: active ? 'var(--c-accent-fg)' : 'var(--c-text-2)',
+            }}
+          >
+            <Icon size={16} strokeWidth={2.2} aria-hidden="true" />
+            {t(labelKey)}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -141,7 +159,7 @@ function LanguagePicker() {
             style={{
               background: active ? 'var(--c-accent)' : 'transparent',
               color: active ? 'var(--c-accent-fg)' : 'var(--c-text-2)',
-              boxShadow: active ? '0 2px 10px rgba(0,0,0,0.1)' : 'none',
+              boxShadow: 'none',
             }}
           >
             {l.label}
@@ -215,7 +233,6 @@ function MakerCredit() {
 
 export function YouScreen() {
   const { t } = useTranslation();
-  const { theme } = useTheme();
   const navigate = useNavigate();
   const openTopic = (slug: string) => navigate(`/you/${slug}`);
   const appStore = officialAppStore();
@@ -224,12 +241,13 @@ export function YouScreen() {
     <div className="max-w-[var(--layout-max-width)] mx-auto pb-28" style={{ fontFamily: 'var(--font-app)' }}>
 
       {/* ── Header / Avatar ──────────────────────────────────────────────── */}
-      <div className="px-5 pt-8 pb-6 flex items-center justify-between">
+      <div className="px-5 pb-6 flex items-center justify-between" style={{ paddingTop: 'calc(var(--sat) + var(--sp-8))' }}>
         <div>
-          <div className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--c-text-3)' }}>
-            {t(theme === 'dark' ? 'you.darkModeBanner' : 'you.lightModeBanner')}
-          </div>
-          <h1 className="text-4xl font-bold tracking-tight" style={{ color: 'var(--c-text)' }}>{t('you.title')}</h1>
+          {/* The eyebrow used to name the current theme, with a 🌙 or ☀️ that
+              lived in the bundle and so rendered in all three languages. The
+              theme is a setting on this screen; it does not also need to be
+              announced above the screen's own title. */}
+          <h1 className="text-title-1" style={{ color: 'var(--c-text)' }}>{t('you.title')}</h1>
         </div>
         <button
           onClick={() => navigate(-1)}
@@ -247,21 +265,7 @@ export function YouScreen() {
       {/* ── Appearance ───────────────────────────────────────────────────── */}
       <SectionHeader label={t('you.appearance')} />
       <SectionCard>
-        <div className="flex items-center gap-4 px-5 py-4">
-          <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'var(--c-card-alt)' }}>
-            {theme === 'dark'
-              ? <Moon size={16} style={{ color: 'var(--c-text-2)' }} />
-              : <Sun size={16} style={{ color: '#F59E0B' }} />
-            }
-          </div>
-          <div className="flex-1">
-            <div className="text-[14px] font-semibold" style={{ color: 'var(--c-text)' }}>{t('you.theme')}</div>
-            <div className="text-[11px] font-medium mt-0.5" style={{ color: 'var(--c-text-3)' }}>
-              {t(theme === 'dark' ? 'you.dark' : 'you.light')}
-            </div>
-          </div>
-          <ThemeToggle />
-        </div>
+        <ThemePicker />
       </SectionCard>
 
       {/* ── Language ─────────────────────────────────────────────────────────
@@ -341,9 +345,19 @@ export function YouScreen() {
           about *the metro* is GMRC's, and the two must not go to one inbox. */}
       <SectionHeader label={t('you.feedback')} />
       <SectionCard>
-        <Row icon={MessageSquare} label={t('you.reportTimetable')} value={t('you.reportTimetableDetail')} />
+        <Row
+          icon={MessageSquare}
+          label={t('you.reportTimetable')}
+          value={t('you.reportTimetableDetail')}
+          href={feedbackMailto('Timetable issue')}
+        />
         <RowDivider />
-        <Row icon={MessageSquare} label={t('you.suggestFeature')} value={t('you.suggestFeatureDetail')} />
+        <Row
+          icon={MessageSquare}
+          label={t('you.suggestFeature')}
+          value={t('you.suggestFeatureDetail')}
+          href={feedbackMailto('Feature suggestion')}
+        />
         <RowDivider />
         <Row
           icon={Building2}
@@ -355,9 +369,21 @@ export function YouScreen() {
       </SectionCard>
 
       {/* ── App version ──────────────────────────────────────────────────── */}
-      <div className="px-5 pt-8 pb-6 text-center">
+      <div className="px-5 pb-6 text-center" style={{ paddingTop: 'calc(var(--sat) + var(--sp-8))' }}>
+        {/* Read from `package.json` through vite's `define`, not typed again
+            here: this is the third consumer of the same fact — every analytics
+            row carries it as `app_version` (§5.8) and `feedbackMailto()` puts
+            it in the body of a bug report — and it was the one that could
+            silently disagree with the other two.
+
+            Only `-prototype` is written here. It describes the release stage
+            rather than the version, and moving it into `package.json` would put
+            it on every analytics row, breaking the continuity of the column
+            that exists to compare builds. It does mean this line still needs a
+            hand-edit the day the app stops being a prototype — but a wrong word
+            is visible, where a wrong number was not. */}
         <div className="text-[11px] font-semibold" style={{ color: 'var(--c-text-4)' }}>
-          Metrothi · v0.1.0-prototype
+          Metrothi · v{import.meta.env.VITE_APP_VERSION}-prototype
         </div>
         <div className="text-[11px] mt-1" style={{ color: 'var(--c-text-4)' }}>
           {t('you.simulatedNote')}

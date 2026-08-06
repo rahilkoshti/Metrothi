@@ -6,10 +6,10 @@ import {
   Bookmark, Share2, Clock, ChevronDown, Footprints,
   ArrowLeftRight, Flag, FastForward, Check, Train,
 } from "lucide-react";
-import { fullDayStationSchedule, LINE_PATHS, clockTimeAfter } from "../engine/journeyEngine";
+import { fullDayStationSchedule, LINE_PATHS, clockTimeAfter, formatDuration } from "../engine/journeyEngine";
 import type { JourneyState, useJourneySession } from "../hooks/useJourneySession";
 import { useNow } from "../hooks/useNow";
-import { LINE_COLORS, LINE_TEXT } from "../constants";
+import { LINE_COLOR, LINE_ON_SURFACE } from "../constants";
 import { legOffsetsOf, activeLegIndexOf } from "../liveStatus";
 import { TrainRouteSheet } from "./TrainRouteSheet";
 import { ExitGuidance } from "./ExitGuidance";
@@ -24,18 +24,37 @@ const RAIL_W = 14;
 /** Vertical offset of a station dot's center from its row top (px). */
 const DOT_Y = 12;
 
-const fmtMins = (m: number) => `${m} min${m === 1 ? "" : "s"}`;
+// This screen used to print a duration four different ways — a local `fmtMins`
+// giving "5 mins", the engine's `formatDuration` giving "5 min", and two inline
+// templates giving "12min" and "3m" — all visible at once. `formatDuration` is
+// the one formatter: it is where the hour rollover ("1h 05m") is already
+// handled, and it is what every other screen in the app uses.
 
-const STATE_PILL: Record<JourneyState, { bg: string; fg: string }> = {
-  NOT_STARTED: { bg: "#3B82F6", fg: "#fff" },
-  WALKING_TO_STATION: { bg: "#3B82F6", fg: "#fff" },
-  WAITING_FOR_TRAIN: { bg: "#EAB308", fg: "#111" },
-  ON_TRAIN: { bg: "#22C55E", fg: "#052e14" },
-  APPROACHING_TRANSFER: { bg: "#EAB308", fg: "#111" },
-  TRANSFERRING: { bg: "#EAB308", fg: "#111" },
-  APPROACHING_DESTINATION: { bg: "#22C55E", fg: "#052e14" },
-  FINAL_WALK: { bg: "#22C55E", fg: "#052e14" },
-  COMPLETED: { bg: "#22C55E", fg: "#052e14" },
+/**
+ * The journey-state pill, as a tone and a glyph.
+ *
+ * Both halves are deliberate. The tone is a **status** token rather than a
+ * literal because the six colours here were authored on the dark theme and
+ * measured 3.68:1 at worst on the light one — and because three of the states
+ * were painted `#EAB308`, byte-identical to the Yellow Line. A rider should
+ * never have to work out whether yellow means "Yellow Line" or "warning";
+ * four hues are already spent on line identity, so status gets its own set
+ * chosen not to collide with them.
+ *
+ * The glyph is what stops the pill conveying its state by colour alone
+ * (WCAG 1.4.1). It also replaces a pulsing dot, which was one of the four
+ * always-on animations running with no reduced-motion guard.
+ */
+const STATE_PILL: Record<JourneyState, { tone: 'info' | 'warn' | 'good'; Icon: typeof Train }> = {
+  NOT_STARTED:             { tone: 'info', Icon: Clock },
+  WALKING_TO_STATION:      { tone: 'info', Icon: Footprints },
+  WAITING_FOR_TRAIN:       { tone: 'warn', Icon: Clock },
+  ON_TRAIN:                { tone: 'good', Icon: Train },
+  APPROACHING_TRANSFER:    { tone: 'warn', Icon: ArrowLeftRight },
+  TRANSFERRING:            { tone: 'warn', Icon: ArrowLeftRight },
+  APPROACHING_DESTINATION: { tone: 'good', Icon: Flag },
+  FINAL_WALK:              { tone: 'good', Icon: Footprints },
+  COMPLETED:               { tone: 'good', Icon: Check },
 };
 
 // ─── Small building blocks ───────────────────────────────────────────────────
@@ -48,11 +67,15 @@ function ActionPill({
   return (
     <button
       onClick={onClick}
-      className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-[13px] font-semibold shrink-0 transition-all active:scale-95"
+      className="flex items-center gap-2 px-4 rounded-2xl text-footnote shrink-0 transition-all active:scale-[0.97]"
       style={{
-        background: danger ? "rgba(239,68,68,0.12)" : active ? "var(--c-text)" : "var(--c-bg)",
-        color: danger ? "#EF4444" : active ? "var(--c-bg)" : "var(--c-text)",
-        border: `1px solid ${danger ? "rgba(239,68,68,0.25)" : "var(--c-border)"}`,
+        // 44px floor: this row holds "End journey", which is destructive and
+        // was a ~36px target. The danger tone used a literal #EF4444 (3.35:1
+        // on the card) while --c-danger sat unused two files away.
+        minHeight: 'var(--touch-min)',
+        background: danger ? "var(--c-error-bg)" : active ? "var(--c-text)" : "var(--c-bg)",
+        color: danger ? "var(--c-danger)" : active ? "var(--c-bg)" : "var(--c-text)",
+        border: `1px solid ${danger ? "var(--c-error-border)" : "var(--c-border)"}`,
       }}
     >
       {children}
@@ -87,7 +110,10 @@ function RailCell({
       {dot && (
         <div
           className="absolute left-1/2 -translate-x-1/2 rounded-full z-10"
-          style={{ top: DOT_Y - dotSize / 2, width: dotSize, height: dotSize, background: "rgba(255,255,255,0.92)" }}
+          // Same reasoning as LineBadge: a white station dot reaches 1.92:1 on
+          // the Yellow Line's rail, under the 3:1 a meaningful graphic needs.
+          // Black clears 5.31 on the worst of the four fills.
+          style={{ top: DOT_Y - dotSize / 2, width: dotSize, height: dotSize, background: "var(--c-on-line)", opacity: 0.92 }}
         />
       )}
       {glowFrac != null && (
@@ -120,9 +146,12 @@ function ConnectorRow({
           className="absolute top-1/2 -translate-y-1/2 w-7 h-7 rounded-full flex items-center justify-center z-10"
           style={{
             left: (RAIL_W - 28) / 2,
-            background: highlight ? "#EAB308" : "var(--c-text)",
-            color: highlight ? "#111" : "var(--c-bg)",
-            boxShadow: highlight ? "0 0 16px rgba(234,179,8,0.5)" : "none",
+            // The highlighted connector marks the transfer you are about to
+            // make. It was filled #EAB308 — the Yellow Line's exact signage
+            // hex — on a screen that also draws the Yellow Line.
+            background: highlight ? "var(--c-warn)" : "var(--c-text)",
+            color: highlight ? "var(--c-card)" : "var(--c-bg)",
+            boxShadow: highlight ? "0 0 16px var(--c-warn-border)" : "none",
           }}
         >
           {icon}
@@ -259,7 +288,7 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
   // ── Row renderers ───────────────────────────────────────────────────────────
 
   const renderLeg = (leg: any, k: number) => {
-    const color = LINE_COLORS[leg.line];
+    const color = LINE_COLOR[leg.line];
     const len = leg.ids.length;
     const off = legOffsets[k];
     const isActive = k === activeLegIdx;
@@ -284,7 +313,7 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
 
     const nameStyle = (li: number, base: string) =>
       isCurrent(li)
-        ? { color: LINE_TEXT[leg.line], fontWeight: 700 }
+        ? { color: LINE_ON_SURFACE[leg.line], fontWeight: 700 }
         : { color: isPassed(li) ? "var(--c-text-4)" : base };
 
     const intermediateRow = (li: number) => (
@@ -292,18 +321,18 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
         <RailCell color={color} passed={isPassed(li)} glowFrac={glowHere?.row === li ? glowHere.frac : null} />
         <div className={`flex-1 min-w-0 pb-5 flex items-start justify-between gap-3 transition-opacity duration-500 ${isPassed(li) ? "opacity-50" : ""}`}>
           <div className="min-w-0">
-            <div className="text-[15px] font-medium leading-snug truncate transition-colors duration-500" style={nameStyle(li, "var(--c-text-2)")}>
+            <div className="text-subhead leading-snug truncate transition-colors duration-500" style={nameStyle(li, "var(--c-text-2)")}>
               {stationName(li)}
             </div>
             {isActive && !isPassed(li) && (
-              <div className="text-[11px] font-medium mt-0.5 transition-colors duration-300" style={{ color: isCurrent(li) ? LINE_TEXT[leg.line] : "var(--c-text-4)" }}>
-                {t('live.durationLeft', { duration: fmtMins(minsLeftAt(li)) })}
+              <div className="text-footnote mt-0.5 transition-colors duration-300" style={{ color: isCurrent(li) ? LINE_ON_SURFACE[leg.line] : "var(--c-text-4)" }}>
+                {t('live.durationLeft', { duration: formatDuration(minsLeftAt(li)) })}
               </div>
             )}
           </div>
           {!isActive && (
-            <div className="flex items-center gap-1 shrink-0 mt-0.5 text-[11px] font-semibold tabular-nums" style={{ color: "var(--c-text-4)" }}>
-              <Clock size={10} /> {minsLeftAt(li)}m
+            <div className="flex items-center gap-1 shrink-0 mt-0.5 text-footnote tabular-nums" style={{ color: "var(--c-text-4)" }}>
+              <Clock size={12} aria-hidden="true" /> {formatDuration(minsLeftAt(li))}
             </div>
           )}
         </div>
@@ -325,23 +354,23 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
             <RailCell color={color} roundTop passed={isPassed(1)} dotSize={7} glowFrac={glowHere?.row === 0 ? glowHere.frac : null} />
             <div className={`flex-1 min-w-0 pb-4 transition-opacity duration-500 ${isPassed(0) && !isCurrent(0) ? "opacity-50" : ""}`}>
               <div className="flex items-start justify-between gap-3">
-                <div className="text-[17px] font-bold leading-snug" style={nameStyle(0, "var(--c-text)")}>
+                <div className="text-headline leading-snug" style={nameStyle(0, "var(--c-text)")}>
                   {stationName(0)}
                 </div>
-                <div className="text-[12px] font-semibold tabular-nums shrink-0 mt-1" style={{ color: "var(--c-text-3)" }}>
+                <div className="text-footnote tabular-nums shrink-0 mt-1" style={{ color: "var(--c-text-3)" }}>
                   {departClock}
                 </div>
               </div>
               <div className="flex items-center gap-2 mt-2 flex-wrap">
                 <span
-                  className="inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full text-[12px] font-semibold"
+                  className="inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full text-footnote"
                   style={{ background: "var(--c-bg)", border: "1px solid var(--c-border)", color: "var(--c-text-2)" }}
                 >
                   <LineBadge line={leg.line} size="xs" /> {leg.headingName}
                 </span>
                 <button
                   onClick={() => setShowScheduleLegIdx(k)}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[12px] font-semibold active:scale-95 transition-transform"
+                  className="hit-44 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-footnote active:scale-[0.97] transition-transform"
                   style={{ background: "var(--c-bg)", border: "1px solid var(--c-border)", color: "var(--c-text-2)" }}
                 >
                   {/* Names what it opens rather than repeating the clock. This
@@ -359,14 +388,14 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
             <button className="flex gap-3.5 text-left w-full group" onClick={() => setExpandedLegs(e => ({ ...e, [k]: !isLegExpanded(k) }))}>
               <RailCell color={color} passed={cs >= gi(len - 1)} glowFrac={glowHere?.row === -1 ? glowHere.frac : null} dot={!showList} />
               <div className="flex-1 min-w-0 pb-4 flex items-center justify-between gap-3">
-                <span className="inline-flex items-center gap-2 text-[15px] font-semibold" style={{ color: "var(--c-text)" }}>
+                <span className="inline-flex items-center gap-2 text-subhead font-semibold" style={{ color: "var(--c-text)" }}>
                   <motion.span animate={{ rotate: showList ? 180 : 0 }} transition={{ duration: 0.25 }} className="flex">
                     <ChevronDown size={16} style={{ color: "var(--c-text-3)" }} />
                   </motion.span>
                   {t('live.rideStops', { count: len - 1 })}
                 </span>
-                <span className="flex items-center gap-1 text-[11px] font-semibold shrink-0" style={{ color: "var(--c-text-4)" }}>
-                  <Clock size={10} /> {leg.travelMins}min
+                <span className="flex items-center gap-1 text-footnote shrink-0" style={{ color: "var(--c-text-4)" }}>
+                  <Clock size={12} aria-hidden="true" /> {formatDuration(leg.travelMins)}
                 </span>
               </div>
             </button>
@@ -393,17 +422,17 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
             <RailCell color={color} roundBottom dotSize={7} glowFrac={glowHere?.row === len - 1 ? glowHere.frac : null} />
             <div className={`flex-1 min-w-0 pb-2 transition-opacity duration-500 ${isPassed(len - 1) ? "opacity-50" : ""}`}>
               <div className="flex items-start justify-between gap-3">
-                <div className="text-[17px] font-bold leading-snug" style={nameStyle(len - 1, "var(--c-text)")}>
+                <div className="text-headline leading-snug" style={nameStyle(len - 1, "var(--c-text)")}>
                   {stationName(len - 1)}
                 </div>
-                <div className="text-[12px] font-semibold tabular-nums shrink-0 mt-1" style={{ color: "var(--c-text-3)" }}>
+                <div className="text-footnote tabular-nums shrink-0 mt-1" style={{ color: "var(--c-text-3)" }}>
                   {clockAt(len - 1)}
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 mt-1 text-[11px] font-medium" style={{ color: "var(--c-text-4)" }}>
+              <div className="flex items-center gap-1.5 mt-1 text-footnote" style={{ color: "var(--c-text-4)" }}>
                 {isLastLeg
-                  ? <><Flag size={11} /> {t('live.finalStop')}</>
-                  : <><ArrowLeftRight size={11} /> {t('live.changeHere')}</>}
+                  ? <><Flag size={12} aria-hidden="true" /> {t('live.finalStop')}</>
+                  : <><ArrowLeftRight size={12} aria-hidden="true" /> {t('live.changeHere')}</>}
               </div>
               {/* How to leave the station, under the stop you leave it at.
                   Rendered for the whole ride rather than only once the Arrived
@@ -431,7 +460,7 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
           the bar's "2 min to the next stop". */}
       <div ref={midBlockRef} className="px-5 pt-1 pb-4">
         <div className="flex items-center justify-between gap-3">
-          <div className="text-[12px] font-medium flex items-center gap-1.5 flex-wrap min-w-0" style={{ color: "var(--c-text-3)" }}>
+          <div className="text-footnote flex items-center gap-1.5 flex-wrap min-w-0" style={{ color: "var(--c-text-3)" }}>
             {result.fare != null && <span className="tabular-nums">₹{result.fare}</span>}
             {result.fare != null && <span style={{ color: "var(--c-text-4)" }}>·</span>}
             <span className="tabular-nums">{t('common.stops', { count: result.totalStops })}</span>
@@ -443,18 +472,26 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
                 </span>
               </>
             )}
-            <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border shrink-0" style={{ borderColor: "var(--c-border-2)", color: "var(--c-text-4)" }}>
+            {/* The disclosure that these times are simulated rather than a live
+                vehicle feed. It was 9px in --c-text-4 in the least-read corner
+                of the screen — technically disclosed, not actually readable,
+                which is not disclosure. One calm line at a legible size. */}
+            <span className="text-footnote px-1.5 py-0.5 rounded-chip border shrink-0" style={{ borderColor: "var(--c-border-2)", color: "var(--c-text-3)" }}>
               {t('live.simulated')}
             </span>
           </div>
           <div
-            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-bold transition-colors duration-500"
-            style={{ background: pill.bg, color: pill.fg }}
+            className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-footnote transition-colors duration-500"
+            style={{
+              background: `var(--c-${pill.tone}-bg)`,
+              color: `var(--c-${pill.tone})`,
+              border: `1px solid var(--c-${pill.tone}-border)`,
+            }}
           >
-            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: pill.fg }} />
+            <pill.Icon size={14} strokeWidth={2.2} aria-hidden="true" />
             {currentState === "COMPLETED"
               ? t('live.done')
-              : t('live.durationLeft', { duration: `${totalMinsLeft} min` })}
+              : t('live.durationLeft', { duration: formatDuration(totalMinsLeft) })}
           </div>
         </div>
 
@@ -494,7 +531,7 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
             <>
               <ActionPill onClick={() => setIsSimulating(s => !s)}>
                 Simulate
-                <span className="w-8 h-[18px] rounded-full relative transition-colors" style={{ background: isSimulating ? "#22C55E" : "var(--c-border-2)" }}>
+                <span className="w-8 h-[18px] rounded-full relative transition-colors" style={{ background: isSimulating ? "var(--c-good)" : "var(--c-border-2)" }}>
                   <span
                     className="absolute top-[2px] w-3.5 h-3.5 rounded-full bg-white shadow transition-all"
                     style={{ left: isSimulating ? 18 : 2 }}
@@ -512,8 +549,8 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
       {/* ── Timeline ── */}
       <div className="px-5 pt-2 pb-8">
         {/* Walk to the source station */}
-        <ConnectorRow icon={<Footprints size={14} />} passed={walkPassed}>
-          <div className="text-[14px] font-semibold leading-snug" style={{ color: "var(--c-text)" }}>
+        <ConnectorRow icon={<Footprints size={16} aria-hidden="true" />} passed={walkPassed}>
+          <div className="text-headline leading-snug" style={{ color: "var(--c-text)" }}>
             {/* Four whole keys for the four shapes this line takes, rather than
                 a base sentence with two optional fragments concatenated on.
                 English tolerates the concatenation; Hindi and Gujarati put the
@@ -527,8 +564,8 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
                 : (waits ? 'live.walkToThenWait' : 'live.walkTo');
               return t(key, {
                 station: srcSt?.name,
-                duration: walkMins ? fmtMins(walkMins) : undefined,
-                wait: waits ? fmtMins(Math.round(result.initialWaitMins)) : undefined,
+                duration: walkMins ? formatDuration(walkMins) : undefined,
+                wait: waits ? formatDuration(result.initialWaitMins) : undefined,
               });
             })()}
           </div>
@@ -539,28 +576,28 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
             {renderLeg(leg, k)}
             {k < legs.length - 1 && (
               <ConnectorRow
-                icon={<ArrowLeftRight size={13} />}
+                icon={<ArrowLeftRight size={16} aria-hidden="true" />}
                 passed={cs > legOffsets[k + 1]}
                 highlight={currentState === "TRANSFERRING" && cs === legOffsets[k + 1]}
               >
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-[14px] font-semibold" style={{ color: "var(--c-text)" }}>{t('common.changeTo')}</span>
+                  <span className="text-headline" style={{ color: "var(--c-text)" }}>{t('common.changeTo')}</span>
                   {/* The direction the next line takes you, not the station you
                       are standing in — the row directly above this already
                       names it and says "Change here", so the interchange was
                       printed three times running. Same badge-plus-heading chip
                       the boarding row uses, so it reads the same way. */}
                   <span
-                    className="inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full text-[12px] font-semibold"
+                    className="inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full text-footnote"
                     style={{ background: "var(--c-bg)", border: "1px solid var(--c-border)", color: "var(--c-text-2)" }}
                   >
                     <LineBadge line={legs[k + 1].line} size="xs" /> {legs[k + 1].headingName}
                   </span>
                 </div>
-                <div className="text-[11px] font-medium mt-1" style={{ color: "var(--c-text-4)" }}>
+                <div className="text-footnote mt-1" style={{ color: "var(--c-text-4)" }}>
                   {t(legs[k + 1].waitMins != null ? 'live.transferWalkAndWait' : 'live.transferWalk', {
-                    duration: `${legs[k + 1].bufferMins || 3} min`,
-                    wait: legs[k + 1].waitMins != null ? fmtMins(legs[k + 1].waitMins) : undefined,
+                    duration: formatDuration(legs[k + 1].bufferMins || 3),
+                    wait: legs[k + 1].waitMins != null ? formatDuration(legs[k + 1].waitMins) : undefined,
                   })}
                 </div>
               </ConnectorRow>
@@ -570,11 +607,11 @@ export function LiveJourneyScreen({ result, activeOptionIdx, onEnd, session, mid
 
         {/* Walk from the destination station to the final place */}
         {destPlace && (
-          <ConnectorRow icon={<Footprints size={14} />} passed={currentState === "COMPLETED"}>
-            <div className="text-[14px] font-semibold leading-snug" style={{ color: "var(--c-text)" }}>
+          <ConnectorRow icon={<Footprints size={16} aria-hidden="true" />} passed={currentState === "COMPLETED"}>
+            <div className="text-headline leading-snug" style={{ color: "var(--c-text)" }}>
               {t(result.destWalkMins ? 'live.walkDurationToPlace' : 'live.walkToPlace', {
                 place: destPlace.name,
-                duration: result.destWalkMins ? fmtMins(result.destWalkMins) : undefined,
+                duration: result.destWalkMins ? formatDuration(result.destWalkMins) : undefined,
               })}
             </div>
           </ConnectorRow>

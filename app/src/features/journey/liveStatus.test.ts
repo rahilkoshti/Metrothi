@@ -84,7 +84,7 @@ describe('the countdown counts to something the rider can act on', () => {
     // arrival past the origin. Here that would print 11 min instead of 8.
     const s = status('WALKING_TO_STATION', 0, 2)!;
     expect(s.instruction).toEqual({ key: 'live.walkTo', values: { station: 'A' } });
-    expect(s.countdown).toEqual({ value: '8 min', labelKey: 'live.trainDeparts' });
+    expect(s.countdown).toEqual({ mins: 8, labelKey: 'live.trainDeparts' });
   });
 
   it('counts a connection to when the connecting train leaves', () => {
@@ -95,12 +95,12 @@ describe('the countdown counts to something the rider can act on', () => {
       values: { line: 'Red Line', heading: 'Rx' },
     });
     // 16 at the interchange + 3 buffer + 4 wait = 23.
-    expect(s.countdown).toEqual({ value: '6 min', labelKey: 'live.trainDeparts' });
+    expect(s.countdown).toEqual({ mins: 6, labelKey: 'live.trainDeparts' });
     expect(s.tone).toBe('alert');
   });
 
   it('never prints a negative once a deadline has passed', () => {
-    expect(status('WALKING_TO_STATION', 0, 40)!.countdown!.value).toBe('0 min');
+    expect(status('WALKING_TO_STATION', 0, 40)!.countdown!.mins).toBe(0);
   });
 });
 
@@ -108,7 +108,7 @@ describe('per-state instruction', () => {
   it('names the next stop rather than saying "On train"', () => {
     const s = status('ON_TRAIN', 1, 12)!;
     expect(s.instruction).toEqual({ key: 'live.nextStation', values: { station: 'C' } });
-    expect(s.countdown).toEqual({ value: '4 min', labelKey: 'live.nextStopLabel' });
+    expect(s.countdown).toEqual({ mins: 4, labelKey: 'live.nextStopLabel' });
   });
 
   it('names the direction while waiting, not the station underfoot', () => {
@@ -123,7 +123,7 @@ describe('per-state instruction', () => {
   it('warns before an interchange', () => {
     const s = status('APPROACHING_TRANSFER', 1, 14)!;
     expect(s.instruction).toEqual({ key: 'live.changeAtNext', values: { station: 'C' } });
-    expect(s.countdown).toEqual({ value: '2 min', labelKey: 'live.getReady' });
+    expect(s.countdown).toEqual({ mins: 2, labelKey: 'live.getReady' });
     expect(s.tone).toBe('alert');
     expect(s.line).toBe('blue'); // still riding the first leg
   });

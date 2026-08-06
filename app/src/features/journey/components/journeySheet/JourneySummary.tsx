@@ -1,6 +1,7 @@
 import { Info, AlertOctagon, Play, Footprints } from "lucide-react";
 import { Trans, useTranslation } from "react-i18next";
 import { formatDuration, rideMinsOf } from "../../engine/journeyEngine";
+import { strandedAdviceOf } from "../../strandedAdvice";
 
 /** How many departures the picker shows before deferring to the list below. */
 const PICKER_SLOTS = 4;
@@ -51,7 +52,7 @@ export function JourneySummary({
   // Urgency reads off the countdown itself; a tight option is the one case
   // where "now" is not quite enough and the colour has to say so.
   const tone = isTight
-    ? '#f59e0b'
+    ? 'var(--c-warn)'
     : isNow || leaveIn <= 10
     ? 'var(--c-accent)'
     : 'var(--c-text)';
@@ -66,6 +67,11 @@ export function JourneySummary({
   const picker = options.slice(0, PICKER_SLOTS);
   const overflow = Math.max(0, options.length - picker.length);
 
+  // Only read on the infeasible branch, but hooks and derivations both stay
+  // above the JSX so the two branches can't drift into having different data
+  // available to them.
+  const strandedAdvice = isFeasible ? null : strandedAdviceOf(active, options);
+
   return (
     <div className="px-5 pt-1 pb-4 flex flex-col gap-4">
       {isFeasible ? (
@@ -78,7 +84,7 @@ export function JourneySummary({
             <div className="min-w-0">
               <div
                 className="text-[11px] font-bold uppercase tracking-[0.09em]"
-                style={{ color: isTight ? '#f59e0b' : 'var(--c-text-3)' }}
+                style={{ color: isTight ? 'var(--c-warn)' : 'var(--c-text-3)' }}
               >
                 {isTight ? t('journey.leaveNowTight') : isNow ? t('journey.leaveLabel') : t('journey.leaveInLabel')}
               </div>
@@ -104,7 +110,7 @@ export function JourneySummary({
           </div>
 
           {isTight && (
-            <p className="text-[12px] font-semibold mt-3 leading-snug" style={{ color: '#f59e0b' }}>
+            <p className="text-footnote mt-3 leading-snug" style={{ color: 'var(--c-warn)' }}>
               {t('journey.tightExplain', { time: departTime })}
             </p>
           )}
@@ -128,19 +134,31 @@ export function JourneySummary({
       ) : (
         <div
           className="rounded-2xl p-4"
-          style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}
+          style={{ background: 'var(--c-error-bg)', border: '1px solid var(--c-error-border)' }}
         >
-          <div className="flex items-center gap-2 text-red-400 font-bold mb-1.5 text-sm">
+          {/* "You cannot make this trip" — authored in dark-theme reds
+              (text-red-400 on an 8% tint) that measure 2.77:1 or worse on the
+              light theme, which is the default. The explanatory line was worse
+              still at red-300/70. Error tokens clear 4.5:1 on both. */}
+          <div className="flex items-center gap-2 font-bold mb-1.5 text-callout" style={{ color: 'var(--c-error)' }}>
             <AlertOctagon size={16} />
             {t('journey.routeNotPossible')}
           </div>
-          <p className="text-xs font-medium text-red-300/70 leading-snug">
+          <p className="text-footnote leading-snug" style={{ color: 'var(--c-text-2)' }}>
             {/* `Trans` so the emphasised line name can sit where each language
-                puts it, rather than splitting the sentence in two around it. */}
+                puts it, rather than splitting the sentence in two around it.
+
+                Three whole keys, one per shape, chosen off the tree in
+                `strandedAdvice.ts` — never one sentence with a second clause
+                appended, which is the concatenation English tolerates and the
+                two Indic bundles do not (§6.2). The shapes differ by what can
+                actually be computed: another departure today that gets through,
+                or failing that the stranding line's first train tomorrow, or —
+                when neither resolves — the plain explanation this replaced. */}
             <Trans
-              i18nKey="journey.strandedExplain"
-              values={{ line: active.strandedAtLine }}
-              components={{ b: <strong className="text-red-300" /> }}
+              i18nKey={strandedAdvice?.key ?? 'journey.strandedExplain'}
+              values={strandedAdvice?.values ?? { line: active.strandedAtLine }}
+              components={{ b: <strong style={{ color: 'var(--c-error)' }} /> }}
             />
           </p>
         </div>
@@ -182,7 +200,7 @@ export function JourneySummary({
                 : !optFeasible
                 ? 'var(--c-text-4)'
                 : optTight
-                ? '#f59e0b'
+                ? 'var(--c-warn)'
                 : 'var(--c-text)';
               return (
                 <button
@@ -193,7 +211,7 @@ export function JourneySummary({
                   style={{
                     background: isSel ? 'var(--c-accent)' : 'var(--c-bg)',
                     border: `1px solid ${isSel ? 'var(--c-accent)' : 'var(--c-border)'}`,
-                    boxShadow: isSel ? '0 4px 14px rgba(249,115,22,0.28)' : 'none',
+                    boxShadow: isSel ? 'var(--shadow-float)' : 'none',
                   }}
                 >
                   <span
@@ -201,7 +219,7 @@ export function JourneySummary({
                     style={{ color, textDecoration: optFeasible ? undefined : 'line-through' }}
                   >
                     {time}
-                    {showMeridiem && <span className="text-[9px] ml-0.5 align-baseline">{meridiem}</span>}
+                    {showMeridiem && <span className="text-caption ml-0.5 align-baseline">{meridiem}</span>}
                   </span>
                 </button>
               );
@@ -213,25 +231,43 @@ export function JourneySummary({
       {/* Ticket note — an aside, not a third coloured block competing with the
           picker and the CTA. `where` rides as a second line rather than a
           fourth sentence: the note is the constraint and this is what to do
-          about it, and at 11px they stop being separable once run together. It
-          only ever has content on a cross-phase trip (§4.2). */}
-      <div className="flex items-start gap-2">
-        <Info size={13} strokeWidth={2.4} className="shrink-0 mt-0.5" style={{ color: 'var(--c-text-4)' }} />
-        <div className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--c-text-4)' }}>
-          <p>{ticketInfo.note}</p>
-          {ticketInfo.where && (
-            <p className="mt-1" style={{ color: 'var(--c-text-3)' }}>
-              {ticketInfo.where}
-            </p>
-          )}
+          about it, and at 11px they stop being separable once run together.
+
+          **Both branches of `getTicketOptions` carry a note**, not just the
+          cross-phase one — this comment used to claim otherwise. A same-phase
+          trip says every medium works and that CSC and NCMC take 10% off, which
+          is the discount the engine deliberately does not apply to the fare, so
+          this row is the only place a rider learns about it. Measured over all
+          2862 ordered station pairs: zero empty notes. It is `where` that is
+          cross-phase only — there is nothing to solve when the rider already
+          holds something that works.
+
+          Guarded anyway so the row cannot outlive its content: without it an
+          empty note would still draw the glyph, its gap and its padding ~20px
+          above the CTA, pointing at nothing. */}
+      {(ticketInfo.note || ticketInfo.where) && (
+        <div className="flex items-start gap-2">
+          <Info size={13} strokeWidth={2.4} className="shrink-0 mt-0.5" style={{ color: 'var(--c-text-4)' }} />
+          <div className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--c-text-4)' }}>
+            {ticketInfo.note && <p>{ticketInfo.note}</p>}
+            {ticketInfo.where && (
+              <p className="mt-1" style={{ color: 'var(--c-text-3)' }}>
+                {ticketInfo.where}
+              </p>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {isFeasible && (
         <button
           onClick={onStart}
-          className="w-full py-4 rounded-xl font-bold text-[15px] flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(249,115,22,0.3)] active:scale-[0.98] transition-transform"
-          style={{ background: 'var(--c-accent)', color: 'var(--c-accent-fg)' }}
+          className="w-full rounded-control text-headline flex items-center justify-center gap-2 active:scale-[0.97] transition-transform"
+          // 52px is the primary-button height, and the arbitrary accent glow
+          // (one of eight competing shadow treatments) is gone: elevation is a
+          // three-level scale here, and a filled CTA sitting on a card is
+          // level 2, which carries no shadow at all.
+          style={{ minHeight: 52, background: 'var(--c-accent)', color: 'var(--c-accent-fg)' }}
         >
           <Play size={16} fill="currentColor" /> {t('journey.startJourney')}
         </button>

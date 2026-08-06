@@ -17,6 +17,7 @@ import {
   getSyncStatus,
   type SyncStatus,
 } from '../services/syncEngine';
+import { track } from '../services/analytics';
 
 /**
  * Auth + sync state (PRD §4.5, §5.7).
@@ -117,12 +118,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // Whether this tab already believes someone is signed in. It is the guard
+      // that keeps `signed_in` (§5.8) a count of sign-*ins* rather than of
+      // sessions noticed: supabase-js re-emits `SIGNED_IN` when a session is
+      // recovered — another tab signing in, a token refresh on some versions, a
+      // window regaining focus — and counting those would report a rider who
+      // signed in once in January as signing in every morning since.
+      let hadSession = false;
+
       // getSession resolves from local storage first, so this doesn't wait on
       // the network to decide whether the rider is signed in.
       void client.auth.getSession().then(({ data }) => {
         if (cancelled) return;
         setSession(data.session);
         setLoading(false);
+        // A restored session is not a sign-in. Recording it here is how this
+        // metric would have quietly become "app opens, by signed-in riders".
+        if (data.session) hadSession = true;
         if (data.session?.user.id) void onSignedIn(data.session.user.id);
         else void syncNow();
       });
@@ -131,8 +143,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         setSession(next);
         setLoading(false);
-        if (event === 'SIGNED_IN' && next?.user.id) void onSignedIn(next.user.id);
+        if (event === 'SIGNED_IN' && next?.user.id) {
+          // The count, and nothing about who: no user id, no email, no
+          // `auth.uid()`. The events table has no `user_id` column to put one
+          // in, and that is the point rather than an omission (§5.8).
+          if (!hadSession) track('signed_in');
+          void onSignedIn(next.user.id);
+        }
         if (event === 'SIGNED_OUT') void syncNow();
+        hadSession = next != null;
       });
       unsubscribe = () => authSub.subscription.unsubscribe();
     });

@@ -4,9 +4,6 @@ import { motion } from 'framer-motion';
 import { MapPin, Navigation, History, Star } from 'lucide-react';
 import {
   STATIONS,
-  haversineKm,
-  walkMinsForKm,
-  formatDuration,
   type StationRecord,
   type PlaceNode,
 } from '../engine/journeyEngine';
@@ -22,6 +19,7 @@ import {
   type TransportMode,
 } from '../stationFacilities';
 import { LineBadge } from '../../../components/LineBadge';
+import { useDialog } from '../../../components/useDialog';
 import { LineStatusPills } from './LineStatusPills';
 import { SearchBar } from './SearchBar';
 import { useLiveQuery } from 'dexie-react-hooks';
@@ -31,8 +29,8 @@ import {
   type RecentTrip,
   type SavedJourney,
 } from '../../../data/db';
-import { LINE_BADGE_BG, LINE_NAMES } from '../constants';
-import { useWalkSpeed } from '../hooks/usePreferences';
+import { LINE_COLOR, LINE_NAMES } from '../constants';
+import { useNearestStationHint } from '../hooks/useNearestStationHint';
 import { track } from '../../../services/analytics';
 
 const SEARCHABLE = STATIONS.filter((s) => s.operational !== false);
@@ -60,20 +58,6 @@ const STATIONS_BY_LINE: Record<string, StationRecord[]> = (() => {
   for (const s of STATIONS) (groups[s.line] ??= []).push(s);
   return groups;
 })();
-
-function nearestStationTo(p: { lat: number; lng: number }) {
-  let best: StationRecord | null = null;
-  let bestKm = Infinity;
-  for (const s of SEARCHABLE) {
-    if (s.lat == null || s.lng == null) continue;
-    const d = haversineKm(p, { lat: s.lat, lng: s.lng });
-    if (d < bestKm) {
-      bestKm = d;
-      best = s;
-    }
-  }
-  return best ? { station: best, km: bestKm } : null;
-}
 
 function Row({
   onClick,
@@ -111,7 +95,7 @@ function Row({
           <div className="w-9 flex justify-center shrink-0">{badge}</div>
         ) : (
           <div
-            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+            className="hit-44 w-9 h-9 rounded-full flex items-center justify-center shrink-0"
             style={{ background: 'var(--c-card-alt)' }}
           >
             {icon}
@@ -143,7 +127,7 @@ function Row({
           className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-transform"
           style={{ background: 'var(--c-card)' }}
         >
-          <Navigation size={14} style={{ color: 'var(--c-accent)' }} />
+          <Navigation size={16} strokeWidth={2.2} style={{ color: 'var(--c-accent-text)' }} />
         </button>
       )}
     </div>
@@ -173,6 +157,17 @@ export function HomeSearch({
   const scrollerRef = useRef<HTMLDivElement>(null);
   const savedRef = useRef<HTMLDivElement>(null);
 
+  // A full-bleed overlay that was, to assistive technology and to the keyboard,
+  // not an overlay at all: the whole home screen behind it stayed in the tab
+  // order and nothing announced that a layer had opened. Declared *above* the
+  // input-focus effect below on purpose — effects run in order, so this parks
+  // focus on the container and the one after it moves focus to the input when
+  // that is the right answer.
+  const { ref: dialogRef, dialogProps } = useDialog<HTMLDivElement>({
+    onClose,
+    label: t('search.dialogLabel'),
+  });
+
   // Scroll a target into view by moving ONLY the inner scroller — never
   // `scrollIntoView`, which walks up and scrolls ancestors (and the document),
   // shoving the fixed overlay's own header off-screen.
@@ -189,7 +184,7 @@ export function HomeSearch({
   // the live-journey sheet shows up here without a remount.
   const recentTrips = useLiveQuery(listRecentTrips, [], [] as RecentTrip[]);
   const savedJourneys = useLiveQuery(listSavedJourneys, [], [] as SavedJourney[]);
-  const { walkSpeedKmh } = useWalkSpeed();
+  const nearestHint = useNearestStationHint();
 
   useEffect(() => {
     // When arriving from a line pill we're browsing that line's stations, so
@@ -239,6 +234,8 @@ export function HomeSearch({
 
   return (
     <motion.div
+      ref={dialogRef}
+      {...dialogProps}
       className="fixed inset-0 z-[1200] flex flex-col"
       style={{ background: 'var(--c-bg)' }}
       initial={{ opacity: 0 }}
@@ -248,7 +245,7 @@ export function HomeSearch({
       {/* Search bar — the exact same shared pill as the home screen, in its
           'active' state, so nothing about its shape changes when the overlay
           opens. */}
-      <div className="shrink-0 pt-3 pb-2" style={{ borderBottom: '1px solid var(--c-border)' }}>
+      <div className="shrink-0 pb-2" style={{ paddingTop: 'calc(var(--sat) + var(--sp-3))', borderBottom: '1px solid var(--c-border)' }}>
         <div className="px-4">
           <SearchBar
             variant="active"
@@ -272,14 +269,14 @@ export function HomeSearch({
               <div className="flex gap-2 overflow-x-auto no-scrollbar px-4">
                 {nearestId && (
                   <Chip
-                    icon={<Navigation size={14} style={{ color: 'var(--c-accent)' }} />}
+                    icon={<Navigation size={16} strokeWidth={2.2} style={{ color: 'var(--c-accent-text)' }} />}
                     label={t('home.nearestStation')}
                     onClick={() => onSelectStation(nearestId)}
                   />
                 )}
                 {savedJourneys.length > 0 && (
                   <Chip
-                    icon={<Star size={14} style={{ color: 'var(--c-accent)' }} />}
+                    icon={<Star size={16} strokeWidth={2.2} style={{ color: 'var(--c-accent-text)' }} />}
                     label={t('common.saved')}
                     onClick={() => scrollToEl(savedRef.current)}
                   />
@@ -295,7 +292,7 @@ export function HomeSearch({
           <>
             {savedJourneys.length > 0 && (
               <div ref={savedRef}>
-                <SectionLabel icon={<Star size={12} style={{ color: 'var(--c-accent)' }} />} text={t('common.saved')} />
+                <SectionLabel icon={<Star size={16} strokeWidth={2.2} style={{ color: 'var(--c-accent-text)' }} />} text={t('common.saved')} />
                 {savedJourneys.map((j: any) => (
                   <Row
                     key={j.key}
@@ -352,14 +349,14 @@ export function HomeSearch({
 
             {places.length > 0 && <SectionLabel text={t('search.landmarks')} />}
             {places.map((p) => {
-              const near = nearestStationTo(p);
+              const near = nearestHint(p);
               return (
                 <Row
                   key={p.id}
                   icon={<MapPin size={16} style={{ color: 'var(--c-text-3)' }} />}
                   eyebrow={t('search.nearestTo', { place: p.name })}
                   title={
-                    near ? (
+                    near.station ? (
                       <span className="flex items-center gap-2">
                         <LineBadge line={near.station.line} size="xs" />
                         <span className="truncate">{near.station.name}</span>
@@ -368,17 +365,8 @@ export function HomeSearch({
                       p.name
                     )
                   }
-                  meta={
-                    near
-                      ? [
-                          near.km < 1
-                            ? t('common.distanceMetres', { value: Math.round(near.km * 1000) })
-                            : t('common.distanceKm', { value: near.km.toFixed(1) }),
-                          t('common.walk', { duration: formatDuration(walkMinsForKm(near.km, walkSpeedKmh)) }),
-                        ].join(' · ')
-                      : t('search.noStationNearby')
-                  }
-                  onClick={() => near && onSelectStation(near.station.id)}
+                  meta={near.meta}
+                  onClick={() => near.station && onSelectStation(near.station.id)}
                   onDirections={() => onPlanTo(p)}
                 />
               );
@@ -480,7 +468,7 @@ function AllStations({
                   badge={
                     <span
                       className="w-2.5 h-2.5 rounded-full block"
-                      style={{ background: LINE_BADGE_BG[line], opacity: 0.7 }}
+                      style={{ background: LINE_COLOR[line], opacity: 0.7 }}
                     />
                   }
                   title={s.name}

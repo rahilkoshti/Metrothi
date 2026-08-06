@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { LocateFixed, Compass, X, MapPin, Clock, Bookmark, ArrowRight, Footprints } from 'lucide-react';
+import { LocateFixed, Compass, X, MapPin, Bookmark, ArrowRight, Footprints } from 'lucide-react';
 import {
   STATION_BY_ID,
   formatDuration,
@@ -13,9 +13,8 @@ import {
 } from '../engine/journeyEngine';
 import { routeLegSlices } from '../../map/geometry/trackGeometry';
 import { useNow } from '../hooks/useNow';
-import { LINE_NAMES, LINE_COLORS } from '../constants';
+import { LINE_NAMES, LINE_COLOR } from '../constants';
 import { stationImage } from '../stationImages';
-import { MODE_LABELS, stationModes } from '../stationFacilities';
 import { LocationNotice } from '../../../components/LocationNotice';
 import { DraggableSheet, type SheetSnap } from '../../../components/DraggableSheet';
 import { LineStatusPills } from './LineStatusPills';
@@ -29,6 +28,7 @@ import { AllTrainsList } from './journeySheet/AllTrainsList';
 import { LiveJourneySummary } from './journeySheet/LiveJourneySummary';
 import { LiveJourneyScreen } from './LiveJourneyScreen';
 import { StationSheetActions, openWalkingDirections } from './stationSheet/StationSheetActions';
+import { NextDepartureHero } from './stationSheet/NextDepartureHero';
 import { UpcomingTrains } from './stationSheet/UpcomingTrains';
 import { useSavedStations } from '../hooks/useSavedStations';
 import { useWalkSpeed } from '../hooks/usePreferences';
@@ -38,9 +38,11 @@ import type { LocStatus } from '../../../App';
 // Leaflet is heavy and now sits on the first-paint path, so it stays split out.
 const HomeMap = lazy(() => import('../../map/components/HomeMap').then((m) => ({ default: m.HomeMap })));
 
-// Height of the sheet's peek state — the grab handle, the name row, and the
-// single chip row beneath it (line, distance, walk time). Sized to fit exactly
-// that so the body's action buttons stay below the fold when collapsed.
+// Floor for the station peek — the grab handle, the station eyebrow, and the
+// countdown with its direction under it. A floor rather than a target: the
+// header measures itself and `DraggableSheet`'s `Math.max` takes whichever is
+// larger, so a service-status chip appearing, or a Gujarati direction wrapping,
+// takes the peek with it instead of being sliced off at the fold.
 const COLLAPSED_H = 118;
 // Peek height for the planned-route header (title + chips row).
 const PLAN_COLLAPSED_H = 104;
@@ -73,11 +75,14 @@ function Chip({ children, tone = 'default' }: { children: ReactNode; tone?: 'def
   const alert = tone === 'alert';
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold tabular-nums whitespace-nowrap"
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-footnote tabular-nums whitespace-nowrap"
+      /* The alert tone was a hand-mixed #f0997b on --c-bg: 2.00:1, and fixed
+         across themes, so degraded service was announced in the one state it
+         could not be read in. */
       style={{
-        background: 'var(--c-bg)',
-        color: alert ? '#f0997b' : 'var(--c-text-2)',
-        border: `1px solid ${alert ? 'rgba(216,90,48,0.35)' : 'var(--c-border)'}`,
+        background: alert ? 'var(--c-warn-bg)' : 'var(--c-bg)',
+        color: alert ? 'var(--c-warn)' : 'var(--c-text-2)',
+        border: `1px solid ${alert ? 'var(--c-warn-border)' : 'var(--c-border)'}`,
       }}
     >
       {children}
@@ -85,8 +90,15 @@ function Chip({ children, tone = 'default' }: { children: ReactNode; tone?: 'def
   );
 }
 
-/** Line chip — the line's name, with its service status appended in the same
- *  pill when the line isn't running (a running line shows the name alone).
+/** Line chip — the line's name and why it isn't running.
+ *
+ *  Renders **nothing at all when the line is running**, which is the state it
+ *  is in for most of the day: "Blue Line" beside a countdown whose own badge
+ *  already says Blue Line is a chip spent on a fact nobody asked for, and this
+ *  row had up to seven of those. What is left is only the exception — service
+ *  ended, not started yet, bus only — which is worth a whole chip precisely
+ *  because it is rare.
+ *
  *  Isolated in its own component so the per-minute tick doesn't re-render the
  *  whole screen. */
 function LineChip({ line }: { line: string }) {
@@ -115,16 +127,14 @@ function LineChip({ line }: { line: string }) {
       note = t('line.unavailable');
   }
 
+  if (!note) return null;
+
   return (
-    <Chip tone={note ? 'alert' : 'default'}>
-      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: LINE_COLORS[line] }} />
+    <Chip tone="alert">
+      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: LINE_COLOR[line] }} />
       <span style={{ color: 'var(--c-text-2)' }}>{LINE_NAMES[line] ?? line}</span>
-      {note && (
-        <>
-          <span style={{ color: 'var(--c-text-4)' }}>·</span>
-          {note}
-        </>
-      )}
+      <span style={{ color: 'var(--c-text-4)' }}>·</span>
+      {note}
     </Chip>
   );
 }
@@ -309,6 +319,26 @@ export function HomeScreen({
     prevActive.current = activeJourney;
   }, [activeJourney]);
 
+  // The planner is a *task*, so it takes the sheet whole — and the sheet is
+  // where it belongs rather than the full-screen opaque takeover it used to be:
+  // that discarded the map the rider was looking at and put its only exit in a
+  // 40px `X` in the top-right, the hardest corner to reach one-handed. As a
+  // sheet mode it matches plan and live, the map survives underneath, and the
+  // dismissal a thumb actually reaches — dragging it back down — is the same
+  // gesture that dismisses everything else here.
+  useEffect(() => {
+    if (plannerOpen) setSnap('full');
+  }, [plannerOpen]);
+
+  // Any snap below full while the planner is up *is* the dismissal. The sheet
+  // has already animated to wherever the drag ended, so the snap is honoured
+  // rather than overridden — the planner simply stops being what the sheet
+  // holds, and the station header springs back into the peek behind it.
+  const handleSnapChange = (next: SheetSnap) => {
+    setSnap(next);
+    if (plannerOpen && next !== 'full') closePlanner(true);
+  };
+
   // Map route geometry, derived from the live plan so it tracks recomputes.
   const routeLegs = useMemo(() => {
     if (!plan?.stops || plan.stops.length < 2) return null;
@@ -330,12 +360,17 @@ export function HomeScreen({
 
   const routeBottomPad = Math.round((containerRef.current?.clientHeight ?? window.innerHeight) * 0.46);
 
-  // Nothing of the map is on screen: the raised sheet, the search overlay and
-  // the planner are each opaque and full-bleed. While that holds, the map is
-  // hidden outright — no paint, no compositing — and its live-train ticker is
-  // stopped. Leaflet keeps its size through `visibility`, so there's nothing to
-  // restore on the way back.
-  const mapHidden = sheetCovers || searchOpen || plannerOpen;
+  // Nothing of the map is on screen: the raised sheet and the search overlay
+  // are each opaque and full-bleed. While that holds, the map is hidden
+  // outright — no paint, no compositing — and its live-train ticker is stopped.
+  // Leaflet keeps its size through `visibility`, so there's nothing to restore
+  // on the way back.
+  //
+  // The planner is no longer named here, and that is the point of moving it
+  // into the sheet: it hides the map by *covering* it, which `sheetCovers`
+  // reports from the sheet's live position — so the first pixel of a drag-down
+  // dismissal already has a map behind it.
+  const mapHidden = sheetCovers || searchOpen;
 
   function selectStation(id: string) {
     const s = STATION_BY_ID[id];
@@ -350,6 +385,22 @@ export function HomeScreen({
     setPrefillSource(null);
     setPrefillDest(item);
     setPlannerOpen(true);
+  }
+
+  /**
+   * Dismiss the planner.
+   *
+   * `viaDrag` when the sheet has already been carried to a snap the rider
+   * chose. Every other route in — the close control, Escape — leaves the sheet
+   * standing at `full`, and without putting it back the planner would vanish
+   * and be replaced by the station sheet expanded over the whole map: the
+   * rider asked to leave and got a different screen at the same size.
+   */
+  function closePlanner(viaDrag = false) {
+    setPlannerOpen(false);
+    setPrefillSource(null);
+    setPrefillDest(null);
+    if (!viaDrag) setSnap('mid');
   }
 
   function handlePlanFromModal(source: any, dest: any, config?: any) {
@@ -388,7 +439,10 @@ export function HomeScreen({
     ro.observe(el);
     measure();
     return () => ro.disconnect();
-  }, [journeyMode, station, locFailed]);
+    // `plannerOpen` is in here because the planner replaces the sheet body
+    // entirely: without it this keeps observing the block it measured before,
+    // which is detached by the time the planner closes and a fresh one mounts.
+  }, [journeyMode, station, locFailed, plannerOpen]);
 
   const containerH = containerRef.current?.clientHeight ?? window.innerHeight;
 
@@ -404,7 +458,35 @@ export function HomeScreen({
 
   // ── Sheet header per mode ─────────────────────────────────────────────────────
   let sheetHeader: ReactNode;
-  if (journeyMode === 'live' && session && result) {
+  if (plannerOpen) {
+    // The planner's own title, hoisted out of its body so it stays put while
+    // the form scrolls — and so the close control sits beside it rather than
+    // floating over a screen it isn't part of.
+    sheetHeader = (
+      <div className="flex items-start gap-3 px-4 pb-3">
+        <div className="flex-1 min-w-0">
+          <div className="text-caption uppercase" style={{ color: 'var(--c-text-3)' }}>
+            {t('planner.eyebrow')}
+          </div>
+          <h2 className="text-title-2" style={{ color: 'var(--c-text)' }}>
+            {t('planner.title')}
+          </h2>
+        </div>
+        <button
+          /* Wrapped, not passed: a bare `onClick={closePlanner}` hands the
+             MouseEvent to `viaDrag`, where it is truthy — and the sheet would
+             be left standing at full. */
+          onClick={() => closePlanner()}
+          aria-label={t('home.closePlanner')}
+          className="hit-44 shrink-0 w-9 h-9 rounded-full flex items-center justify-center active:scale-[0.97] transition-transform"
+          style={{ background: 'var(--c-bg)' }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <X size={20} strokeWidth={2} style={{ color: 'var(--c-text)' }} />
+        </button>
+      </div>
+    );
+  } else if (journeyMode === 'live' && session && result) {
     sheetHeader = (
       <LiveJourneySummary
         result={result}
@@ -441,26 +523,43 @@ export function HomeScreen({
         <button
           onClick={(e) => { e.stopPropagation(); onClearResult?.(); }}
           aria-label={t('home.clearRoute')}
-          className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+          className="hit-44 shrink-0 w-9 h-9 rounded-full flex items-center justify-center active:scale-[0.97] transition-transform"
           style={{ background: 'var(--c-bg)' }}
         >
-          <X size={17} style={{ color: 'var(--c-text)' }} />
+          <X size={20} strokeWidth={2} style={{ color: 'var(--c-text)' }} />
         </button>
       </div>
     );
   } else {
     sheetHeader = station ? (
       <div
-        className="flex flex-col gap-3 px-4 pb-3"
+        /* A grid rather than a column of flex rows, so the two action buttons
+           can sit visually in the top row while coming *last* in source. Read
+           in DOM order the old markup announced "Nearest station, Old High
+           Court, walking directions, save, next train in 4 minutes, 400 m,
+           6 min walk" — the actions interrupting the subject before any of its
+           facts. Nothing moves on screen: the actions are placed back into the
+           top-right cell by `row-start-1 col-start-2` below.
+
+           Rows are auto-placed, deliberately not numbered: the chip row carries
+           `empty:hidden` and is a grid item only when it has chips, so an
+           explicit third row would keep spending its 12px gap on the days it
+           renders nothing. `minmax(0,1fr)` rather than `1fr` because a grid
+           track's automatic minimum is its content, which would stop the
+           station name truncating. */
+        className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-4 pb-3"
         // A tap opens the sheet up a step rather than dismissing it; only the
         // handle drag and a tap on the map collapse it. Same ladder the planned
         // route's header uses.
         onClick={() => setSnap(snap === 'full' ? 'mid' : snap === 'mid' ? 'full' : 'mid')}
       >
-        {/* Top row: station photo, name, favourite toggle. No line badge — the
-            line is already named by the first chip below, so the badge only
-            repeated it. */}
-        <div className="flex items-center gap-3">
+        {/* Top row: the station's *identity*, as an eyebrow. It used to be the
+            headline — a 10px label over the name at 22px, with the departure
+            arriving third, under a seven-chip row. The rider standing on that
+            platform already knows which station they are in; the map behind
+            this sheet is telling them. What they do not know is whether to run,
+            so the two have swapped places (§16/2.1). */}
+        <div className="min-w-0 flex items-center gap-3">
           {/* Shown only for stations we actually have a photo of; the row just
               closes up for the rest rather than falling back to a stand-in.
               Sized to the name block beside it so the collapsed peek height
@@ -478,22 +577,54 @@ export function HomeScreen({
               style={{ border: '1px solid var(--c-border)' }}
             />
           )}
-          <div className="flex-1 min-w-0">
-            {/* Label only — an inline Interchange tag here wraps to a second
-                line on a 375px screen and shoves the chip row below the
-                collapsed fold. It lives in the chip row instead. */}
-            <div
-              className="text-[10px] font-bold uppercase tracking-widest truncate"
-              style={{ color: 'var(--c-accent)' }}
-            >
+          <div className="flex-1 min-w-0 flex items-center gap-1.5 text-caption">
+            <span className="uppercase shrink-0" style={{ color: 'var(--c-text-3)' }}>
               {isNearest ? t(locFailed ? 'home.defaultStation' : 'home.nearestStation') : t('home.station')}
-            </div>
-            <div className="text-[22px] font-bold truncate leading-tight" style={{ color: 'var(--c-text)' }}>
-              {station.name}
-            </div>
+            </span>
+            <span aria-hidden="true" style={{ color: 'var(--c-text-4)' }}>·</span>
+            <span className="truncate" style={{ color: 'var(--c-text)' }}>{station.name}</span>
           </div>
-          {/* Stops the taps from also toggling the sheet snap. */}
-          <div className="shrink-0 flex items-center gap-2">
+        </div>
+
+        {/* The headline: when the next train is, and which way it goes. */}
+        <div className="col-span-2">
+          <NextDepartureHero stationId={station.id} />
+        </div>
+
+        {/* Chip row — what is left of it. Seven equal-weight chips is the
+            absence of a hierarchy decision, and it wrapped to two lines at
+            360px. Split by species instead:
+              · the line chip renders only when the line *isn't* running, and
+                the departure's own badge carries line identity the rest of the
+                time;
+              · distance and walk time answer one question — "how far is it" —
+                so they are one chip, not two;
+              · interchange and the connecting modes moved out entirely rather
+                than below the fold. They are already rendered, properly and
+                with GMRC's own wording, by the Station Info tab a tap away
+                (§4.4.1) — a chip repeating them here was the third place the
+                app said the same thing.
+            Most of the day this row holds nothing, and `empty:hidden` is what
+            keeps it from spending a 12px flex gap on that — rather than
+            hoisting `estimateLine` up here to find out, which would put the
+            per-minute tick back on the whole screen. */}
+        <div className="col-span-2 flex items-center gap-2 flex-wrap empty:hidden">
+          <LineChip line={station.line} />
+          {isNearest && nearest?.distanceKm != null && (
+            <Chip>
+              <MapPin size={12} strokeWidth={2.4} aria-hidden="true" style={{ color: 'var(--c-text-4)' }} />
+              {formatDistance(nearest.distanceKm)}
+              <span aria-hidden="true" style={{ color: 'var(--c-text-4)' }}>·</span>
+              {t('common.walk', { duration: formatDuration(walkMinsForKm(nearest.distanceKm, walkSpeedKmh)) })}
+            </Chip>
+          )}
+        </div>
+
+        {/* The two actions — last in source, placed back into the top row's
+            right-hand cell. Each stops propagation so the tap doesn't also
+            toggle the sheet snap; the wrapper is `self-center` because the grid
+            stretches items by default and these are 36px against a 40px photo. */}
+        <div className="row-start-1 col-start-2 self-center shrink-0 flex items-center gap-2">
           {/* Walking directions — only at the nearest station, where the walk is
               actually the next thing you do. Google Maps owns the street-level
               leg, so it stays a quiet icon beside the bookmark rather than
@@ -502,7 +633,7 @@ export function HomeScreen({
             <button
               onClick={(e) => { e.stopPropagation(); openWalkingDirections(station.id, coords); }}
               aria-label={t('home.walkingDirections', { station: station.name })}
-              className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-transform active:scale-95"
+              className="hit-44 shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-transform active:scale-[0.97]"
               style={{
                 background: 'var(--c-bg)',
                 border: '1px solid var(--c-border)',
@@ -531,46 +662,6 @@ export function HomeScreen({
             <Bookmark size={15} strokeWidth={2.2} fill={isSaved(station.id) ? 'currentColor' : 'none'} />
             {isSaved(station.id) && t('common.saved')}
           </button>
-          </div>
-        </div>
-
-        {/* Chip row — visible at every snap, including the collapsed peek. The
-            structural and status chips used to be gated behind an expanded
-            sheet to keep the row on one line; the peek now grows with the
-            header instead, so a wrap costs nothing. */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <LineChip line={station.line} />
-
-          {isNearest && nearest?.distanceKm != null && (
-            <>
-              <Chip>
-                <MapPin size={12} strokeWidth={2.4} style={{ color: 'var(--c-text-4)' }} />
-                {formatDistance(nearest.distanceKm)}
-              </Chip>
-              <Chip>
-                <Clock size={12} strokeWidth={2.4} style={{ color: 'var(--c-text-4)' }} />
-                {t('common.walk', { duration: formatDuration(walkMinsForKm(nearest.distanceKm, walkSpeedKmh)) })}
-              </Chip>
-            </>
-          )}
-
-          {station.interchange && <Chip>{t('home.interchange')}</Chip>}
-
-          {/* What you can change to here (§4.4.1) — one chip per mode, named
-              the way the Station Info tab and the directory name them. Last in
-              the row because the line, the walk and the interchange are all
-              about the journey you're on; this is about leaving it.
-
-              Measured at 375px before shipping, which is what §8 gated it on.
-              One chip per mode costs a wrapped line on AEC alone (three modes),
-              and only while it is also your nearest station and its line is
-              closed — a state whose baseline row already wraps. The other eight
-              stay on one line in the state you actually browse them in. Naming
-              the mode is the whole point, so a "BRTS +2" roll-up that fits
-              would have nothing left to say. */}
-          {stationModes(station.id).map((mode) => (
-            <Chip key={mode}>{MODE_LABELS[mode]}</Chip>
-          ))}
         </div>
       </div>
     ) : (
@@ -583,7 +674,18 @@ export function HomeScreen({
 
   // ── Sheet body per mode ───────────────────────────────────────────────────────
   let sheetBody: ReactNode;
-  if (journeyMode === 'live' && result && session) {
+  if (plannerOpen) {
+    sheetBody = (
+      <Planner
+        onPlan={handlePlanFromModal}
+        nearest={nearest}
+        locStatus={locStatus}
+        onRetryLocation={onRetryLocation}
+        prefillSource={prefillSource}
+        prefillDest={prefillDest}
+      />
+    );
+  } else if (journeyMode === 'live' && result && session) {
     sheetBody = (
       <LiveJourneyScreen
         result={result}
@@ -656,7 +758,12 @@ export function HomeScreen({
         style={{
           background: 'var(--c-bg)',
           visibility: mapHidden ? 'hidden' : 'visible',
-        }}
+          // Lifts the map's attribution control clear of the sheet's resting
+          // edge. Published as a custom property rather than a prop because
+          // the consumer is Leaflet's own control container, which this tree
+          // doesn't render — see `.leaflet-bottom.leaflet-left` in index.css.
+          '--map-attrib-bottom': `${sheetEdge}px`,
+        } as React.CSSProperties}
         aria-hidden={mapHidden}
       >
         <Suspense
@@ -689,7 +796,12 @@ export function HomeScreen({
       {/* Floating chrome — search then live line status, over the map. The
           sheet sits at z-[900] above this, so at its full snap it rises over
           the whole map and covers both the status pills and the search row. */}
-      <div className="absolute top-0 inset-x-0 z-[600] pt-3 flex flex-col gap-2 pointer-events-none">
+      <div
+        className="absolute top-0 inset-x-0 z-[600] flex flex-col gap-2 pointer-events-none"
+        /* `viewport-fit=cover` is opted into in index.html, so without this the
+           search pill draws underneath the status bar and the notch. */
+        style={{ paddingTop: 'calc(var(--sat) + var(--sp-3))' }}
+      >
         <div className="px-4 pointer-events-auto">
           <SearchBar
             variant="idle"
@@ -720,12 +832,12 @@ export function HomeScreen({
         <button
           onClick={() => { setPrefillSource(null); setPrefillDest(null); setPlannerOpen(true); }}
           aria-label={t('home.planRoute')}
-          className="absolute right-4 z-[600] w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-all duration-200 active:scale-90"
+          className="absolute right-4 z-[600] w-14 h-14 rounded-full flex items-center justify-center transition-all duration-200 active:scale-[0.97]"
           style={{
-            bottom: sheetEdge + 72,
+            bottom: `calc(${sheetEdge + 72}px + var(--sab))`,
             background: 'var(--c-accent)',
             color: 'var(--c-accent-fg)',
-            boxShadow: '0 6px 24px rgba(0,0,0,0.35)',
+            boxShadow: 'var(--shadow-float)',
             opacity: fabFits ? 1 : 0,
             pointerEvents: fabFits ? 'auto' : 'none',
           }}
@@ -738,19 +850,23 @@ export function HomeScreen({
       <button
         onClick={() => document.dispatchEvent(new CustomEvent('home-recenter'))}
         aria-label={t('home.recentreMap')}
-        className="absolute right-4 z-[600] w-11 h-11 rounded-full flex items-center justify-center transition-opacity duration-200 active:scale-95"
+        /* Same material as the search pill, the status strip and the sheet.
+           These three pieces of chrome sit on one plane over the map and had
+           grown three unrelated treatments — a shadow-2xl, a hand-rolled
+           0 6px 24px, and a blur — so they read as unrelated objects. */
+        className="hit-44 absolute right-4 z-[600] w-11 h-11 rounded-full flex items-center justify-center transition-opacity duration-200 active:scale-[0.97]"
         style={{
-          bottom: sheetEdge + 16,
-          background: 'var(--c-blur)',
-          backdropFilter: 'blur(18px)',
-          WebkitBackdropFilter: 'blur(18px)',
-          border: '1px solid var(--c-border-2)',
-          boxShadow: '0 4px 18px rgba(0,0,0,0.22)',
+          bottom: `calc(${sheetEdge + 16}px + var(--sab))`,
+          background: 'var(--surface-float)',
+          backdropFilter: 'var(--blur-float)',
+          WebkitBackdropFilter: 'var(--blur-float)',
+          border: '1px solid var(--border-float)',
+          boxShadow: 'var(--shadow-float)',
           opacity: recentreFits ? 1 : 0,
           pointerEvents: recentreFits ? 'auto' : 'none',
         }}
       >
-        <LocateFixed size={19} style={{ color: 'var(--c-text)' }} />
+        <LocateFixed size={20} strokeWidth={2} style={{ color: 'var(--c-text)' }} />
       </button>
 
       {/* Sheet — station detail, planned route, or live journey depending on
@@ -759,13 +875,16 @@ export function HomeScreen({
       <DraggableSheet
         className="z-[900]"
         snap={snap}
-        onSnapChange={setSnap}
+        onSnapChange={handleSnapChange}
         collapsedHeight={collapsedHeight}
         midRatio={midRatio}
-        midContentHeight={midBlockH > 0 ? midBlockH : undefined}
+        midContentHeight={plannerOpen || midBlockH === 0 ? undefined : midBlockH}
         header={sheetHeader}
         onCoverageChange={setSheetCovers}
         onRestEdgeChange={setSheetEdge}
+        // A task, not a surface: while it holds the planner the sheet is a
+        // dialog and everything behind it stops being reachable by Tab.
+        modal={plannerOpen ? { label: t('planner.title'), onDismiss: () => closePlanner() } : undefined}
       >
         {sheetBody}
       </DraggableSheet>
@@ -781,39 +900,6 @@ export function HomeScreen({
         />
       )}
 
-      {/* Planner modal overlay */}
-      {plannerOpen && (
-        <div
-          className="fixed inset-0 z-[1000] flex flex-col"
-          style={{
-            background: 'var(--c-bg)',
-          }}
-        >
-          {/* Close button */}
-          <div className="flex items-center justify-end px-4 pt-4 pb-0">
-            <button
-              onClick={() => { setPlannerOpen(false); setPrefillSource(null); setPrefillDest(null); }}
-              aria-label={t('home.closePlanner')}
-              className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform"
-              style={{
-                background: 'var(--c-card)',
-              }}
-            >
-              <X size={20} style={{ color: 'var(--c-text)' }} />
-            </button>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            <Planner
-              onPlan={handlePlanFromModal}
-              nearest={nearest}
-              locStatus={locStatus}
-              onRetryLocation={onRetryLocation}
-              prefillSource={prefillSource}
-              prefillDest={prefillDest}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,0 +1,20 @@
+{
+  "no-arbitrary-font-size": {
+    "components/FactPrimitives.tsx": 4,
+    "features/account/AccountCard.tsx": 6,
+    "features/journey/components/ExitGuidance.tsx": 1,
+    "features/journey/components/HomeScreen.tsx": 3,
+    "features/journey/components/HomeSearch.tsx": 7,
+    "features/journey/components/Planner.tsx": 5,
+    "features/journey/components/PreferencesSection.tsx": 2,
+    "features/journey/components/SavedData.tsx": 2,
+    "features/journey/components/SearchBar.tsx": 1,
+    "features/journey/components/StationDetail.tsx": 19,
+    "features/journey/components/TrainRouteSheet.tsx": 7,
+    "features/journey/components/YouScreen.tsx": 6,
+    "features/journey/components/journeySheet/JourneySummary.tsx": 10,
+    "features/journey/components/journeySheet/RouteTimeline.tsx": 11,
+    "features/journey/components/settingsRows.tsx": 3,
+    "features/journey/components/stationSheet/StationSheetActions.tsx": 1
+  }
+}

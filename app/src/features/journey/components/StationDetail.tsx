@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
@@ -11,12 +11,16 @@ import {
   MapPin,
   Navigation2,
   AlertTriangle,
+  ChevronDown,
   Clock,
   Info,
   Layers,
   Waypoints,
   Milestone,
   Timer,
+  Radio,
+  MoonStar,
+  Bus,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -44,115 +48,141 @@ import { TrainRouteSheet } from "./TrainRouteSheet";
 import { DepartureRow } from "./DepartureRow";
 import { track } from "../../../services/analytics";
 
-// ─── Merged schedule list (both directions, time-sorted) ─────────────
+// ─── Per-direction departure board ───────────────────────────────────
 type MergedTrain = DayTrain & { dir: DayScheduleDirection };
 
-function MergedTrainList({
-  trains,
+/** How many upcoming departures a direction shows before deferring to the
+ *  full timetable. Six is roughly an hour on the busiest line and two on the
+ *  quietest — past that a rider is reading a timetable, not catching a train. */
+const UPCOMING_PREVIEW = 6;
+
+/**
+ * One direction's departures.
+ *
+ * This replaces a single time-sorted list of **the entire operating day** —
+ * both directions interleaved, departed trains first, inside a 360px scroller
+ * nested in the sheet's own scroller inside the sheet's drag. Three things were
+ * wrong with that at once, and they were the same thing: nothing had decided
+ * what the rider was here to find out.
+ *
+ *   - The first impression of a station was twenty-odd trains that had already
+ *     gone. They collapse to one row now, and open if you want them.
+ *   - "Which of these is mine" was answered by a colour and a first initial.
+ *     A direction is a heading now, worded the way the platform words it.
+ *   - Same-axis scrolling inside a drag is the one thing the HIG says never to
+ *     do. Twelve rows fit; the scroller is gone, and with it the auto-anchor
+ *     that existed to hide the departed trains it opened on — the next train is
+ *     simply first now.
+ */
+function DirectionBoard({
+  dir,
   line,
-  stationId,
-  autoOpenDest,
+  onSelect,
 }: {
-  trains: MergedTrain[];
+  dir: DayScheduleDirection;
   line: string;
-  stationId: string;
-  /** Deep-link: terminal name whose next train should auto-open on mount. */
-  autoOpenDest?: string;
+  onSelect: (train: DayTrain) => void;
 }) {
   const { t } = useTranslation();
-  const now = useNow();
-  const listRef = useRef<HTMLDivElement>(null);
-  const nextRef = useRef<HTMLElement>(null);
-  const [selectedTrain, setSelectedTrain] = useState<MergedTrain | null>(null);
+  const [showDeparted, setShowDeparted] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
-  // The earliest still-upcoming train — the scroll anchor and the point where
-  // the list transitions from departed (greyed) to upcoming.
-  const firstUpcomingId = useMemo(
-    () => trains.find((t) => !t.departed)?.id ?? null,
-    [trains]
+  const departed = dir.trains.filter((x) => x.departed);
+  const upcoming = dir.trains.filter((x) => !x.departed);
+  const shown = showAll ? upcoming : upcoming.slice(0, UPCOMING_PREVIEW);
+  const hidden = upcoming.length - shown.length;
+
+  const row = (train: DayTrain) => (
+    <DepartureRow
+      key={train.id}
+      line={line}
+      destinationId={dir.destinationId}
+      destinationName={dir.destinationName}
+      clockTime={train.clockTime}
+      waitMins={train.waitMins}
+      primary="time"
+      // No "Next ·" prefix any more: under a heading that names the direction,
+      // the first row *is* the next one, and the label was printed on one row
+      // per direction per line — four identical "Next"s at an interchange.
+      highlight={train.isNext}
+      departed={train.departed}
+      onClick={() => onSelect(train)}
+    />
   );
 
-  // Auto-open the next train heading to the deep-linked terminal.
-  useEffect(() => {
-    if (!autoOpenDest) return;
-    const match = (t: MergedTrain) =>
-      t.dir.destinationName.toLowerCase() === autoOpenDest.toLowerCase();
-    const t =
-      trains.find((x) => match(x) && x.isNext && !x.departed) ??
-      trains.find((x) => match(x) && !x.departed) ??
-      null;
-    if (t) setSelectedTrain(t);
-  // Only run once on mount
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Park the first upcoming train at the top of the list, and keep it there as
-  // departures roll past. `offsetTop` is measured from the nearest positioned
-  // ancestor — not this scroller — so the offset is derived from the rects
-  // instead, which stays correct however the sheet above is laid out.
-  const didAnchor = useRef(false);
-  useEffect(() => {
-    const el = nextRef.current;
-    const container = listRef.current;
-    if (!el || !container) return;
-    const top =
-      el.getBoundingClientRect().top -
-      container.getBoundingClientRect().top +
-      container.scrollTop;
-    // The first anchor is a jump — smooth-scrolling from an arbitrary start
-    // position on mount is what reads as "the list loaded mid-scroll".
-    container.scrollTo({
-      top: Math.max(0, top),
-      behavior: didAnchor.current ? "smooth" : "auto",
-    });
-    didAnchor.current = true;
-  }, [firstUpcomingId]);
-
   return (
-    <>
-      {/* The rows are cards, so the scroller carries the page background to sit
-          them on — same treatment as the home sheet's departure board. */}
-      <div
-        ref={listRef}
-        className="overflow-y-auto flex flex-col gap-2 px-3 py-3"
-        style={{ maxHeight: 360, scrollbarWidth: "none", background: "var(--c-bg)" }}
-      >
-        {trains.map((train) => (
-          <DepartureRow
-            key={train.id}
-            ref={train.id === firstUpcomingId ? nextRef : undefined}
-            line={line}
-            destinationId={train.dir.destinationId}
-            destinationName={train.dir.destinationName}
-            clockTime={train.clockTime}
-            waitMins={train.waitMins}
-            primary="time"
-            label={train.isNext ? t('journey.next') : undefined}
-            highlight={train.isNext}
-            departed={train.departed}
-            onClick={() => setSelectedTrain(train)}
-          />
-        ))}
+    <div
+      className="flex flex-col gap-2 px-3 py-3 border-t first:border-t-0"
+      style={{ background: "var(--c-bg)", borderColor: "var(--c-border)" }}
+    >
+      {/* The terminus, which is the word actually printed on the platform. */}
+      <h3 className="text-caption uppercase px-1" style={{ color: "var(--c-text-3)" }}>
+        {t('journey.towards', { station: dir.destinationName })}
+      </h3>
 
-        <div className="py-4 text-center">
-          <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--c-text-4)" }}>
-            {t('station.endOfService')}
-          </span>
-        </div>
-      </div>
-
-      {/* Route sheet */}
-      {selectedTrain && (
-        <TrainRouteSheet
-          stationId={stationId}
-          line={line}
-          dir={selectedTrain.dir}
-          train={selectedTrain}
-          now={now}
-          onClose={() => setSelectedTrain(null)}
+      {departed.length > 0 && (
+        <Disclosure
+          open={showDeparted}
+          onToggle={() => setShowDeparted((v) => !v)}
+          label={t('journey.earlierTrains', { count: departed.length })}
         />
       )}
-    </>
+      {showDeparted && departed.map(row)}
+
+      {shown.map(row)}
+
+      {upcoming.length === 0 ? (
+        <div
+          className="rounded-2xl px-4 py-5 text-center text-footnote"
+          style={{ background: "var(--c-card)", color: "var(--c-text-4)" }}
+        >
+          {t('journey.noMoreTrains')}
+        </div>
+      ) : hidden > 0 ? (
+        <Disclosure open={false} onToggle={() => setShowAll(true)} label={t('journey.fullTimetable')} />
+      ) : (
+        showAll && (
+          <div className="py-2 text-center">
+            <span className="text-caption uppercase" style={{ color: "var(--c-text-4)" }}>
+              {t('station.endOfService')}
+            </span>
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+/** The one control shape both disclosures on this board use. */
+function Disclosure({
+  open,
+  onToggle,
+  label,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      aria-expanded={open}
+      className="flex items-center justify-center gap-1.5 rounded-2xl text-footnote transition-colors active:opacity-70"
+      style={{
+        minHeight: 'var(--touch-min)',
+        background: "var(--c-card)",
+        border: "1px solid var(--c-border)",
+        color: "var(--c-text-2)",
+      }}
+    >
+      {label}
+      <ChevronDown
+        size={16}
+        strokeWidth={2.2}
+        aria-hidden="true"
+        style={{ transform: open ? "rotate(180deg)" : undefined, transition: "transform var(--dur-state)" }}
+      />
+    </button>
   );
 }
 
@@ -182,15 +212,22 @@ function LineScheduleCard({
     [stationId, line, now.getMinutes()]
   );
 
-  // Both directions folded into one time-sorted list. The engine already flags
-  // the next upcoming train per direction, so the merged list keeps a "next"
-  // highlight for each way.
-  const merged = useMemo(() => {
-    const all: MergedTrain[] = [];
-    for (const d of schedule) for (const t of d.trains) all.push({ ...t, dir: d });
-    all.sort((a, b) => a.hour - b.hour);
-    return all;
-  }, [schedule]);
+  // The route sheet a tapped train opens. Held here rather than per direction
+  // so only one can be open at a time, and so the deep link below has one
+  // place to write to.
+  const [selectedTrain, setSelectedTrain] = useState<MergedTrain | null>(null);
+
+  // Deep link: open the next train heading to the named terminal.
+  useEffect(() => {
+    if (!autoOpenDirDest) return;
+    const dir = schedule.find(
+      (d) => d.destinationName.toLowerCase() === autoOpenDirDest.toLowerCase()
+    );
+    const train = dir?.trains.find((x) => x.isNext && !x.departed) ?? dir?.trains.find((x) => !x.departed);
+    if (dir && train) setSelectedTrain({ ...train, dir });
+    // Only on mount — a link is followed once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const status = estimateLine(line, now);
 
@@ -208,7 +245,7 @@ function LineScheduleCard({
     );
   }
 
-  if (merged.length === 0) return null;
+  if (schedule.length === 0) return null;
 
   return (
     <div className="rounded-2xl overflow-hidden" style={{ background: cardBg }}>
@@ -228,36 +265,77 @@ function LineScheduleCard({
         </div>
         <div className="ml-auto flex items-center gap-1.5">
           {status.status === "running" && (
-            <span className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest text-green-500">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              {t('line.live')}
-            </span>
+            <ServiceStatus tone="good" icon={Radio} label={t('line.live')} />
           )}
           {status.status === "after-last-train" && (
-            <span className="text-[9px] font-bold uppercase tracking-widest text-red-400">
-              {t('line.serviceEnded')}
-            </span>
+            <ServiceStatus tone="error" icon={MoonStar} label={t('line.serviceEnded')} />
           )}
           {status.status === "before-first-train" && (
-            <span className="text-[9px] font-bold uppercase tracking-widest text-yellow-500">
-              {t('line.startsIn', { duration: formatDuration(status.minsUntilFirst) })}
-            </span>
+            <ServiceStatus
+              tone="warn"
+              icon={Clock}
+              label={t('line.startsIn', { duration: formatDuration(status.minsUntilFirst) })}
+            />
           )}
           {status.status === "bus-only" && (
-            <span className="text-[9px] font-bold uppercase tracking-widest text-purple-400">
-              {t('line.busOnly')}
-            </span>
+            <ServiceStatus tone="info" icon={Bus} label={t('line.busOnly')} />
           )}
         </div>
       </div>
 
-      <MergedTrainList
-        trains={merged}
-        line={line}
-        stationId={stationId}
-        autoOpenDest={autoOpenDirDest}
-      />
+      {schedule.map((dir) => (
+        <DirectionBoard
+          key={dir.destinationId}
+          dir={dir}
+          line={line}
+          onSelect={(train) => setSelectedTrain({ ...train, dir })}
+        />
+      ))}
+
+      {selectedTrain && (
+        <TrainRouteSheet
+          stationId={stationId}
+          line={line}
+          dir={selectedTrain.dir}
+          train={selectedTrain}
+          now={now}
+          onClose={() => setSelectedTrain(null)}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * Whether a line is running at this station right now.
+ *
+ * Four states that were four raw Tailwind palette classes at 9px — green
+ * 2.28:1, yellow 1.92, red 2.77, violet 2.64 — bypassing the token layer
+ * entirely, on what is safety information: whether there is a train coming at
+ * all. The `live` state also spent an `animate-pulse` on it.
+ *
+ * The icon is not decoration. Three of these four hues are neighbours of the
+ * line palette drawn six inches away on the same screen, so the glyph and the
+ * word are what actually carry the state (WCAG 1.4.1) and the colour only
+ * reinforces it.
+ */
+function ServiceStatus({
+  tone,
+  icon: Icon,
+  label,
+}: {
+  tone: 'good' | 'warn' | 'error' | 'info';
+  icon: LucideIcon;
+  label: string;
+}) {
+  return (
+    <span
+      className="flex items-center gap-1.5 text-footnote font-bold text-right"
+      style={{ color: `var(--c-${tone})` }}
+    >
+      <Icon size={16} strokeWidth={2.2} className="shrink-0" aria-hidden="true" />
+      {label}
+    </span>
   );
 }
 
@@ -277,13 +355,14 @@ function TabButton({
     <button
       onClick={onClick}
       aria-pressed={active}
-      className="flex items-center justify-center gap-1.5 py-3 rounded-xl text-[13px] font-bold transition-all active:scale-[0.98]"
+      className="flex items-center justify-center gap-1.5 rounded-control text-footnote font-bold transition-all active:scale-[0.97]"
       style={{
+        minHeight: 'var(--touch-min)',
         background: active ? "var(--c-accent)" : "var(--c-card-alt)",
         color: active ? "var(--c-accent-fg)" : "var(--c-text-3)",
       }}
     >
-      <Icon size={14} strokeWidth={2.5} />
+      <Icon size={16} strokeWidth={2.2} />
       {label}
     </button>
   );
@@ -302,7 +381,7 @@ function AttributeCard({
 }) {
   return (
     <div className="rounded-2xl p-3.5 flex flex-col gap-2" style={{ background: cardBg, border: "1px solid var(--c-border)" }}>
-      <Icon size={18} strokeWidth={2.2} style={{ color: "var(--c-accent)" }} />
+      <Icon size={20} strokeWidth={2} style={{ color: "var(--c-accent-text)" }} />
       <div>
         <div className="text-[13px] font-bold" style={{ color: "var(--c-text)" }}>
           {title}
@@ -430,14 +509,17 @@ function ConnectionsBlock({ facilities, cardBg }: { facilities: StationFacilitie
                 {t('journey.gateList', { count: 1, gates: String(c.gate) })}
               </div>
             )}
-            {/* GMRC's own wording, verbatim (§6.7) — never translated by us. */}
-            <div className="text-[12.5px] font-semibold leading-snug" style={{ color: "var(--c-text)" }}>
+            {/* GMRC's own wording, verbatim (§6.7) — never translated by us.
+                Their sentences, so they are set as prose on the reference
+                ladder rather than in the 12.5px the rest of this fact panel
+                uses: this is the one Species C content on the Info tab. */}
+            <div className="text-read-body" style={{ color: "var(--c-text-2)" }}>
               {c.text}
             </div>
           </div>
         ))}
         {mm.connections.length === 0 && (
-          <div className="px-4 pb-3.5 pt-1 text-[12.5px] font-semibold leading-snug" style={{ color: "var(--c-text)" }}>
+          <div className="px-4 pb-3.5 pt-1 text-read-body" style={{ color: "var(--c-text-2)" }}>
             {mm.summary}
           </div>
         )}
@@ -686,7 +768,7 @@ export function StationDetailBody({
       <button
         onClick={() => planWith({ dest: station.id })}
         className="flex-1 py-4 rounded-2xl text-[14px] font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
-        style={{ background: "transparent", color: "var(--c-accent)", border: "1px solid var(--c-accent)" }}
+        style={{ background: "transparent", color: "var(--c-accent-text)", border: "1px solid var(--c-accent-text)" }}
       >
         <MapPin size={16} strokeWidth={2.5} /> {t('station.toHere')}
       </button>
@@ -727,7 +809,10 @@ export function StationDetailBody({
                   </span>
                 )}
                 {station.operational === false && (
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-yellow-600 border border-yellow-900/40 px-2 py-1 rounded">
+                  <span
+                    className="text-caption uppercase px-2 py-1 rounded-chip"
+                    style={{ color: 'var(--c-warn)', border: '1px solid var(--c-warn-border)' }}
+                  >
                     {t('search.openingSoon')}
                   </span>
                 )}
@@ -807,7 +892,11 @@ export function StationDetail() {
         <h2 className="text-xl font-bold" style={{ color: "var(--c-text)" }}>
           {t('station.notFound')}
         </h2>
-        <button onClick={() => navigate(-1)} className="mt-4 text-yellow-400 font-semibold">
+        {/* Was text-yellow-400 on --c-bg: ~1.7:1, and the only way out of a
+            dead end. `--c-accent-text` and not `--c-accent-strong`, which does
+            not exist — an undefined custom property silently inherits, so the
+            fix landed as "whatever colour the paragraph above happens to be". */}
+        <button onClick={() => navigate(-1)} className="mt-4 text-headline" style={{ color: 'var(--c-accent-text)' }}>
           {t('common.goBack')}
         </button>
       </div>
@@ -833,16 +922,18 @@ export function StationDetail() {
     >
       {/* Sticky top bar */}
       <div
-        className="sticky top-0 z-30 px-4 py-3 flex items-center gap-3 transition-colors"
+        className="sticky top-0 z-30 px-4 pb-3 flex items-center gap-3 transition-colors"
         style={{
-          background: "var(--c-blur)",
+          paddingTop: 'calc(var(--sat) + var(--sp-3))',
+          background: "var(--surface-float)",
           borderBottom: "1px solid var(--c-border)",
-          backdropFilter: "blur(20px)",
+          backdropFilter: "var(--blur-float)",
+          WebkitBackdropFilter: "var(--blur-float)",
         }}
       >
         <button
           onClick={() => navigate(-1)}
-          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+          className="hit-44 w-9 h-9 rounded-full flex items-center justify-center shrink-0"
           style={{ background: "var(--c-card)" }}
         >
           <ArrowLeft size={18} style={{ color: "var(--c-text)" }} />

@@ -6,13 +6,19 @@ import { useTranslation } from 'react-i18next';
 // (height, width, padding, radius, surface) is defined once here and shared;
 // only the leading/trailing controls swap. Settings lives *inside* the pill
 // (Google-Maps style) so the home pill is full-width, matching the overlay.
-const PILL_CLASS = 'flex items-center gap-1 rounded-full h-14 pl-2 pr-2';
+const PILL_CLASS =
+  'flex items-center gap-1 rounded-full h-14 pl-2 pr-2 ' +
+  // The input inside sets `outline-none` — correct, because the ring belongs
+  // on the pill rather than around the bare text field. Previously it set that
+  // and nothing took the ring on.
+  'focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 ' +
+  'focus-within:outline-[var(--c-border-focus)]';
 const PILL_STYLE: React.CSSProperties = {
-  background: 'var(--c-blur)',
-  backdropFilter: 'blur(18px)',
-  WebkitBackdropFilter: 'blur(18px)',
-  border: '1px solid var(--c-border-2)',
-  boxShadow: '0 4px 18px rgba(0,0,0,0.22)',
+  background: 'var(--surface-float)',
+  backdropFilter: 'var(--blur-float)',
+  WebkitBackdropFilter: 'var(--blur-float)',
+  border: '1px solid var(--border-float)',
+  boxShadow: 'var(--shadow-float)',
 };
 // Every leading/trailing control occupies the same 40px slot, so the text and
 // input start at exactly the same x-offset in both states (no nudge on open).
@@ -76,7 +82,7 @@ export function SearchBar(props: Props) {
         onChange={(e) => props.onChange(e.target.value)}
         placeholder={props.placeholder}
         aria-label={props.placeholder}
-        className="flex-1 min-w-0 bg-transparent border-none outline-none text-[16px] font-medium"
+        className="flex-1 min-w-0 bg-transparent border-none outline-none text-callout"
         style={{ color: 'var(--c-text)' }}
       />
       {props.loading && (

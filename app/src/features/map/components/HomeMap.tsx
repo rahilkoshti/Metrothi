@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MapContainer, Polyline, TileLayer, Tooltip, CircleMarker, Marker, useMap, useMapEvents } from 'react-leaflet';
+import { AttributionControl, MapContainer, Polyline, TileLayer, Tooltip, CircleMarker, Marker, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { STATIONS, LINE_PATHS, STATION_BY_ID } from '../../journey/engine/journeyEngine';
-import { LINE_COLORS } from '../../journey/constants';
+import { LINE_COLOR } from '../../journey/constants';
+import {
+  MAP_BACKDROP, ROUTE_CASING, USER_BLUE, MARKER_STROKE,
+  ROUTE_ORIGIN_FILL, ROUTE_DEST_FILL, LINE_FALLBACK,
+} from '../mapColors';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { trackPath, stationPointOnTrack, trackScreenAngleAtStation } from '../../map/geometry/trackGeometry';
 import { LiveTrainsLayer } from './LiveTrainsLayer';
@@ -32,6 +36,22 @@ const AREA_BOUNDS = NETWORK_BOUNDS.pad(0.25);
 const MIN_ZOOM = 11;
 const MAX_ZOOM = 18;
 
+/**
+ * The 44px touch floor, applied to the marker's *box* rather than its shape.
+ *
+ * A regular station is drawn 12x12 (an 8px dot plus a 2px stroke) — 27% of the
+ * minimum, on the app's primary interaction surface. Inflating the dot is not
+ * the answer: at network zoom the whole point of the mark is that 54 of them
+ * read as a diagram rather than a pile of blobs. So the drawn shape keeps its
+ * size and sits centred in a transparent 44px box that takes the tap.
+ *
+ * The trade this makes: at low zoom, neighbouring stations' boxes overlap and
+ * the topmost wins. That is why the interesting markers are lifted in the
+ * z-order below — a mis-tap that resolves to the interchange you were aiming
+ * at is a better failure than a 12px target you cannot hit at all.
+ */
+const MARKER_HIT = 44;
+
 /** Create station marker icon. Interchange=square, terminal=rectangle, else=circle. */
 function stationMarkerIcon(
   isSelected: boolean,
@@ -44,32 +64,40 @@ function stationMarkerIcon(
   const w = isTerminal ? size + 4 : size;
   const h = size;
   const strokeWidth = isSelected ? 3 : 2;
-  const totalW = w + strokeWidth * 2;
-  const totalH = h + strokeWidth * 2;
+  // The shape is centred in the hit box, so every offset below is measured
+  // from the box's centre rather than from its own bounding rect.
+  const box = MARKER_HIT;
+  const x = (box - w) / 2;
+  const y = (box - h) / 2;
 
   let shape: string;
   if (isInterchange) {
     // Square
-    shape = `<rect x="${strokeWidth}" y="${strokeWidth}" width="${size}" height="${size}" fill="${color}" stroke="white" stroke-width="${strokeWidth}" rx="2"/>`;
+    shape = `<rect x="${x}" y="${y}" width="${size}" height="${size}" fill="${color}" stroke="white" stroke-width="${strokeWidth}" rx="2"/>`;
   } else if (isTerminal) {
     // Rectangle (wider)
-    shape = `<rect x="${strokeWidth}" y="${strokeWidth}" width="${w}" height="${h}" fill="${color}" stroke="white" stroke-width="${strokeWidth}" rx="2"/>`;
+    shape = `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${color}" stroke="white" stroke-width="${strokeWidth}" rx="2"/>`;
   } else {
     // Circle
-    shape = `<circle cx="${totalW / 2}" cy="${totalH / 2}" r="${size / 2}" fill="${color}" stroke="white" stroke-width="${strokeWidth}"/>`;
+    shape = `<circle cx="${box / 2}" cy="${box / 2}" r="${size / 2}" fill="${color}" stroke="white" stroke-width="${strokeWidth}"/>`;
   }
 
   // Rotate the whole svg box rigidly about its centre (= the icon anchor), so
   // the marker stays pinned to the station while its shape turns. Rotating the
   // box rather than the shape inside keeps the shape from being clipped.
-  const transform = rotationDeg ? ` style="transform:rotate(${rotationDeg}deg)"` : '';
+  const transform = rotationDeg ? `transform:rotate(${rotationDeg}deg);` : '';
 
   return L.divIcon({
     className: 'station-marker',
-    iconSize: [totalW, totalH],
-    iconAnchor: [totalW / 2, totalH / 2],
-    tooltipAnchor: [10, 0],
-    html: `<svg width="${totalW}" height="${totalH}" xmlns="http://www.w3.org/2000/svg"${transform}>${shape}</svg>`,
+    iconSize: [box, box],
+    iconAnchor: [box / 2, box / 2],
+    // Measured from the box centre now, so the label still sits just off the
+    // drawn shape rather than off the (much larger) hit area.
+    tooltipAnchor: [w / 2 + 4, 0],
+    // `pointer-events:none` on the svg hands every tap in the box to the marker
+    // div behind it — without it only the painted shape is hit-testable and the
+    // 44px box would be decorative.
+    html: `<svg width="${box}" height="${box}" xmlns="http://www.w3.org/2000/svg" style="${transform}pointer-events:none">${shape}</svg>`,
   });
 }
 
@@ -322,12 +350,29 @@ export function HomeMap({
       maxBounds={AREA_BOUNDS}
       maxBoundsViscosity={1.0}
       zoomControl={false}
+      // Replaced by the explicitly-positioned control below, which sits above
+      // the sheet's lowest resting edge instead of underneath it.
       attributionControl={false}
       scrollWheelZoom
       className="w-full h-full"
-      style={{ background: theme === 'dark' ? '#0b0f14' : '#ebe8e0' }}
+      style={{ background: MAP_BACKDROP[theme] }}
     >
+      {/* Attribution is a licensing obligation, not a design preference: the
+          basemap is CARTO's, whose terms require the credit, and the data
+          underneath it is OpenStreetMap's under the ODbL, which requires
+          attribution wherever the data is shown. The app previously rendered
+          neither, anywhere.
+
+          `prefix={false}` drops Leaflet's own "Leaflet" badge — that one is
+          optional — and the control is positioned bottom-left so it clears the
+          FAB and recentre buttons on the right. Its offset from the bottom is
+          driven by `--map-attrib-bottom`, which the host sets from the sheet's
+          resting edge (see index.css). */}
+      <AttributionControl position="bottomleft" prefix={false} />
       <TileLayer
+        attribution={
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+        }
         url={
           theme === 'dark'
             ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
@@ -348,7 +393,7 @@ export function HomeMap({
           positions={line.coords}
           smoothFactor={0}
           pathOptions={{
-            color: LINE_COLORS[line.lineId] ?? '#666',
+            color: LINE_COLOR[line.lineId] ?? LINE_FALLBACK,
             weight: routeActive ? 4 : 5,
             // Fade the network back when a route is highlighted so the chosen
             // path reads as the foreground.
@@ -365,7 +410,7 @@ export function HomeMap({
           key={`route-casing-${i}`}
           positions={leg.coords}
           pathOptions={{
-            color: theme === 'dark' ? '#000' : '#fff',
+            color: ROUTE_CASING[theme],
             weight: 11,
             opacity: 0.9,
             lineJoin: 'round',
@@ -379,7 +424,7 @@ export function HomeMap({
           key={`route-${i}`}
           positions={leg.coords}
           pathOptions={{
-            color: LINE_COLORS[leg.line] ?? '#666',
+            color: LINE_COLOR[leg.line] ?? LINE_FALLBACK,
             weight: 6,
             opacity: 1,
             lineJoin: 'round',
@@ -393,14 +438,14 @@ export function HomeMap({
       {routeActive && routeEndpoints?.originWalk && routeEndpoints.originWalk.length > 1 && (
         <Polyline
           positions={routeEndpoints.originWalk}
-          pathOptions={{ color: '#3b82f6', weight: 2.5, opacity: 0.7, dashArray: '4, 7', lineCap: 'round' }}
+          pathOptions={{ color: USER_BLUE, weight: 2.5, opacity: 0.7, dashArray: '4, 7', lineCap: 'round' }}
           interactive={false}
         />
       )}
       {routeActive && routeEndpoints?.destWalk && routeEndpoints.destWalk.length > 1 && (
         <Polyline
           positions={routeEndpoints.destWalk}
-          pathOptions={{ color: '#3b82f6', weight: 2.5, opacity: 0.7, dashArray: '4, 7', lineCap: 'round' }}
+          pathOptions={{ color: USER_BLUE, weight: 2.5, opacity: 0.7, dashArray: '4, 7', lineCap: 'round' }}
           interactive={false}
         />
       )}
@@ -410,7 +455,7 @@ export function HomeMap({
         <CircleMarker
           center={routeEndpoints.origin}
           radius={7}
-          pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#111', fillOpacity: 1 }}
+          pathOptions={{ color: MARKER_STROKE, weight: 3, fillColor: ROUTE_ORIGIN_FILL, fillOpacity: 1 }}
           interactive={false}
         />
       )}
@@ -418,7 +463,7 @@ export function HomeMap({
         <CircleMarker
           center={routeEndpoints.dest}
           radius={8}
-          pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#F97316', fillOpacity: 1 }}
+          pathOptions={{ color: MARKER_STROKE, weight: 3, fillColor: ROUTE_DEST_FILL, fillOpacity: 1 }}
           interactive={false}
         />
       )}
@@ -429,7 +474,7 @@ export function HomeMap({
         const isTerminal = !!s.terminal;
         // At network-wide zoom every label is noise — name only the anchors.
         const labelled = isSelected || isInterchange || isTerminal;
-        const color = LINE_COLORS[s.line] ?? '#666';
+        const color = LINE_COLOR[s.line] ?? LINE_FALLBACK;
         // Snap the marker onto the drawn track so it sits on the line, not
         // beside it; fall back to the raw coordinate when track data is missing.
         const position = stationPointOnTrack(s.line, s.id) ?? ([s.lat!, s.lng!] as [number, number]);
@@ -443,6 +488,10 @@ export function HomeMap({
             key={s.id}
             position={position}
             icon={stationMarkerIcon(isSelected, isInterchange, isTerminal, color, rotationDeg)}
+            // Overlapping 44px hit boxes resolve by z-order, so the marks a
+            // rider is most likely to be aiming for are lifted above their
+            // neighbours rather than left to Leaflet's latitude sort.
+            zIndexOffset={isSelected ? 1000 : isInterchange ? 500 : isTerminal ? 250 : 0}
             eventHandlers={{ click: () => onSelectStation(s.id) }}
           >
             {labelled && (
@@ -460,7 +509,7 @@ export function HomeMap({
         <Polyline
           positions={walkingRoute}
           pathOptions={{
-            color: '#3b82f6',
+            color: USER_BLUE,
             weight: 2,
             opacity: 0.5,
             dashArray: '5, 5',
@@ -476,13 +525,13 @@ export function HomeMap({
           <CircleMarker
             center={[coords.lat, coords.lng]}
             radius={14}
-            pathOptions={{ stroke: false, fillColor: '#3b82f6', fillOpacity: 0.18 }}
+            pathOptions={{ stroke: false, fillColor: USER_BLUE, fillOpacity: 0.18 }}
             interactive={false}
           />
           <CircleMarker
             center={[coords.lat, coords.lng]}
             radius={6}
-            pathOptions={{ color: '#ffffff', weight: 3, fillColor: '#3b82f6', fillOpacity: 1 }}
+            pathOptions={{ color: MARKER_STROKE, weight: 3, fillColor: USER_BLUE, fillOpacity: 1 }}
             interactive={false}
           />
         </>

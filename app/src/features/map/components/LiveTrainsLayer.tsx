@@ -4,7 +4,8 @@ import L from 'leaflet';
 import { getActiveTrains } from '../../journey/engine/journeyEngine';
 import type { ActiveTrain } from '../../journey/engine/journeyEngine';
 import { trainPositionOnTrack } from '../geometry/trackGeometry';
-import { LINE_COLORS } from '../../journey/constants';
+import { LINE_COLOR } from '../../journey/constants';
+import { LINE_FALLBACK } from '../mapColors';
 
 interface LiveTrainsLayerProps {
   activeLines: Set<string>;
@@ -112,7 +113,7 @@ class TrainRenderer extends L.Layer {
     this.trains.forEach((train) => {
       const latLng = this.getTrainLatLng(train);
       const point = this._map!.latLngToLayerPoint(latLng);
-      const color = LINE_COLORS[train.line] || '#666';
+      const color = LINE_COLOR[train.line] || LINE_FALLBACK;
 
       const size = 14;
       const group = L.SVG.create('g');

@@ -5,35 +5,309 @@
    OS setting, so dark: must follow that instead. */
 @custom-variant dark ([data-theme="dark"] &);
 
-/* ─── Design token layer ─────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   DESIGN TOKEN LAYER
+
+   Every value the interface renders is defined here, once. The rule this
+   enforces is the one the redesign strategy identified as the root cause of
+   most of the app's interface defects (§1, §19.1): **no component may declare
+   a colour literal, a font size, or a radius of its own.** Where a token
+   existed the app was already consistent and correct; where none existed it
+   had drifted into 16 type sizes, 63 colour literals and 26 failing contrast
+   pairs. Adding to this file is cheap; forking it in a component is not.
+
+   `scripts/check-design-tokens.mjs` enforces that rule in CI.
+
+   Sizes are in `rem` on purpose. It makes the browser's base-size setting
+   scale the whole app, which is the web's only real analogue of Dynamic Type.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Typography ──────────────────────────────────────────────────────────
+   Two ladders, because the app has two reading modes and they want opposite
+   things. The UI ladder (`text-hero` … `text-caption`) is for facts read in
+   2–4 seconds at arm's length, possibly in direct sunlight. The reference
+   ladder (`text-read-*`) is for prose read while seated.
+
+   Ten sizes, replacing sixteen. **Nothing below 12px, and nothing that
+   answers "should I run?" below 17px.** The old 9px and 10px tiers are
+   retired outright — they were below every legibility floor and they were
+   being used for form labels and service status.
+
+   Declared in `@theme` so Tailwind generates real utilities: `text-hero`
+   carries its size, line-height, weight *and* tracking together, which is
+   what stops the four from drifting apart at the call site.
+   ──────────────────────────────────────────────────────────────────────── */
+@theme {
+  /* The one countdown per view. Nothing else. This size is what creates the
+     headroom that makes three levels of hierarchy expressible at all — the
+     app previously tried to do it inside a 9–22px range and failed for
+     arithmetic reasons rather than aesthetic ones. */
+  --text-hero: 2.5rem;
+  --text-hero--line-height: calc(2.75rem * var(--leading-mult));
+  --text-hero--font-weight: 700;
+  --text-hero--letter-spacing: -0.02em;
+
+  --text-title-1: 1.75rem;
+  --text-title-1--line-height: calc(2.125rem * var(--leading-mult));
+  --text-title-1--font-weight: 700;
+  --text-title-1--letter-spacing: -0.02em;
+
+  --text-title-2: 1.375rem;
+  --text-title-2--line-height: calc(1.75rem * var(--leading-mult));
+  --text-title-2--font-weight: 700;
+  --text-title-2--letter-spacing: -0.01em;
+
+  --text-title-3: 1.25rem;
+  --text-title-3--line-height: calc(1.5625rem * var(--leading-mult));
+  --text-title-3--font-weight: 600;
+
+  --text-headline: 1.0625rem;
+  --text-headline--line-height: calc(1.375rem * var(--leading-mult));
+  --text-headline--font-weight: 600;
+
+  --text-body: 1.0625rem;
+  --text-body--line-height: calc(1.375rem * var(--leading-mult));
+  --text-body--font-weight: 400;
+
+  --text-callout: 1rem;
+  --text-callout--line-height: calc(1.3125rem * var(--leading-mult));
+  --text-callout--font-weight: 400;
+
+  --text-subhead: 0.9375rem;
+  --text-subhead--line-height: calc(1.25rem * var(--leading-mult));
+  --text-subhead--font-weight: 500;
+
+  --text-footnote: 0.8125rem;
+  --text-footnote--line-height: calc(1.125rem * var(--leading-mult));
+  --text-footnote--font-weight: 500;
+
+  /* The smallest size permitted anywhere in the app. Eyebrows and labels. */
+  --text-caption: 0.75rem;
+  --text-caption--line-height: calc(1rem * var(--leading-mult));
+  --text-caption--font-weight: 600;
+  --text-caption--letter-spacing: 0.04em;
+
+  /* Reference ladder — `/you/:topic` and the station Info tab. Prose, not
+     rows: looser leading, and a measure capped well below the layout width. */
+  --text-read-title: 1.75rem;
+  --text-read-title--line-height: calc(2.125rem * var(--leading-mult));
+  --text-read-title--font-weight: 700;
+
+  --text-read-body: 1.0625rem;
+  --text-read-body--line-height: calc(1.75rem * var(--leading-mult));
+  --text-read-body--font-weight: 400;
+
+  --text-read-label: 0.8125rem;
+  --text-read-label--line-height: calc(1.125rem * var(--leading-mult));
+  --text-read-label--font-weight: 500;
+
+  /* Radius encodes *size*, not decoration. Semantic names rather than
+     overriding Tailwind's `--radius-sm`/`md`/`lg`, which would silently
+     restyle every existing `rounded-*` in the codebase. */
+  --radius-chip: 8px;
+  --radius-control: 12px;
+  --radius-card: 16px;
+  --radius-sheet: 22px;
+}
+
 :root {
+  /* Devanagari and Gujarati have taller ascenders and deeper descenders than
+     Latin at the same optical size, so the Latin-tuned leading above crowds
+     them. One multiplier, applied to every line-height in the ladder — the
+     same mechanism the font stack below already uses. */
+  --leading-mult: 1;
+
+  /* ─── Backgrounds ─────────────────────────────────────────────────────── */
   /* Default (Light) */
   --c-bg:        #f4f4f5;
+  --c-bg-2:      #ebebed;
   --c-card:      #ffffff;
   --c-card-alt:  #fafafa;
-  --c-border:    #e4e4e7;
-  --c-border-2:  #d4d4d8;
+  /* Sheets, overlays and popovers. In light this is the card colour; in dark
+     it is deliberately lighter, because a dark theme needs a base *and* an
+     elevated set for a sheet to read as sitting above the page rather than
+     being part of it. */
+  --c-elevated:  #ffffff;
+
+  /* ─── Borders ─────────────────────────────────────────────────────────── */
+  /* Both cleared to ≥1.5:1 against the surface they sit on. Below that a
+     divider isn't a low-contrast border, it's not a border. */
+  --c-border:    #cfcfd4;
+  --c-border-2:  #c7c7cd;
+  /* The focus ring, and the one token that has to change between themes for
+     a reason other than luminance: #f97316 clears 3:1 on both dark surfaces
+     but only reaches 2.55:1 on the light background. Light gets the deeper
+     orange so the ring keeps the accent's identity at a visible contrast. */
+  --c-border-focus: #c2410c;
+
   --c-blur:      rgba(244, 244, 245, 0.96);
+
+  /* ─── Labels ──────────────────────────────────────────────────────────── */
   --c-text:      #18181b;
   --c-text-2:    #3f3f46;
   --c-text-3:    #52525b;
-  --c-text-4:    #71717a;
+  /* Was #71717a, which measured 4.40:1 on --c-bg in light and 3.60:1 on
+     --c-card in dark — both failures, on the app's most load-bearing
+     secondary colour (every eyebrow, every "44m ago", every unit label).
+     This one token fixed more failing text than any other single change. */
+  --c-text-4:    #5b5b66;
+
   --c-accent:    #f97316;
   /* Black, not white: white-on-#f97316 is ~2.8:1, failing WCAG AA even for
-     large text/UI components. Black is ~7.6:1. The accent colour itself
+     large text/UI components. Black is ~7.5:1. The accent colour itself
      doesn't change between themes, so neither does its foreground. */
   --c-accent-fg: #000000;
-  /* Destructive actions and error text ("Clear local data", a failed sign-in).
-     Unlike --c-accent this *does* change between themes: #dc2626 is ~4.8:1 on
-     the light card but only ~3.4:1 on the dark one, so the dark theme lightens
-     it rather than reusing the same red at half the contrast. */
-  --c-danger:    #dc2626;
+  /* Secondary text on the accent fill. A selected departure card used to set
+     its title to --c-accent-fg (#000) and its subtitle to rgba(255,255,255,0.7)
+     — two opposite foregrounds inside one card, the second at 2.05:1. Same
+     black at 75%, which measures 5.42:1 on the accent. */
+  --c-accent-fg-2: rgba(0, 0, 0, 0.75);
+  /* The accent where it is *text* rather than a fill. #f97316 is a background
+     colour: it carries black at 7.5:1 and is unreadable as a foreground, at
+     2.80:1 on the card — which is what every accent-coloured link, eyebrow and
+     "View all" in the app was set in. Same hue, deepened for light. This is
+     also why accent could not carry hierarchy anywhere: the one channel that
+     could have expressed emphasis without size was illegible.
+
+     Deeper than the focus ring's #c2410c, which only has to clear 3:1 as a
+     non-text indicator: as *text* that value still measured 4.35:1 on
+     --c-bg-2, the darkest of the four light surfaces. */
+  --c-accent-text: #b23a0a;
+
+  /* ─── Status ──────────────────────────────────────────────────────────────
+     Chosen so as *not* to collide with the line palette. The four line
+     colours are fixed by GMRC signage and cannot move, so any status hue
+     that lands near one of them makes a rider work out whether yellow means
+     "Yellow Line" or "warning". The live journey used to paint its
+     "waiting for train" state in #EAB308 — byte-identical to the Yellow Line.
+
+     Every value below clears 4.5:1 on --c-card, --c-bg *and* --c-bg-2, in
+     both themes. They replace raw Tailwind palette values (text-green-500,
+     text-yellow-500, text-red-400, text-purple-400) that were authored on
+     near-black and collapsed to 1.7–2.8:1 on the light theme — which is the
+     default, and so the one most riders actually see.
+
+     Status must still never be carried by hue alone: every consumer pairs
+     these with a glyph or a word (WCAG 1.4.1).
+
+     The light values are deeper than a naive "darken until it passes on
+     white" pass would give, because each of these also has to stay legible
+     on *its own* 8% tint — the tint darkens the surface just enough to pull
+     a token chosen against plain white back under 4.5:1. Verified against
+     all four light surfaces, plain and tinted; the worst case is 5.3:1. */
+  --c-good:   #065f46;
+  --c-warn:   #92400e;
+  --c-error:  #b91c1c;
+  --c-info:   #7e22ce;
+
+  /* 8% tints for alert block fills, 22% for their borders — derived from the
+     same hue so the tinted blocks stop being hard-coded rgba(). */
+  --c-good-bg:      rgba(6, 95, 70, 0.08);
+  --c-good-border:  rgba(6, 95, 70, 0.22);
+  --c-warn-bg:      rgba(146, 64, 14, 0.08);
+  --c-warn-border:  rgba(146, 64, 14, 0.22);
+  --c-error-bg:     rgba(185, 28, 28, 0.08);
+  --c-error-border: rgba(185, 28, 28, 0.22);
+  --c-info-bg:      rgba(126, 34, 206, 0.08);
+  --c-info-border:  rgba(126, 34, 206, 0.22);
+
+  /* ─── Line colour, as text ────────────────────────────────────────────────
+     The four LINE_COLORS hex values map to physical GMRC signage and are
+     fixed across themes — but they were authored to be *filled*, and three of
+     the four are unreadable when used as small text on a light surface (the
+     Yellow Line's next-train figure measured 1.92:1 at 22px on white, on what
+     is the single most important number on the departure board).
+
+     So: fills keep the signage hex; the line *as text or a small glyph* uses
+     these, which are the same hues darkened or lightened per theme to clear
+     4.5:1 on every surface. Both are the line's colour; only one of them has
+     to be legible. The old LINE_TEXT tried to do this and only moved yellow,
+     to #CA8A04 — still 2.94:1, an intention rather than an outcome. */
+  --c-line-blue:   #1d4ed8;
+  --c-line-red:    #b91c1c;
+  --c-line-yellow: #854d0e;
+  --c-line-violet: #7e22ce;
+  /* Text sitting *on* a line fill. Black on all four, in both themes: white
+     reaches only 3.68 / 3.76 / 3.96 on blue, red and violet, while black
+     clears 5.31 on the worst of them. The fills don't change between themes,
+     so neither does this. */
+  --c-on-line: #000000;
+
+  /* Destructive actions ("Clear local data", "End journey"). Held as its own
+     name because the *intent* differs from an error, but pointed at the same
+     red: the previous #dc2626 measured 4.39:1 on --c-bg, and there is no
+     reason to run two reds at different contrasts. */
+  --c-danger:  var(--c-error);
   /* "You've arrived" / "get off here" — the live journey's only positive
-     signal, and the counterpart to --c-accent's "get ready". Theme-aware for
-     the same reason --c-danger is: #15803d is ~4.9:1 on the light card and
-     would fall under 3:1 on the dark one. */
-  --c-success:   #15803d;
+     signal, and the counterpart to --c-accent's "get ready". */
+  --c-success: var(--c-good);
+
+  /* ─── Elevation ───────────────────────────────────────────────────────────
+     Exactly three levels. 1 is flat content on --c-bg. 2 is a card: --c-card
+     with a 1px border and *no shadow*. 3 is the floating layer — and it is
+     one material with five consumers (search pill, line-status strip, FAB,
+     recentre, sheet), not the three unrelated treatments it had grown into.
+
+     Honest glass, not an imitation of Liquid Glass: a CSS approximation costs
+     real paint time on the mid-range Android that is this app's median
+     device, and reads as a knock-off of something it isn't. */
+  --surface-float: var(--c-blur);
+  --border-float:  var(--c-border-2);
+  --shadow-float:  0 4px 18px rgb(0 0 0 / 0.22);
+  --blur-float:    blur(18px);
+  /* A short gradient strip where sheet content scrolls beneath the floating
+     chrome, so content doesn't slide under the pills with no separation. */
+  --scroll-edge: linear-gradient(to bottom, var(--c-bg) 0%, transparent 100%);
+
+  /* ─── Spacing ─────────────────────────────────────────────────────────────
+     Base unit 4px, layout rhythm on 8px. These mirror Tailwind's integer
+     steps exactly (`p-4` is --sp-4), so class-based call sites already snap
+     to the scale and only inline styles need the variables. The half-steps
+     (gap-2.5, p-3.5, py-2.5 …) are what "inconsistent spacing" looked like;
+     they existed only because there was no scale to snap to. */
+  --sp-1:  0.25rem;  /* 4  — icon-to-label, chip internal */
+  --sp-2:  0.5rem;   /* 8  — related items in a row */
+  --sp-3:  0.75rem;  /* 12 — MINIMUM gap between adjacent interactive elements */
+  --sp-4:  1rem;     /* 16 — row internal padding, compact card padding */
+  --sp-5:  1.25rem;  /* 20 — default card padding, screen inset */
+  --sp-6:  1.5rem;   /* 24 — between grouped blocks */
+  --sp-8:  2rem;     /* 32 — between sections */
+  --sp-12: 3rem;     /* 48 — between major regions */
+
+  /* ─── Touch ───────────────────────────────────────────────────────────────
+     The floor, not a suggestion. Where the visual has to be smaller than this
+     (a station dot on the map, a switch), the *hit region* is padded out to
+     it invisibly rather than the visual being inflated. */
+  --touch-min: 44px;
+
+  /* ─── Safe areas ──────────────────────────────────────────────────────────
+     `index.html` opts into `viewport-fit=cover`, which means the app is
+     responsible for keeping its own chrome out of the notch and the home
+     indicator. Before these existed it drew into both on exactly the device
+     class it was designed for. Consumed by the floating chrome, the three
+     collapsed sheet heights, the FAB and recentre offsets, the sheet's scroll
+     content, the live-journey action row and the map attribution. */
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+
+  /* ─── Layout ──────────────────────────────────────────────────────────── */
   --layout-max-width: 768px;
+  /* ≈68 characters. The layout cap is right for rows and wrong for prose:
+     reference pages were setting 13px text across the full 768px, which is
+     ≈110 characters per line against a 45–75 optimum. */
+  --measure-read: 34rem;
+
+  /* ─── Motion ──────────────────────────────────────────────────────────────
+     Sheets use SPRING in `sheetMotion.ts`; these cover everything else. One
+     press response, so the six that had accumulated (scale-95, scale-[0.98],
+     scale-90, opacity-70, opacity-60, and nothing at all) collapse to one. */
+  --ease-entrance: cubic-bezier(0.25, 0.8, 0.25, 1);
+  --dur-entrance: 240ms;
+  --dur-state: 200ms;
+  --dur-press: 120ms;
+  --press-scale: 0.97;
 
   /* The app typeface, as a token for the same reason the colours are: the two
      screens that set `fontFamily` do it in an inline style, which no CSS rule
@@ -47,22 +321,50 @@
 /* Set by `i18n/index.ts` on `<html>` before React mounts, so the first frame
    already asks for the right font (§6.4). The stylesheet each family needs is
    injected only for the language that needs it — see `i18n/fonts.ts`. */
-:root[lang="hi"] { --font-app: 'Space Grotesk', 'Noto Sans Devanagari', sans-serif; }
-:root[lang="gu"] { --font-app: 'Space Grotesk', 'Noto Sans Gujarati', sans-serif; }
+:root[lang="hi"] { --font-app: 'Space Grotesk', 'Noto Sans Devanagari', sans-serif; --leading-mult: 1.15; }
+:root[lang="gu"] { --font-app: 'Space Grotesk', 'Noto Sans Gujarati', sans-serif; --leading-mult: 1.15; }
 
 :root[data-theme="dark"] {
   --c-bg:        #0f0f0f;
+  --c-bg-2:      #161616;
   --c-card:      #1a1a1a;
   --c-card-alt:  #222222;
-  --c-border:    #1f1f1f;
-  --c-border-2:  #2a2a2a;
+  --c-elevated:  #242424;
+  /* Was #1f1f1f on #1a1a1a — 1.06:1, which is not a low-contrast border, it
+     is the absence of one. Every departure-row separator, settings divider
+     and card edge was invisible, which is why dark rendered as
+     undifferentiated slabs. #42424b clears 1.5:1 on both --c-card and the
+     lighter --c-elevated. */
+  --c-border:    #42424b;
+  --c-border-2:  #3f3f46;
+  --c-border-focus: #f97316;
+  --c-accent-text:  #f97316;
   --c-blur:      rgba(15, 15, 15, 0.96);
   --c-text:      #ffffff;
   --c-text-2:    #d4d4d8;
   --c-text-3:    #a1a1aa;
-  --c-text-4:    #71717a;
-  --c-danger:    #f87171;
-  --c-success:   #4ade80;
+  --c-text-4:    #8f8f9c;
+
+  --c-good:   #34d399;
+  --c-warn:   #fbbf24;
+  --c-error:  #fca5a5;
+  --c-info:   #d8b4fe;
+
+  --c-good-bg:      rgba(52, 211, 153, 0.08);
+  --c-good-border:  rgba(52, 211, 153, 0.22);
+  --c-warn-bg:      rgba(251, 191, 36, 0.08);
+  --c-warn-border:  rgba(251, 191, 36, 0.22);
+  --c-error-bg:     rgba(252, 165, 165, 0.08);
+  --c-error-border: rgba(252, 165, 165, 0.22);
+  --c-info-bg:      rgba(216, 180, 254, 0.08);
+  --c-info-border:  rgba(216, 180, 254, 0.22);
+
+  --c-line-blue:   #60a5fa;
+  --c-line-red:    #f87171;
+  --c-line-yellow: #facc15;
+  --c-line-violet: #c084fc;
+
+  --scroll-edge: linear-gradient(to bottom, var(--c-bg) 0%, transparent 100%);
 }
 
 html, body, #root {
@@ -88,6 +390,71 @@ input, textarea,
   -webkit-user-select: text;
   user-select: text;
   -webkit-touch-callout: default;
+}
+
+/* One focus indicator, for everything focusable, defined once.
+   Before this the settings rows signalled focus with a --c-card-alt-on-
+   --c-card background change (1.04:1 — invisible), and the two main text
+   inputs set `outline-none` with nothing in its place. Declared after the
+   Tailwind import on purpose: `outline-none` and this rule have equal
+   specificity, so source order is what makes the ring win where a component
+   still carries that utility.
+
+   `:focus-visible` rather than `:focus` so a thumb tap on the map or a
+   departure card doesn't leave a ring behind — the browser applies it for
+   keyboard and assistive-technology focus and withholds it for pointers. */
+:focus-visible {
+  outline: 2px solid var(--c-border-focus);
+  outline-offset: 2px;
+}
+
+/* Honours the OS "reduce motion" setting, which the app previously ignored
+   entirely while running four always-on animations.
+ *
+ * Deliberately a blanket rule rather than a list. Every *decorative* animation
+ * in the app is CSS — the glow head's pulse, the skeleton shimmer, the live
+ * dot's ping, the spinner, the live trains' 0.95s glide between simulation
+ * ticks — and a hand-maintained list of them is a list that goes stale the
+ * first time someone adds a fifth. Setting the duration to ~0 and the
+ * iteration count to 1 leaves each one at its resting state, which is what a
+ * rider who asked for less motion wants to see.
+ *
+ * What this does **not** touch is the thing that matters most here: the
+ * draggable sheet follows the thumb through a framer-motion value, not a CSS
+ * transition, so the gesture still tracks. That is not an oversight — the HIG
+ * lists finger-tracked animation as a reduced-motion *technique*, because a
+ * sheet that jumps to its snap under a moving finger is harder to use, not
+ * calmer. The springs it settles with are shortened in `DraggableSheet` and
+ * every entrance is reduced to a fade by `MotionConfig` in `App.tsx`. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Expands a control's *hit region* to the 44px floor without inflating what it
+   looks like. This is the distinction the HIG actually draws, and it is the
+   only workable one here: a station marker on the map has to stay a small dot
+   to keep the network readable, and inflating the line-status pills to 44px
+   tall would put a chunky bar across the top of the map. So the visual keeps
+   its size and an invisible ::after carries the target.
+
+   `max(100%, …)` on each axis means a control already wider than the floor
+   only grows in the direction it is short — which is also what keeps a row of
+   pills from overlapping each other's targets. Adjacent controls still need
+   the HIG's 12px of separation; growing a 36px button to 44 eats 4px a side. */
+.hit-44 { position: relative; }
+.hit-44::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--touch-min));
+  height: max(100%, var(--touch-min));
 }
 
 /* ─── Live journey screen ────────────────────────────────────────────────── */
@@ -135,6 +502,35 @@ input, textarea,
 .leaflet-tooltip-left.vignelli-label::before,
 .leaflet-tooltip-right.vignelli-label::before {
   display: none; /* hide the little triangle arrow */
+}
+
+/* Map attribution — required by CARTO's terms and the OSM ODbL, so this is a
+   licensing element the app has to render, not a control it may style away.
+   What it *may* do is put it somewhere legible: bottom-left (clear of the FAB
+   and recentre button on the right) and lifted above the sheet's lowest
+   resting edge, which `HomeScreen` publishes as `--map-attrib-bottom`. Without
+   that lift it would spend the whole session hidden behind the collapsed
+   sheet, which is not attribution either. */
+.leaflet-bottom.leaflet-left {
+  bottom: calc(var(--map-attrib-bottom, 0px) + var(--sab));
+  transition: bottom 0.25s ease;
+}
+.leaflet-control-attribution.leaflet-control {
+  margin: 0 0 6px 8px;
+  padding: 2px 7px;
+  border-radius: var(--radius-chip);
+  background: var(--surface-float);
+  backdrop-filter: var(--blur-float);
+  -webkit-backdrop-filter: var(--blur-float);
+  border: 1px solid var(--border-float);
+  color: var(--c-text-4);
+  font-family: var(--font-app);
+  font-size: var(--text-caption);
+  line-height: 1.5;
+}
+.leaflet-control-attribution.leaflet-control a {
+  color: var(--c-text-3);
+  text-decoration: underline;
 }
 
 /* Trains glide between 1s simulation ticks */

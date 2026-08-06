@@ -1,13 +1,14 @@
 import { useState, useMemo, useEffect } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
-import { ArrowUpDown, ArrowRight, MapPin, History, Clock, ChevronDown, X } from "lucide-react";
+import { ArrowUpDown, ArrowRight, MapPin, History, Clock, ChevronDown, X, Rss } from "lucide-react";
 import { StationInput } from "./StationInput";
 import { STATIONS, estimateLine, nextDepartureFromStation, formatDuration, walkMinsForKm } from "../engine/journeyEngine";
 import type { PlaceNode } from "../engine/journeyEngine";
 import { useNow } from "../hooks/useNow";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
 import { useWalkSpeed, useDefaultDeparture } from "../hooks/usePreferences";
+import { useNearestStationHint } from "../hooks/useNearestStationHint";
 import { GeocodingService } from "../../../services/GeocodingService";
 
 import { LineBadge } from "../../../components/LineBadge";
@@ -62,6 +63,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
   // list without the planner having to be remounted to notice.
   const recentTrips = useLiveQuery(listRecentTrips, [], [] as RecentTrip[]);
   const { walkSpeedKmh } = useWalkSpeed();
+  const nearestHint = useNearestStationHint();
 
   // A default departure station outranks GPS but not an explicit "From here"
   // (§8.1 phase E). The hook resolves the id and reads an unknown one as unset,
@@ -198,12 +200,9 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
   }, [source, destination, now]);
 
   return (
-    <div className="p-5 max-w-[var(--layout-max-width)] mx-auto pt-6 flex flex-col" onClick={() => setActiveField(null)}>
-      <div className="mb-7">
-        <div className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: 'var(--c-text-3)' }}>{t('planner.eyebrow')}</div>
-        <h1 className="text-4xl font-bold tracking-tight leading-none" style={{ color: 'var(--c-text)' }}>{t('planner.title')}</h1>
-      </div>
-
+    // No title block: the eyebrow and "Where to?" live in the sheet header now,
+    // so they stay put while this form scrolls under them (§16/2.6).
+    <div className="p-5 max-w-[var(--layout-max-width)] mx-auto flex flex-col" onClick={() => setActiveField(null)}>
       <div
         className="relative rounded-2xl p-2 mb-5 z-20"
         style={{ background: 'var(--c-card)' }}
@@ -222,7 +221,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
             <div style={{ height: '1px' }} />
             <div className="flex-1 relative flex items-center justify-center">
               <span className="absolute left-1/2 -translate-x-1/2 top-0 bottom-1/2 border-l-2 border-dotted" style={{ borderColor: 'var(--c-border-2)' }} />
-              <MapPin size={18} strokeWidth={2.5} className="relative text-red-500 fill-red-500/15" />
+              <MapPin size={20} strokeWidth={2} className="relative" style={{ color: 'var(--c-error)' }} />
             </div>
           </div>
 
@@ -249,7 +248,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
           onClick={handleSwap}
           disabled={!source && !destination}
           aria-label={t('planner.swap')}
-          className="absolute right-4 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center transition-all disabled:opacity-30 hover:scale-110 active:scale-95"
+          className="hit-44 absolute right-4 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center transition-all disabled:opacity-30 active:scale-[0.97]"
           style={{ background: 'var(--c-card-alt)', color: 'var(--c-text-2)' }}
         >
           <ArrowUpDown size={16} strokeWidth={2.5} />
@@ -267,7 +266,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
             transition={{ duration: 0.2, ease: 'easeOut' }}
           >
             {results.length > 0 && (
-              <div className="px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-neutral-500 bg-neutral-50 dark:bg-neutral-800/50">{t('planner.stations')}</div>
+              <div className="px-4 py-2 text-caption uppercase" style={{ color: 'var(--c-text-3)', background: 'var(--c-card-alt)' }}>{t('planner.stations')}</div>
             )}
             {results.map((s: any, idx: number) => {
               const isFocused = idx === focusedIndex;
@@ -300,17 +299,25 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
             })}
 
             {activeQuery.length >= 3 && (
-              <div className="px-4 py-2 flex items-center justify-between text-[11px] font-bold uppercase tracking-widest text-neutral-500 bg-neutral-50 dark:bg-neutral-800/50">
+              <div className="px-4 py-2 flex items-center justify-between text-caption uppercase" style={{ color: 'var(--c-text-3)', background: 'var(--c-card-alt)' }}>
                 <span>{t('planner.places')}</span>
-                {isSearchingPlaces && <span className="animate-pulse text-blue-500">{t('planner.searching')}</span>}
+                {isSearchingPlaces && <span style={{ color: 'var(--c-info)' }}>{t('planner.searching')}</span>}
               </div>
             )}
             {placesError ? (
-              <div className="px-4 py-3 text-[13px] text-red-500 font-medium">
+              <div className="px-4 py-3 text-footnote" style={{ color: 'var(--c-error)' }}>
                 {t(placesError === 'offline' ? 'planner.placesOffline' : 'planner.placesUnavailable')}
               </div>
             ) : places.map((p, idx) => {
               const isFocused = (idx + results.length) === focusedIndex;
+              // The same answer the search overlay gives, from the same engine
+              // call the plan will make: which station this place puts you at,
+              // and how far you then walk. What was here instead was
+              // `planner.placeHint` — "Select to find nearest station" —
+              // printed identically under every result, so twelve landmarks
+              // arrived with twelve identical subtitles and nothing to choose
+              // between them.
+              const near = nearestHint(p);
               return (
                 <button
                   key={p.id}
@@ -323,12 +330,27 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
                   onMouseEnter={() => setFocusedIndex(idx + results.length)}
                   onMouseLeave={() => setFocusedIndex(-1)}
                 >
-                  <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0">
-                    <MapPin size={16} className="text-blue-500" />
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0" style={{ background: 'var(--c-info-bg)' }}>
+                    <MapPin size={16} strokeWidth={2.2} style={{ color: 'var(--c-info)' }} />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[14px] font-semibold truncate" style={{ color: 'var(--c-text)' }}>{p.name}</div>
-                    <div className="text-[11px] text-neutral-500 truncate">{t('planner.placeHint')}</div>
+                    {/* The place leads here where the station leads in the
+                        overlay, and the difference is not drift: tapping a row
+                        in the overlay selects the *station*, so the station is
+                        what the row is offering. Tapping here fills the field
+                        with the *place* — the engine resolves it on plan — so
+                        naming the station first would misdescribe what the tap
+                        does. Same two facts, ordered by what the row is for. */}
+                    <div className="text-subhead truncate" style={{ color: 'var(--c-text)' }}>{p.name}</div>
+                    {near.station && (
+                      <div className="flex items-center gap-1.5 min-w-0 mt-0.5">
+                        <LineBadge line={near.station.line} size="xs" />
+                        <span className="text-footnote truncate" style={{ color: 'var(--c-text-2)' }}>
+                          {near.station.name}
+                        </span>
+                      </div>
+                    )}
+                    <div className="text-footnote truncate" style={{ color: 'var(--c-text-4)' }}>{near.meta}</div>
                   </div>
                 </button>
               );
@@ -362,8 +384,8 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
           </>
         ))}
         {sourceStatus?.status === "running" && (
-          <div className="flex items-center gap-2 text-xs font-semibold p-3 rounded-xl text-green-600" style={{ background: 'rgba(74,222,128,0.06)' }}>
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+          <div className="flex items-center gap-2 text-footnote p-3 rounded-card" style={{ background: 'var(--c-good-bg)', color: 'var(--c-good)' }}>
+            <Rss size={14} strokeWidth={2.2} className="shrink-0" aria-hidden="true" />
             {/* `Trans` rather than two strings, so the bold duration can sit
                 where each language puts it — Hindi and Gujarati both close the
                 sentence after it, English opens with it. */}
@@ -376,22 +398,22 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
           </div>
         )}
         {sourceStatus?.status === "before-first-train" && (
-          <div className="text-xs font-semibold p-3 rounded-xl" style={{ background: 'var(--c-card)', color: 'var(--c-text-2)' }}>
+          <div className="text-footnote p-3 rounded-card" style={{ background: 'var(--c-card)', color: 'var(--c-text-2)' }}>
             {t('planner.serviceStartsIn', { duration: formatDuration(sourceStatus.minsUntilFirst!) })}
           </div>
         )}
         {sourceStatus?.status === "after-last-train" && (
-          <div className="text-xs font-bold p-3 rounded-xl" style={{ background: 'var(--c-card)', color: 'var(--c-text-3)' }}>
+          <div className="text-footnote p-3 rounded-card" style={{ background: 'var(--c-card)', color: 'var(--c-text-3)' }}>
             {t('planner.serviceEndedToday')}
           </div>
         )}
         {sourceStatus?.status === "bus-only" && (
-          <div className="text-xs font-semibold p-3 rounded-xl text-purple-400" style={{ background: 'rgba(168,85,247,0.06)' }}>
+          <div className="text-footnote p-3 rounded-card" style={{ background: 'var(--c-info-bg)', color: 'var(--c-info)' }}>
             {t('planner.busOnlyResumes', { duration: formatDuration(sourceStatus.resumesInMins!) })}
           </div>
         )}
         {sameStation && (
-          <div className="text-sm font-semibold p-3 rounded-xl text-center text-red-400" style={{ background: 'rgba(239,68,68,0.06)' }}>
+          <div className="text-callout p-3 rounded-card text-center" style={{ background: 'var(--c-error-bg)', color: 'var(--c-error)' }}>
             {t('planner.sameStation')}
           </div>
         )}
@@ -399,31 +421,36 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
 
       {!showSuggestions && recentTrips.length > 0 && (
         <div className="mb-6 -mx-1">
-          <div className="text-[11px] font-bold uppercase tracking-widest mb-1 px-2" style={{ color: 'var(--c-text-3)' }}>{t('common.recent')}</div>
+          <div className="text-caption uppercase mb-1 px-2" style={{ color: 'var(--c-text-3)' }}>{t('common.recent')}</div>
+          {/* Two sibling buttons, not one nested inside the other. The remove
+              control used to be a `role="button"` div *inside* the row's
+              <button> — interactive content cannot nest, and with only an
+              onClick handler it did nothing at all for a keyboard or switch
+              user, who could focus it and press Enter to no effect. */}
           {recentTrips.map((trip) => (
-            <button
-              key={trip.key}
-              onClick={() => fillFromTrip(trip)}
-              className="flex items-center gap-3 w-full px-2 py-3 text-left rounded-xl transition-colors active:bg-black/5 dark:active:bg-white/5"
-            >
-              <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: 'var(--c-card-alt)' }}>
-                <History size={16} style={{ color: 'var(--c-text-3)' }} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-[15px] font-semibold truncate" style={{ color: 'var(--c-text)' }}>{trip.dest?.name ?? t('common.trip')}</div>
-                <div className="text-[12px] truncate" style={{ color: 'var(--c-text-3)' }}>{t('common.fromStation', { name: trip.source?.name ?? '—' })}</div>
-              </div>
-              <div
-                role="button"
-                tabIndex={0}
+            <div key={trip.key} className="flex items-center gap-3 pr-1">
+              <button
+                onClick={() => fillFromTrip(trip)}
+                className="flex items-center gap-3 flex-1 min-w-0 px-2 py-3 text-left rounded-control transition-opacity active:opacity-70"
+              >
+                <div className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: 'var(--c-card-alt)' }}>
+                  <History size={16} strokeWidth={2.2} style={{ color: 'var(--c-text-3)' }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-headline truncate" style={{ color: 'var(--c-text)' }}>{trip.dest?.name ?? t('common.trip')}</div>
+                  <div className="text-footnote truncate" style={{ color: 'var(--c-text-3)' }}>{t('common.fromStation', { name: trip.source?.name ?? '—' })}</div>
+                </div>
+              </button>
+              <button
+                type="button"
                 aria-label={t('planner.removeRecentTrip')}
                 onClick={(e) => removeTrip(e, trip.key)}
-                className="shrink-0 w-9 h-9 -mr-1 rounded-full flex items-center justify-center transition-colors hover:bg-black/5 dark:hover:bg-white/10"
+                className="hit-44 shrink-0 w-9 h-9 rounded-full flex items-center justify-center transition-opacity active:opacity-70"
                 style={{ color: 'var(--c-text-3)' }}
               >
-                <X size={16} strokeWidth={2.5} />
-              </div>
-            </button>
+                <X size={16} strokeWidth={2.2} />
+              </button>
+            </div>
           ))}
         </div>
       )}
@@ -472,7 +499,7 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
                   style={{
                     background: timeMode === mode ? 'var(--c-accent)' : 'transparent',
                     color: timeMode === mode ? 'var(--c-accent-fg)' : 'var(--c-text-3)',
-                    boxShadow: timeMode === mode ? '0 2px 10px rgba(0,0,0,0.1)' : 'none'
+                    boxShadow: 'none'
                   }}
                 >
                   {t(mode === 'now' ? 'planner.modeNow' : mode === 'depart' ? 'planner.modeDepart' : 'planner.modeArrive')}
@@ -489,12 +516,12 @@ export function Planner({ onPlan, nearest, locStatus, onRetryLocation, prefillSo
                   type="datetime-local"
                   value={timeStr}
                   onChange={e => setTimeStr(e.target.value)}
-                  className="w-full border-none rounded-xl px-4 py-3 text-[15px] font-semibold transition-shadow duration-200 focus:outline-none focus:ring-2"
+                  className="w-full border-none rounded-control px-4 py-3 text-headline transition-shadow duration-200"
                   style={{
                     background: 'var(--c-card)',
                     color: 'var(--c-text)',
                     outlineColor: 'var(--c-accent)',
-                    boxShadow: '0 2px 12px rgba(0,0,0,0.05)'
+                    boxShadow: 'none'
                   }}
                 />
               </motion.div>

@@ -2,7 +2,7 @@ import { forwardRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowRight } from 'lucide-react';
 import { formatDuration, LINE_PATHS } from '../engine/journeyEngine';
-import { LINE_COLORS } from '../constants';
+import { LINE_COLOR, LINE_ON_SURFACE } from '../constants';
 
 export interface DepartureRowProps {
   line: string;
@@ -56,7 +56,13 @@ export const DepartureRow = forwardRef<HTMLElement, DepartureRowProps>(function 
   ref
 ) {
   const { t } = useTranslation();
-  const color = LINE_COLORS[line];
+  // Two colours, one line. `fill` is the signage hex and is only ever used as
+  // a background or a tint; `ink` is the theme-aware token used wherever the
+  // line has to be *read*. The highlighted figure below is why: it was drawn
+  // in the fill, which on the Yellow Line is #EAB308 at 22px on white —
+  // 1.92:1, on the single most important number on the departure board.
+  const fill = LINE_COLOR[line];
+  const ink = LINE_ON_SURFACE[line];
   // Two termini per line ⇒ the badge arrow points at whichever end of the
   // track `destinationId` is — a shape cue reads faster than a colour one,
   // and doesn't cost the line its single, recognisable colour.
@@ -76,26 +82,25 @@ export const DepartureRow = forwardRef<HTMLElement, DepartureRowProps>(function 
       }`}
       style={{
         background: inset ? 'var(--c-bg)' : 'var(--c-card)',
-        border: `1px solid ${highlight ? `${color}55` : 'var(--c-border)'}`,
-        opacity: departed ? 0.55 : 1,
+        border: `1px solid ${highlight ? `${fill}55` : 'var(--c-border)'}`,
       }}
     >
       <div className="flex items-center gap-1 shrink-0">
         <span
-          className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 text-[15px] font-bold leading-none"
+          className="w-9 h-9 rounded-control flex items-center justify-center shrink-0 text-headline leading-none"
           style={{
-            background: departed ? 'var(--c-card-alt)' : `${color}1f`,
-            color: departed ? 'var(--c-text-4)' : color,
+            background: departed ? 'var(--c-card-alt)' : `${fill}1f`,
+            color: departed ? 'var(--c-text-4)' : ink,
           }}
           aria-hidden
         >
           {destinationName.trim().charAt(0).toUpperCase()}
         </span>
         <ArrowRight
-          size={13}
-          strokeWidth={3}
+          size={16}
+          strokeWidth={2.2}
           style={{
-            color: departed ? 'var(--c-text-4)' : color,
+            color: departed ? 'var(--c-text-4)' : ink,
             transform: towardEnd ? undefined : 'rotate(180deg)',
           }}
           aria-hidden
@@ -103,10 +108,10 @@ export const DepartureRow = forwardRef<HTMLElement, DepartureRowProps>(function 
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="text-[14px] font-bold truncate" style={{ color: 'var(--c-text)' }}>
+        <div className="text-headline truncate" style={{ color: departed ? 'var(--c-text-3)' : 'var(--c-text)' }}>
           {t('journey.towards', { station: destinationName })}
         </div>
-        <div className="text-[12px] font-semibold" style={{ color: 'var(--c-text-4)' }}>
+        <div className="text-footnote" style={{ color: 'var(--c-text-4)' }}>
           {departed ? (
             // The "12m" half is a duration and stays English until §6.6 phase 4;
             // the sentence around it is ours.
@@ -116,7 +121,7 @@ export const DepartureRow = forwardRef<HTMLElement, DepartureRowProps>(function 
           ) : (
             <>
               {label && (
-                <span className={highlight ? 'font-bold' : undefined} style={highlight ? { color } : undefined}>
+                <span className={highlight ? 'font-bold' : undefined} style={highlight ? { color: ink } : undefined}>
                   {label} ·{' '}
                 </span>
               )}
@@ -135,10 +140,16 @@ export const DepartureRow = forwardRef<HTMLElement, DepartureRowProps>(function 
       <div className="flex items-center gap-2 shrink-0">
         <div className="text-right leading-none">
           <div
-            className={`font-bold tabular-nums ${
-              highlight ? 'text-[22px]' : departed && primary === 'time' ? 'text-[16px] line-through' : 'text-[20px]'
-            }`}
-            style={{ color: highlight ? color : departed ? 'var(--c-text-4)' : 'var(--c-text)' }}
+            className={`tabular-nums ${highlight ? 'text-title-2' : 'text-title-3'}`}
+            /* A departed row used to be dimmed with `opacity: 0.55`, which
+               multiplies text *and* card toward the surface and took an
+               already-marginal 4.83:1 down to roughly 2.9:1. The state is what
+               the strike-through and the muted token are for; neither costs
+               contrast. */
+            style={{
+              color: highlight ? ink : departed ? 'var(--c-text-4)' : 'var(--c-text)',
+              textDecoration: departed ? 'line-through' : undefined,
+            }}
           >
             {primary === 'time'
               ? clockTime
@@ -149,7 +160,7 @@ export const DepartureRow = forwardRef<HTMLElement, DepartureRowProps>(function 
               : formatDuration(waitMins)}
           </div>
           {stackMin && (
-            <div className="text-[11px] font-semibold mt-0.5" style={{ color: 'var(--c-text-4)' }}>
+            <div className="text-caption mt-0.5" style={{ color: 'var(--c-text-4)' }}>
               {t('journey.minUnit')}
             </div>
           )}

@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useSafeAreaBottom } from './useSafeArea';
+import { dialogProps, useDialogOn } from './useDialog';
 import {
   motion,
   useDragControls,
   useMotionValue,
   useMotionValueEvent,
+  useReducedMotion,
   animate,
   type PanInfo,
 } from 'framer-motion';
@@ -48,6 +51,7 @@ export function DraggableSheet({
   children,
   onCoverageChange,
   onRestEdgeChange,
+  modal,
   className = '',
 }: {
   snap: SheetSnap;
@@ -74,8 +78,23 @@ export function DraggableSheet({
    *  `collapsedHeight` when the header outgrows it, which is exactly the case a
    *  caller can't compute from its own constants. */
   onRestEdgeChange?: (px: number) => void;
+  /** Set while the sheet is hosting a *task* rather than showing a surface —
+   *  the journey planner, which covers the whole screen at its full snap and
+   *  leaves everything behind it reachable by Tab unless something says
+   *  otherwise. Adds `role="dialog"`, moves focus in, traps it, restores it,
+   *  and closes on Escape. Undefined in the three modes where the sheet is a
+   *  surface you can drag away from rather than a thing you have to finish. */
+  modal?: { label: string; onDismiss: () => void };
   className?: string;
 }) {
+  const safeBottom = useSafeAreaBottom();
+  // How the sheet *settles* once the finger is off it. The drag itself is never
+  // reduced — the sheet tracking the thumb is a reduced-motion technique in its
+  // own right, not something to take away — but the spring that carries it the
+  // rest of the way to a snap is decoration, and under `reduce` it becomes an
+  // instant arrival. Memoised because it sits in an effect's dependency list.
+  const reduceMotion = useReducedMotion();
+  const settle = useMemo(() => (reduceMotion ? { duration: 0 } : SPRING), [reduceMotion]);
   const sheetRef = useRef<HTMLDivElement>(null);
   const grabRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -89,7 +108,14 @@ export function DraggableSheet({
       // The peek is never shorter than the header, or a header that grew past
       // the caller's constant — a chip row wrapping to a second line — would be
       // cut off at the fold with no way to see it but expanding the sheet.
-      const collapsed = Math.max(0, h - Math.max(collapsedHeight, headerH));
+      //
+      // `safeBottom` is added on top rather than folded into the callers'
+      // constants because it is not content: the sheet is padded clear of the
+      // home indicator (see `paddingBottom` below), so the peek has to stand
+      // that much taller to show the same amount of header. Without both
+      // halves the collapsed sheet drew its chip row inside the home-indicator
+      // gesture area on exactly the device class this app targets.
+      const collapsed = Math.max(0, h - (Math.max(collapsedHeight, headerH) + safeBottom));
       // Never let a content fit swallow the whole screen — cap it at 60% of
       // viewport height so a floor of map (and the floating controls that sit
       // on it) stays clear even on a big interchange — nor rise above the
@@ -101,7 +127,7 @@ export function DraggableSheet({
           : Math.round(h * midRatio);
       return { collapsed, mid: fitted, full: 0 };
     },
-    [collapsedHeight, midRatio, midContentHeight]
+    [collapsedHeight, midRatio, midContentHeight, safeBottom]
   );
 
   const snapY = useMemo(() => pointsFor(height, headerHeight), [pointsFor, height, headerHeight]);
@@ -173,11 +199,11 @@ export function DraggableSheet({
     // jump straight to the new point instead of sliding for no reason.
     if (parkedSnap.current !== snap) {
       parkedSnap.current = snap;
-      const controls = animate(y, snapY[snap], SPRING);
+      const controls = animate(y, snapY[snap], settle);
       return () => controls.stop();
     }
     y.set(snapY[snap]);
-  }, [snap, snapY, height, y]);
+  }, [snap, snapY, height, y, settle]);
 
   function handleDragEnd(_: PointerEvent, info: PanInfo) {
     const current = y.get();
@@ -196,7 +222,7 @@ export function DraggableSheet({
 
     // Always animate — if the snap is unchanged the effect above won't re-run,
     // and the sheet would be left wherever the finger let go.
-    animate(y, snapY[next], SPRING);
+    animate(y, snapY[next], settle);
     if (next !== snap) onSnapChange(next);
   }
 
@@ -204,9 +230,16 @@ export function DraggableSheet({
   // hover moves from being mistaken for a drag.
   const contentGesture = useRef({ startY: 0, down: false });
 
+  // On the sheet's own element rather than something inside it, because in the
+  // one mode this applies to the sheet *is* the dialog — its header holds the
+  // dismissal and its body holds the form.
+  const dismiss = modal?.onDismiss;
+  useDialogOn(sheetRef, dismiss ? { onClose: dismiss } : null);
+
   return (
     <motion.div
       ref={sheetRef}
+      {...(modal ? dialogProps(modal.label) : {})}
       className={`absolute inset-x-0 flex flex-col rounded-t-[22px] overflow-hidden ${className}`}
       style={{
         y,
@@ -217,10 +250,19 @@ export function DraggableSheet({
         // The sheet is the light surface (--c-card); everything inset inside
         // it — chips, cards, pills — sits a shade darker at --c-bg. Matches
         // the design reference: a white sheet with grey inset content.
-        background: 'var(--c-card)',
-        boxShadow: '0 -8px 32px rgba(0,0,0,0.28)',
-        border: '1px solid var(--c-border)',
+        // The sheet is a level-3 floating surface, the same material as the
+        // search pill, the status strip, the FAB and the recentre control —
+        // they all sit on one plane over the map and had four different
+        // treatments between them. `--c-elevated` rather than `--c-card` is
+        // what gives the dark theme a sheet that reads as *above* the page
+        // instead of continuous with it.
+        background: 'var(--c-elevated)',
+        boxShadow: 'var(--shadow-float)',
+        border: '1px solid var(--border-float)',
         borderBottom: 'none',
+        // Keeps every child — header, chips, the last row of an expanded
+        // scroller — above the home indicator.
+        paddingBottom: 'var(--sab)',
       }}
       drag="y"
       dragListener={false}

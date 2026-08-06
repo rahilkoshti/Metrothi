@@ -21,12 +21,12 @@ export function AllTrainsList({
   const { t } = useTranslation();
   return (
     <div>
-      <h3 className="text-[9px] font-bold uppercase tracking-widest mb-4" style={{ color: 'var(--c-text-3)' }}>
+      <h3 className="text-caption uppercase mb-4" style={{ color: 'var(--c-text-3)' }}>
         {t('journey.allTrainsToday')}
       </h3>
 
       {options.length === 0 ? (
-        <div className="p-4 text-center text-sm font-medium rounded-xl" style={{ background: 'var(--c-bg)', color: 'var(--c-text-3)' }}>
+        <div className="p-4 text-center text-callout rounded-card" style={{ background: 'var(--c-bg)', color: 'var(--c-text-3)' }}>
           {t('journey.noMoreTrainsFrom', { station: sourceName })}
         </div>
       ) : (
@@ -36,6 +36,16 @@ export function AllTrainsList({
             const optFeasible = opt.feasible !== false;
             // Still catchable, but the walk should already have started.
             const isTight = !!opt.isTight;
+            // Was `opacity: 0.4` for infeasible and `0.6` for tight. Opacity
+            // multiplies foreground *and* background toward the surface, so an
+            // option the rider most needs to read carefully — "you cannot make
+            // this trip", "start walking now" — was the one rendered hardest to
+            // read. The state is carried by colour, a strike-through and the
+            // dashed border instead, none of which cost contrast.
+            const fgPrimary = isSelected
+              ? 'var(--c-accent-fg)'
+              : optFeasible ? 'var(--c-text)' : 'var(--c-text-3)';
+            const fgSecondary = isSelected ? 'var(--c-accent-fg-2)' : 'var(--c-text-4)';
             return (
               <button
                 key={i}
@@ -44,7 +54,6 @@ export function AllTrainsList({
                 style={{
                   background: isSelected ? 'var(--c-accent)' : 'var(--c-bg)',
                   border: isSelected ? 'none' : isTight ? '1px dashed var(--c-border-2)' : '1px solid var(--c-border)',
-                  opacity: !optFeasible ? 0.4 : isTight && !isSelected ? 0.6 : 1,
                 }}
               >
                 <div className="flex items-center justify-between p-4">
@@ -53,8 +62,8 @@ export function AllTrainsList({
                         the summary above. A door-to-door plan's leave time is a
                         minute or two earlier, and showing that here made the
                         same train read as two different departures. */}
-                    <div className="text-[18px] font-bold leading-none" style={{ color: isSelected ? 'var(--c-accent-fg)' : 'var(--c-text)' }}>{opt.departClockTime ?? opt.leaveClockTime}</div>
-                    <div className="text-[11px] font-semibold mt-0.5 uppercase tracking-wide" style={{ color: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--c-text-4)' }}>
+                    <div className="text-title-3 leading-none" style={{ color: fgPrimary, textDecoration: optFeasible ? undefined : 'line-through' }}>{opt.departClockTime ?? opt.leaveClockTime}</div>
+                    <div className="text-caption mt-1 uppercase" style={{ color: fgSecondary }}>
                       {optFeasible
                         ? t('journey.arriveAt', { time: opt.arriveClockTime })
                         : t('journey.strandedAt', { line: opt.strandedAtLine })}
@@ -62,10 +71,10 @@ export function AllTrainsList({
                   </div>
                   <div className="text-right">
                     {/* Ride time, not `totalMins` — see rideMinsOf. */}
-                    <div className="text-[15px] font-bold" style={{ color: isSelected ? 'var(--c-accent-fg)' : 'var(--c-text)' }}>{optFeasible ? formatDuration(rideMinsOf(opt) ?? opt.totalMins) : "—"}</div>
+                    <div className="text-headline" style={{ color: fgPrimary }}>{optFeasible ? formatDuration(rideMinsOf(opt) ?? opt.totalMins) : "—"}</div>
                     <div
-                      className="text-[11px] font-semibold mt-0.5 uppercase tracking-wide"
-                      style={{ color: isSelected ? 'rgba(255,255,255,0.7)' : isTight ? '#f59e0b' : 'var(--c-text-4)' }}
+                      className="text-caption mt-1 uppercase"
+                      style={{ color: isSelected ? 'var(--c-accent-fg-2)' : isTight ? 'var(--c-warn)' : fgSecondary }}
                     >
                       {isTight
                         ? t('journey.tightConnection')
@@ -74,11 +83,11 @@ export function AllTrainsList({
                   </div>
                 </div>
                 {isSelected && (
-                  <div className="mx-4 border-t-2 border-dashed border-black/20" />
+                  <div className="mx-4 border-t-2 border-dashed" style={{ borderColor: 'var(--c-accent-fg-2)', opacity: 0.3 }} />
                 )}
                 {isSelected && opt.warnings?.length > 0 && (
-                  <div className="px-4 py-2 text-[11px] font-bold text-black/60 flex items-center gap-1">
-                    <AlertOctagon size={11} /> {t('journey.warningsOnDeparture')}
+                  <div className="px-4 py-2 text-caption flex items-center gap-1" style={{ color: 'var(--c-accent-fg-2)' }}>
+                    <AlertOctagon size={16} strokeWidth={2.2} /> {t('journey.warningsOnDeparture')}
                   </div>
                 )}
               </button>

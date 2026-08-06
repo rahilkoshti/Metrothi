@@ -58,7 +58,10 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <!-- 400/500/600/700 only. The 300 Light weight was requested on every cold
+         start on the render-blocking path and used by nothing; a Light weight
+         is also the wrong tool for an app read at arm's length in daylight. -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <meta name="theme-color" content="#f4f4f5" />
 
     <!-- Structured data: the app itself -->
@@ -171,13 +174,29 @@
 
     <script>
       // Set data-theme and the background before first paint, from the same
-      // localStorage key ThemeContext reads - otherwise light-theme users
-      // (the default) see a hardcoded dark flash on every load.
+      // localStorage key ThemeContext reads - otherwise a rider sees a frame
+      // of the wrong theme on every cold start.
+      //
+      // The key holds the *preference*, which may be 'system'. Anything that
+      // isn't an explicit 'dark' or 'light' - including a first-ever run, where
+      // the key is absent - defers to the OS. The app used to default to light
+      // here and never consult prefers-color-scheme at all, so a phone in dark
+      // mode got the app's least-tested surface on first paint.
       (function () {
-        var theme = 'light';
+        var theme;
+        var pref = null;
         try {
-          if (localStorage.getItem('metrothi-theme') === 'dark') theme = 'dark';
+          pref = localStorage.getItem('metrothi-theme');
         } catch (e) {}
+        if (pref === 'dark' || pref === 'light') {
+          theme = pref;
+        } else {
+          try {
+            theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          } catch (e) {
+            theme = 'light';
+          }
+        }
         var bg = theme === 'dark' ? '#0f0f0f' : '#f4f4f5';
         document.documentElement.setAttribute('data-theme', theme);
         document.documentElement.style.background = bg;

@@ -64,7 +64,7 @@ function WalkSpeedRow() {
                     {t(preset.detailKey)}
                   </span>
                 </span>
-                {selected && <Check size={16} className="shrink-0" style={{ color: 'var(--c-accent)' }} />}
+                {selected && <Check size={16} strokeWidth={2.2} className="shrink-0" style={{ color: 'var(--c-accent-text)' }} />}
               </button>
             );
           })}
@@ -119,7 +119,7 @@ function DefaultDepartureRow() {
           aria-label={t('you.defaultDeparture')}
           value={defaultDepartureId ?? DEPARTURE_USE_GPS}
           onChange={e => setDefaultDeparture(e.target.value || null)}
-          className="rounded-lg px-2 py-1.5 text-[12px] font-semibold outline-none focus-visible:border-[var(--c-accent)] max-w-[7.5rem]"
+          className="rounded-chip px-2 py-1.5 text-footnote focus-visible:border-[var(--c-border-focus)] max-w-[7.5rem]"
           style={{
             background: 'var(--c-card-alt)',
             border: '1px solid var(--c-border-2)',

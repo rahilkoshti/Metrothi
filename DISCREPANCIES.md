@@ -11,10 +11,51 @@ an older date as "roughly here", not exact.
 
 ## Engine (`app/src/features/journey/engine/journeyEngine.ts`)
 
-- [ ] `INTERCHANGE_BUFFER_MINS` (line 261) is a flat 3-minute transfer penalty
-      for every interchange, applied at `journeyEngine.ts:829`. PRD §5.1 calls
+- [ ] `INTERCHANGE_BUFFER_MINS` (line 269) is a flat 3-minute transfer penalty
+      for every interchange, applied at `journeyEngine.ts:877`. PRD §5.1 calls
       this out explicitly: "Must be upgraded to per-station walking matrixes
       before v2.0 launch."
+      **Assessed 2026-08-06 — blocked on data that does not exist, not on
+      effort, and nothing in this repo can unblock it.** The scope is smaller
+      than "matrix" suggests: the network has exactly **three** interchanges
+      (`old-high-court` blue+red, `motera-stadium` red+yellow, `gnlu`
+      yellow+violet), all `structure: "elevated"`, so this is three numbers, not
+      a matrix. But GMRC publishes no transfer time, platform layout or
+      concourse geometry for any of them — the whole of `stationFacilities.json`
+      is `gmrcName, structure, interchange, gates, lifts, multiModal`, scraped
+      from the entry/exit-gate page, and its own `_meta.rule` says only what
+      GMRC publishes belongs there "and none should be filled in from
+      third-party sources". Deriving three minutes-per-station from `structure`
+      would be exactly the inference §7.6 forbids, and three hand-picked numbers
+      would be worse than one honest constant, because a per-station figure
+      reads as measured.
+      **What would actually unblock it:** GMRC publishing transfer times, or a
+      field survey of three stations. Both are data-collection tasks; neither is
+      a code change. Until one happens the flat 3 minutes is the correct
+      implementation of what is known, and the entry should stay open as a
+      *sourcing* item rather than an engineering one.
+      Deliberately **not** scaffolded into a per-station lookup ahead of the
+      data: a table of three identical values is churn that also makes the
+      constant look sourced.
+
+- [ ] **`stationFacilities.json`'s `interchange` flag contradicts
+      `stations.json` on 2 of the 3 interchanges, and is read by nothing.**
+      Found 2026-08-06 while assessing the entry above. `stations.json` flags
+      all three (each also carries a `secondLine`); the facilities file flags
+      only `old-high-court`, saying `false` for `motera-stadium` and `gnlu`.
+      `stations.json` is right — both are real Phase-2 interchanges — and it is
+      also the one the app actually reads: every UI site (`HomeSearch.tsx:344`
+      and `:462`, `RouteTimeline.tsx:51`, `StationDetail.tsx:626`/`:803`,
+      `HomeMap.tsx:473`, `useJourneySession.ts:232`/`:256`) reads `interchange`
+      off a station, never off the facilities record. So this is latent, not
+      live: the wrong value is sitting in a file under a name that already means
+      something correct elsewhere, waiting for the first caller to reach for the
+      nearer one. Fix by dropping the field from the scraper's output (the
+      `secondLine` on `stations.json` is the fact, and duplicating a derived
+      boolean across two stores is what let them disagree), or by correcting it
+      and adding a test that the two agree. Note `stationFacilities.ts:66` still
+      declares it in the type, so dropping it is a typed change and not a silent
+      one.
 
 ## Map rendering (`app/src/features/map/components/HomeMap.tsx`, `map/geometry/trackGeometry.ts`)
 
@@ -34,7 +75,7 @@ _(no open entries)_
 
 ## Settings / You screen (`app/src/features/journey/components/YouScreen.tsx`)
 
-- [ ] The app version is hardcoded as the literal `Metrothi · v0.1.0-prototype` (`YouScreen.tsx:300`), and there is now a second source for the same fact: `vite.config.ts` reads `package.json` into `import.meta.env.VITE_APP_VERSION`, which every analytics row carries (§5.8). They agree today at `0.1.0` and will silently diverge the first time `package.json` is bumped — the screen will keep claiming the old version while the events report the new one, which is exactly the comparison the `app_version` column exists to support. Fix by rendering `import.meta.env.VITE_APP_VERSION` and keeping only the `-prototype` suffix (or moving that suffix into `package.json` too). Found while wiring §8.2 phase D; out of scope for it.
+_(no open entries)_
 
 ## Reference pages (`app/src/features/info/topics.ts`)
 
@@ -42,31 +83,6 @@ Found in the 2026-07-29 source-fidelity audit of all eight topics, which was
 prompted by the QR-ticket claim fixed the same day. The three real §7.6 problems
 it turned up were fixed then; these three are cosmetic or structural, and are
 here rather than fixed inline to keep that change reviewable.
-
-- [ ] **The Metro Rail (O&M) Act citation is attached to one of three statutory
-      lists.** `prohibitedSections` prints "Under the Metro Rail (O&M) Act,
-      2002." only in the **Offensive materials** section (`topics.ts:294`), but
-      all three lists are the Act's — Dangerous materials and Pets & live
-      animals both open with the same "No person shall take or cause to be
-      taken on the metro railway" statutory phrasing. Not a false claim, just
-      unevenly sourced: a rider reading the pets rule cannot see it is law.
-      Fix is either one citation per section or one for the page.
-
-- [ ] **The trilingual-poster note renders only under "Don't".**
-      `conductSections` puts "GMRC publishes this as a poster in Gujarati,
-      Hindi and English…" in the Don't section alone (`topics.ts:233`), though
-      the poster carries both columns. Worth more than cosmetics: that note is
-      what marks this topic as **unblocked for localization** (§6.7), so its
-      placement is the thing a future translator reads to know the Do column is
-      equally available.
-
-- [ ] **`.replace()` string surgery on lost-and-found data is silently
-      wording-dependent.** `l.office.replace("Lost & Found office, ", "")` and
-      `l.officeHours.replace(" hrs", "")` (`topics.ts:434-435`) both match
-      today's strings exactly and are correct now. A re-scrape that rewords
-      either field makes the replace a no-op and the row reads "Office: Lost &
-      Found office, Apparel Park Depot" under a label that already says Office.
-      Trim in the JSON, or assert the shape.
 
 **The pattern behind all of these, worth keeping:** every problem the audit
 found lived in a **composed** string — one the app builds out of GMRC fields
@@ -80,6 +96,47 @@ prose needs its own assertion each time.
 ## Route-change scroll position (`App.tsx`, `StationDetail.tsx`)
 
 _(no open entries)_
+
+## Planner (`app/src/features/journey/components/Planner.tsx`)
+
+_(no open entries)_
+
+## Journey sheet (`app/src/features/journey/components/journeySheet/*`)
+
+- [ ] `JourneySummary.tsx:171` lays the departure picker out as a fixed
+      `grid-cols-4` of clock times. The redesign strategy predicts (§12.3/A12,
+      §10.2/P4) that this is the first thing in the app to overflow at 200% text
+      zoom, and nothing has yet tested it. Either wrap or scroll the cells above
+      a threshold. Phase 3 (§16/3.14). Found 2026-08-04 while executing Phase 2.
+
+## Dead code
+
+- [ ] `app/src/features/journey/components/Countdown.tsx` has no import site
+      anywhere in `app/src` — the only occurrences of the name are its own
+      interface and export. It also hand-rolls `h`/`m`/`s` formatting outside
+      `formatDuration`, which is the single source for durations everywhere else
+      (§5.5), so if it were ever adopted it would immediately be a third format
+      on a screen. Delete, or adopt it and route it through `formatDuration`.
+      Found 2026-08-03, same audit.
+
+## Document head (`app/index.html`)
+
+- [ ] The `BreadcrumbList` JSON-LD (lines ~95-105) advertises four URLs —
+      `/`, `/go`, `/map`, `/stations` — and **three of them are not routes**.
+      `App.tsx` defines `/`, `/stations/:id`, `/you` and `/you/:topic`; anything
+      else falls through to `<Route path="*">` and renders the home screen. The
+      structured data therefore tells search engines about three pages that
+      resolve to a fourth. Found 2026-08-03, same audit.
+
+- [ ] `<title>`, `<link rel="canonical">` and every `og:*` / `twitter:*` tag are
+      fixed to the site root, and nothing sets them per route. Verified in the
+      running app: `/stations/vastral-gam` and `/you/fares` both report
+      `document.title === "Metrothi — Ahmedabad Metro Route, Map, Timings & Fare
+      Planner"`. That title is what a rider sees in a browser tab, what a share
+      sheet quotes, what the back-stack labels, and what a screen reader
+      announces on navigation — wrong on three of four routes, and worst on
+      `/you/:topic`, which is the content most likely to be shared as a link.
+      Found 2026-08-03, same audit.
 
 ## Bundle splitting
 
@@ -190,6 +247,32 @@ _(no open entries)_
 
 ## Analytics (`app/src/services/analytics.ts`, `supabase/analytics.sql`, PRD §5.8)
 
+- [ ] **`language_changed` cannot answer "how many Hindi riders", and the
+      dashboard has to caveat it instead of charting it.** The event fires in
+      `i18n/useLanguage.ts:30` when a rider *switches* language, so every rider
+      who stays on the default emits nothing — English is under-counted by
+      approximately the whole of its user base, and a rider who tries Gujarati
+      once and switches back counts twice, in two directions. The panel in
+      `scripts/analytics-dashboard.mjs` says so in as many words, which is the
+      honest reading of the data that exists but not the metric that was asked
+      for. **The fix is a `lang` prop on `app_open`** — one line in
+      `trackAppOpen()`, and the distribution becomes a group-by over sessions
+      that are already counted. Not done here because it changes what every
+      rider's first event carries and deserves its own look at §5.8's props
+      rules. Found 2026-08-04 while building the phase-G panels.
+
+- [ ] **`journey_abandoned` records *where* a rider dropped out and not *when*,
+      so "on average when do riders end the journey" is only answerable as a
+      stage.** `App.tsx:127` sends `props{atState}` — the §4.2 state machine
+      state — which is enough to see that riders leave at, say, `WAITING` rather
+      than `RIDING`. It carries no elapsed time, so there is no way to say
+      whether that was forty seconds in or twenty minutes. Adding
+      `props{elapsedMins}` from the journey session's own start timestamp would
+      answer it and costs one number; the reason it is not in this pass is that
+      elapsed-time-on-a-journey plus an origin→destination pair is a noticeably
+      sharper record of a specific trip than either alone, and that trade is
+      §5.8's to make rather than a dashboard's. Found 2026-08-04.
+
 - [ ] **The `hidden` drain can't finish, and on mobile usually won't.**
       `startAnalyticsTriggers` (line ~305) fires `drainEvents()` on
       `visibilitychange → hidden`, which the comment correctly calls "the last
@@ -215,6 +298,256 @@ _(no open entries)_
 ---
 
 ## Resolved / Fixed
+
+- **[Corrected 2026-08-06]** The ticket-note row entry was **wrong about the
+  data**, and acting on it as written would have removed a fact riders need.
+  It claimed `ticketInfo.note` is empty on same-phase trips, so the sheet "draws
+  an icon pointing at nothing" on most plans, and proposed hiding the row.
+  **Both branches of `getTicketOptions` set a substantial note.** The same-phase
+  one reads "Token, Smart Card, or NCMC all work for this trip. Smart Card and
+  NCMC both get 10% off the fare shown, deducted on exit." — and that 10% is the
+  discount the engine deliberately does **not** apply to the fare it shows
+  (`fareEngine`, §5.4), so this row is the only place in the app a rider learns
+  it exists. Hiding the row on same-phase trips would have deleted it from the
+  common case.
+  Measured, not read: a throwaway probe planned **all 2862 ordered station
+  pairs** (1454 same-phase, 1408 cross-phase) and found **zero** empty notes.
+  It is `where` that is cross-phase only, which is correct and intended —
+  there is nothing to solve when everything the rider might hold already works.
+  What was actually wrong was a **comment**: `JourneySummary` asserted "It only
+  ever has content on a cross-phase trip (§4.2)", the same false premise, which
+  is almost certainly where the entry came from. Rewritten, with the measurement
+  recorded so it is not re-derived.
+  The guard the entry asked for is **in** — `{(ticketInfo.note ||
+  ticketInfo.where) && …}`, plus one on the note's own `<p>` — because it costs
+  nothing and makes the described defect impossible rather than merely absent by
+  luck. It changes nothing today: verified live that the row still renders on
+  both paths, Old High Court → Vastral Gam showing the note alone and Old High
+  Court → Mahatma Mandir showing the note plus "GMRC lists NCMC cards as
+  available at every station", both directly above Start Journey, zero
+  horizontal overflow.
+  **The lesson is the same one this file already records about the analytics
+  `42501`:** a plausible cause matching a symptom is not a diagnosis. Check the
+  entry against the data before writing the fix — twice now in this pass an
+  entry has described a state the repo was not in.
+  *(Checked and dismissed while here: several planner buttons report
+  `type: "submit"`. There are **zero** `<form>` elements in the document and
+  none of them is inside one, so that is the DOM's default reflection for a
+  bare `<button>` with nothing to submit — not a defect, and deliberately not
+  logged as one.)*
+
+- **[Fixed 2026-08-06]** The lost-and-found `.replace()` surgery is pattern-based
+  and asserted. `OFFICE_LABEL_PREFIX` and `HOURS_UNIT_SUFFIX` in `topics.ts`
+  replace the two exact-string calls, tolerating case, spacing, separator and
+  the `hr`/`hrs`/`hours` spellings.
+  **Trimmed in the module, not in the JSON — the entry's two options are not
+  equal.** `passengerInfo.json` holds GMRC's strings as published, which is what
+  makes it checkable against the source; presentation is `topics.ts`'s job.
+  **`&|and` is not defensive hedging: GMRC uses both spellings inside this one
+  record.** `office` reads "Lost & Found office" while `howToReport[2]` reads
+  "at the Lost and Found office" — so the variant the original `.replace()`
+  would have missed is one the source page demonstrably already writes. The
+  first pattern drafted here only matched `&` and was caught by pressure-testing
+  it against plausible rewordings before committing to it, not after.
+  Three tests, asserting the **output** rather than the source wording — the
+  property that must hold however GMRC rewords the fields: the Office row
+  contains neither "lost & found" nor "office"; the Open row carries no unit but
+  still contains a digit (a greedier pattern that ate the times would pass the
+  first check alone); and both still equal "Apparel Park Depot" and "10:30 to
+  18:10", which is what catches a pattern broad enough to empty the value.
+  **Demonstrated end to end rather than argued.** With `passengerInfo.json`
+  temporarily reworded to "Lost and Found Office: Apparel Park Depot" /
+  "10:30 to 18:10 Hours" — a re-scrape of exactly the kind this entry predicted
+  — the old expressions were confirmed to produce "Lost and Found Office:
+  Apparel Park Depot" under a row labelled Office, while the new ones still
+  yield "Apparel Park Depot" and "10:30 to 18:10" and all three tests pass
+  unchanged. JSON restored byte-exact (empty `git diff`).
+  Verified live on `/you/lost-and-found`: "Office / Apparel Park Depot", "Open /
+  10:30 to 18:10", no label repetition, no unit, zero horizontal overflow.
+  `tsc -b --noEmit` clean, oxlint at its 7 pre-existing warnings, suite 441/441
+  (was 438).
+
+- **[Fixed 2026-08-06]** `SourceLinkBlock`'s sentence goes through `t()`.
+  New key `you.readOriginal` in all three bundles — `you` rather than a new
+  namespace because `you.englishOnlyForNow`, which is about these same pages,
+  already lives there.
+  **The domain is read off the `href`, not written into the bundles.** The entry
+  asked for "a bundle key with the domain interpolated" and stopped short of
+  saying where the domain comes from; hardcoding `gujaratmetrorail.com` into
+  three locale files would have been three more places to disagree with the link
+  they sit beside. `new URL(href).hostname` with `www.` stripped means they
+  cannot, and it stays right if GMRC ever moves. It is also the §6.8-correct
+  handling: a domain is a proper noun, so it must survive translation unchanged,
+  which interpolation guarantees and a translated literal does not.
+  Wrapped in `try/catch` — unreachable from `officialLinks`, which are all
+  absolute URLs, but a malformed href must degrade to a working link rather than
+  throw away the page from inside a render.
+  **Verified in all three languages** through the app's own `changeLanguage`,
+  reading the footer link specifically (`a.text-read-label` inside the
+  border-top div — the first attempt matched a *content* link on
+  `/you/lost-and-found` and reported the wrong element's text):
+  en "Read the original on gujaratmetrorail.com", hi "gujaratmetrorail.com पर
+  मूल पृष्ठ पढ़ें", gu "gujaratmetrorail.com પર મૂળ પૃષ્ઠ વાંચો". No raw key
+  leaked, no `{{placeholder}}` survived, no `www.`, `<html lang>` followed, and
+  **GMRC's transcribed content stayed English in both Indic languages** — which
+  is the thing that had to remain true (§6.7): our chrome moves, their words do
+  not.
+  `tsc -b --noEmit` clean, oxlint at its 7 pre-existing warnings, suite 438/438
+  including `locales.test.ts`'s parity, orphaned-key and placeholder checks.
+
+- **[Fixed 2026-08-06]** The conduct poster's trilingual note now covers the
+  page instead of the Don't column. It is a **`sourceNote` on `Topic`** — a new
+  optional field for a fact about the *transcription* rather than about any one
+  section — rendered by `InfoPage` in the source footer, above the "Read the
+  original" link.
+  **Neither of the obvious fixes was right, which is why this grew a field.**
+  Duplicating it into both sections would print the same sentence twice on a
+  two-section page; leaving it in the last section is what it already did, and
+  the block model had no page-level slot at all. But the page *did* already have
+  page-level furniture — the source link — and a note about the source document
+  belongs with it. That also generalises: any future page transcribed from a
+  document with more behind it than the app shows now has somewhere honest to
+  say so.
+  Why it matters beyond tidiness: §6.7 hangs off this sentence. It is what marks
+  conduct as the one topic with an **authoritative** Gujarati and Hindi source,
+  and under Don't it told a translator the Don't column was sourced while saying
+  nothing about the Do column, which has the same poster behind it.
+  Three tests added: the note is a page-level `sourceNote` naming both scripts;
+  **no section carries it** (asserted across every section, not just Don't —
+  the regression that matters is it coming back as a block *as well* and
+  printing twice); and no other topic has a `sourceNote`, since every one of
+  them is transcribed from an English-only GMRC page and a note there would be
+  a localization claim the repo cannot back.
+  **Mutation-checked:** re-adding the note inside Don't fails with "Don't should
+  not carry the poster note".
+  Verified live on `/you/conduct` — the sentence appears **once**, after both
+  columns and 105 characters above the source link — and on `/you/fares`, whose
+  footer is still the bare link. `tsc -b --noEmit` clean, oxlint at its 7
+  pre-existing warnings, suite 438/438 (was 435).
+  *(Unrelated, noted so the next session doesn't chase it: every route logs one
+  `400` from `va.vercel-scripts.com` — Vercel's analytics and speed-insights
+  debug scripts, which cannot reach their endpoints against a localhost dev
+  server. Present on `/` too, i.e. dev-environment noise, not a product defect.)*
+
+- **[Fixed 2026-08-06]** All three statutory lists on `/you/prohibited` now cite
+  the Act, not just Offensive materials. One `legalBasis` block, attached to
+  Pets & live animals, Dangerous materials and Offensive materials.
+  **Of the entry's two options — one citation per section, or one for the page —
+  only the first is correct, and the data is what says so.** The page is not all
+  statute: **Luggage** comes from `metroInfo.luggage`, i.e. GMRC's fare-rules
+  and train-information pages, quoted as bare numbers ("Weight 25 Kg and
+  Dimension of 80 cm x 50 cm x 30 cm") with no legal basis stated anywhere near
+  it. A page-level footer note would have swept the luggage limits into an Act
+  that may not set them — the same §7.6 overclaim as the QR-ticket inference,
+  pointing the other way. The three that *are* cited each open with the Act's
+  own phrasing ("No person shall take or cause to be taken…"), and `legalBasis`
+  sits at the top of `prohibitedItems` rather than inside any one list, so the
+  data already modelled it as covering the set.
+  Two tests added, per this section's own standing rule that composed prose
+  needs its own assertion: one asserts the citation on all three statutory
+  sections **and** that each still opens with the statutory phrasing that
+  justifies citing it (so a re-scrape that rewords them trips the test rather
+  than silently leaving a citation attached to non-statutory prose); the other
+  asserts Luggage carries **no** Act note.
+  **Mutation-checked rather than assumed green** — removing the citation from
+  Dangerous materials alone fails with "Dangerous materials should carry the Act
+  citation", so the assertion is load-bearing.
+  Verified live on `/you/prohibited`: four sections in order, `citesAct` true /
+  **false** / true / true, three citations total, zero horizontal overflow, no
+  console errors. (First probe of this reported Luggage as cited — the splitter
+  was matching lowercase labels while the UI renders them uppercase, so it was
+  keying off the words "Luggage exceeding…" in a note. The reading was wrong,
+  not the page.)
+  `tsc -b --noEmit` clean, oxlint at its 7 pre-existing warnings, suite 435/435
+  (was 433).
+
+- **[Fixed 2026-08-06]** The `/you` version line reads `package.json` instead of
+  repeating it. `YouScreen.tsx` now renders
+  `Metrothi · v{import.meta.env.VITE_APP_VERSION}-prototype`.
+  **The entry undercounted the problem: there are three consumers of this fact,
+  not two.** Besides the analytics `app_version` column (§5.8), `catalog.ts`'s
+  `feedbackMailto()` puts the version in the body of every bug report — so the
+  screen could have disagreed with the email sent from that same screen, which
+  is the one place the mismatch would have been read by a human trying to
+  reproduce something.
+  **Only the number moved to the shared source; `-prototype` stays written in
+  the component**, rather than going into `package.json` as the entry's second
+  option suggested. `0.1.0-prototype` is valid semver, but it would ride on
+  every analytics row and put a discontinuity in the column that exists to
+  compare builds. The residual cost is that the *word* still needs a hand-edit
+  the day this stops being a prototype — accepted, because a stale word is
+  visible on screen where a stale number was not.
+  `VITE_APP_VERSION` is also now declared in `vite-env.d.ts`, non-optional and
+  documented as the one value there that comes from `define` rather than a
+  `.env`. Without it all three readers were leaning on the index signature
+  `vite/client` merges in, which types it `any` — which is why one had a cast
+  and another a `?? "unknown"` fallback for a value that cannot be absent.
+  **Verified by actually bumping the version**, since rendering `0.1.0`
+  correctly proves nothing when the literal it replaced also said `0.1.0`: with
+  `package.json` temporarily at `9.9.9-verify` and the dev server restarted (a
+  `define` is read at config load, not on HMR), the screen read
+  `Metrothi · v9.9.9-verify-prototype` and the mailto body `Metrothi
+  9.9.9-verify` — both following one edit. Restored byte-exact; the only
+  remaining diff in `package.json` is the pre-existing lint-script change.
+  `tsc -b --noEmit` clean, oxlint at its 7 pre-existing warnings, suite
+  433/433, no console errors.
+
+- **[Fixed 2026-08-06]** The three surviving semantics defects in the home
+  sheet's chrome, from the 2026-08-03 interface audit.
+  - **`LineStatusPills` announced four list items that were buttons.** The
+    container's `role="list"` and each pill's `role="listitem"` **replace** the
+    implicit roles, so the pressability never reached assistive tech while the
+    accessible name ended "View stations". Now `role="group"` with the same
+    `aria-label` and no role on the buttons — chosen over wrapping each in a
+    real `<li>` because there is nothing list-like left to convey once the
+    label says what the set is. Verified live: the container reports
+    `role="group"` / "Line service status", all four children are `BUTTON` with
+    no explicit role, and the first still names itself "Blue Line: In 2h 10m.
+    View stations".
+  - **The station sheet header read its actions before its facts.** DOM order
+    was identity → actions → hero → chips, so a screen reader heard "Default
+    station, Old High Court, walking directions, save…" before the departure or
+    the walk distance. The header is now a two-column grid and the actions are
+    **last in source**, placed back into the top-right cell with
+    `row-start-1 col-start-2`; everything else auto-places. Nothing moved on
+    screen — measured at 375px, the identity block and the actions sit at the
+    same `y: 19` before and after, actions at `x: 278`, width 80.
+    Two details worth keeping. Rows are **auto-placed rather than numbered**,
+    because the chip row carries `empty:hidden` and most of the day renders
+    nothing: emptying it takes the grid from `36px 72px 28px` to `36px 72px`
+    and its height from 172 to 132 — the row *and* its 12px gap — where a
+    hard-coded third row would have kept spending the gap. And the content
+    column is `minmax(0,1fr)`, not `1fr`, because a grid track's automatic
+    minimum is its content: with the bookmark saved the actions widen 80 → 129px
+    and the station name has to truncate instead of pushing the row wide.
+    Confirmed in that state — `nameTruncated: true`, document overflow 0.
+  - **`LineBadge` asked for a weight the app never fetches.** `font-black` is
+    900; `index.html` requests 400;500;600;700, so the most repeated glyph in
+    the product was synthesised by the browser rather than drawn. Now
+    `font-bold`. Verified against `document.fonts`: the only Space Grotesk faces
+    present are 400/500/600/700 and the badge computes 700. Note
+    `document.fonts.check('900 …')` returns `true` regardless — it answers "can
+    this be rendered", synthesis included, so the face list is the evidence and
+    the check is not.
+  The other half of that fonts entry — the unused `300` in the request — was
+  already gone, as were the Design-tokens and Planner entries; all four are
+  retired above rather than fixed here, see the note below.
+  `tsc -b --noEmit` clean, oxlint at its 7 pre-existing warnings, design-token
+  check ok, suite 433/433. Zero console errors and zero horizontal overflow at
+  375 and 320px.
+
+- **[Retired 2026-08-06]** Four entries were **already fixed in the working
+  tree** when this pass went to act on them, and are removed rather than
+  re-fixed. Recorded because the file's own convention is that an entry leaves
+  only when something changes:
+  - all three **Design tokens** entries — `HomeScreen`'s alert `Chip` reads
+    `--c-warn` / `--c-warn-border` (with the old 2.00:1 literal preserved in a
+    comment), `--c-border` is `#cfcfd4` light / `#42424b` dark, and `--c-text-4`
+    is theme-aware at `#5b5b66` / `#8f8f9c`;
+  - the **Planner**'s nested `<div role="button">`, now a sibling control.
+  The lesson is procedural and worth the line: this file is checked against
+  `develop`, and a long-lived working tree can fix an entry without touching
+  it. Verify an entry still reproduces before planning work on it.
 
 - **[Fixed 2026-08-02]** The analytics drain could never insert, on any project,
   from the day §8.2 phase C shipped. `drain()` sent

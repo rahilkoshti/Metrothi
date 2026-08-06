@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
+import { MotionConfig } from 'framer-motion';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { HomeScreen } from './features/journey/components/HomeScreen';
 import { LocationService, type LocationErrorKind } from './services/LocationService';
@@ -82,6 +83,22 @@ function MainApp() {
 
   const locFailed = locStatus === "denied" || locStatus === "unavailable" || locStatus === "timeout";
   const nearestOrFallback = nearest || (locFailed ? { ...STATION_BY_ID["old-high-court"], distanceKm: null } : null);
+
+  // §5.8: which station geolocation resolved to, and never the coordinate that
+  // resolved it. A station id is the same granularity the app already records
+  // in `from_station`; the lat/lng in `coords` is the thing §5.8 refuses, and it
+  // stays in this component.
+  //
+  // `nearest`, deliberately not `nearestOrFallback` — the fallback is Old High
+  // Court standing in for a rider whose location failed, and counting it would
+  // report the app's default as the city's most common nearby station.
+  //
+  // Keyed on the station id, so a rider standing still re-emits nothing while
+  // `coords` jitters, and a rider who walks to the next station emits once more.
+  const nearestId = nearest?.id;
+  useEffect(() => {
+    if (nearestId) track('nearby_resolved', { fromStation: nearestId });
+  }, [nearestId]);
 
   function handlePlan(source: any, dest: any, config?: any) {
     const srcArg = source.isPlace ? source : (source.id || source);
@@ -253,6 +270,13 @@ function App() {
   return (
     <AuthProvider>
       <ThemeProvider>
+        {/* Every framer entrance in the app in one line. `reducedMotion="user"`
+            makes each motion component skip the *transform* half of its
+            animation and snap to the end state, while opacity still animates —
+            which is exactly the substitution the spec asks for: a slide-up
+            becomes a fade, nothing else changes, and no component has to know.
+            Gestures are untouched, so the sheet still follows the thumb. */}
+        <MotionConfig reducedMotion="user">
         <BrowserRouter>
           {/* A leaf, for the reason ScrollReset and LanguageSync are: it reads
               the location to attribute a route (§8.2 phase A) and must not
@@ -260,6 +284,7 @@ function App() {
           <Insights />
           <MainApp />
         </BrowserRouter>
+        </MotionConfig>
       </ThemeProvider>
     </AuthProvider>
   );

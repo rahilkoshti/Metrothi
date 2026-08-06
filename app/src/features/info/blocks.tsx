@@ -1,4 +1,5 @@
 import { ArrowUpRight, Check, Ban, Phone, Mail, TriangleAlert } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { FactChip, FactNote } from "../../components/FactPrimitives";
 
 /**
@@ -54,14 +55,18 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
 
 /**
  * The reading voice, and the one place this feature departs from the rest of
- * the app. Everywhere else Metrothi speaks in 9–14px bold uppercase — right for
- * a countdown or a gate number, wrong for fourteen consecutive sentences of
- * GMRC's rules. Body text here is 14px medium on `--c-text-2` at relaxed
- * leading; the measure is already capped by `--layout-max-width`.
+ * the app. Everywhere else Metrothi speaks in short bold lines — right for a
+ * countdown or a gate number, wrong for fourteen consecutive sentences of
+ * GMRC's rules.
+ *
+ * `text-read-body` is the reference ladder's prose size: 17px at 28px leading,
+ * against the UI ladder's 17/22. Reading wants the looser line; scanning wants
+ * the denser one, and this feature is the only part of the app that reads. The
+ * measure is capped at `--measure-read` by `InfoPage` for the same reason.
  */
 function Body({ children }: { children: React.ReactNode }) {
   return (
-    <span className="text-[14px] font-medium leading-relaxed" style={{ color: "var(--c-text-2)" }}>
+    <span className="text-read-body" style={{ color: "var(--c-text-2)" }}>
       {children}
     </span>
   );
@@ -71,10 +76,10 @@ function Body({ children }: { children: React.ReactNode }) {
 
 function Marker({ marker }: { marker: ListMarker }) {
   if (marker === "do") {
-    return <Check size={15} strokeWidth={2.6} className="shrink-0 mt-1" style={{ color: "#22c55e" }} />;
+    return <Check size={16} strokeWidth={2.2} className="shrink-0 mt-1" style={{ color: "var(--c-good)" }} />;
   }
   if (marker === "dont") {
-    return <Ban size={15} strokeWidth={2.6} className="shrink-0 mt-1" style={{ color: "#f87171" }} />;
+    return <Ban size={16} strokeWidth={2.2} className="shrink-0 mt-1" style={{ color: "var(--c-error)" }} />;
   }
   return (
     <span
@@ -125,11 +130,11 @@ function KeyValueBlock({ rows }: { rows: { label: string; value: string }[] }) {
           className="flex items-start gap-4 px-4 py-3"
           style={{ borderTop: i === 0 ? "none" : "1px solid var(--c-border)" }}
         >
-          <div className="flex-1 text-[13px] font-semibold leading-snug" style={{ color: "var(--c-text-3)" }}>
+          <div className="flex-1 text-read-label" style={{ color: "var(--c-text-3)" }}>
             {row.label}
           </div>
           <div
-            className="text-[13px] font-bold tabular-nums text-right shrink-0 max-w-[55%] leading-snug"
+            className="text-read-label font-bold tabular-nums text-right shrink-0 max-w-[55%]"
             style={{ color: "var(--c-text)" }}
           >
             {row.value}
@@ -155,10 +160,13 @@ function DefinitionsBlock({ items }: { items: { term: string; description: strin
           className="px-4 py-3.5"
           style={{ borderTop: i === 0 ? "none" : "1px solid var(--c-border)" }}
         >
-          <div className="text-[13px] font-bold" style={{ color: "var(--c-text)" }}>
+          <div className="text-headline" style={{ color: "var(--c-text)" }}>
             {item.term}
           </div>
-          <div className="text-[12.5px] font-medium leading-snug mt-1" style={{ color: "var(--c-text-4)" }}>
+          {/* These "values" are sentences — what a piece of emergency equipment
+              is for, what the registered office is — so they read at the prose
+              size rather than the 12.5px caption they were set in. */}
+          <div className="text-read-body mt-1" style={{ color: "var(--c-text-3)" }}>
             {item.description}
           </div>
         </div>
@@ -172,9 +180,9 @@ function ProseBlock({ text, tone = "plain" }: { text: string; tone?: "plain" | "
     return (
       <div
         className="rounded-2xl p-4 flex gap-3"
-        style={{ background: "var(--c-card)", border: "1px solid #f59e0b" }}
+        style={{ background: "var(--c-warn-bg)", border: "1px solid var(--c-warn-border)" }}
       >
-        <TriangleAlert size={16} strokeWidth={2.4} className="shrink-0 mt-0.5" style={{ color: "#f59e0b" }} />
+        <TriangleAlert size={16} strokeWidth={2.2} className="shrink-0 mt-0.5" style={{ color: "var(--c-warn)" }} />
         <Body>{text}</Body>
       </div>
     );
@@ -213,11 +221,11 @@ function ActionsBlock({ items }: { items: InfoAction[] }) {
             <a
               href={href}
               {...(action.kind === "external" ? { target: "_blank", rel: "noreferrer" } : {})}
-              className="w-full py-4 px-4 rounded-2xl text-[14px] font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+              className="w-full py-4 px-4 rounded-2xl text-headline flex items-center justify-center gap-2 transition-all active:scale-[0.97]"
               style={
                 primary
                   ? { background: "var(--c-accent)", color: "var(--c-accent-fg)" }
-                  : { color: "var(--c-accent)", border: "1px solid var(--c-accent)" }
+                  : { color: "var(--c-accent-text)", border: "1px solid var(--c-accent-text)" }
               }
             >
               <Icon size={16} strokeWidth={2.5} />
@@ -225,7 +233,7 @@ function ActionsBlock({ items }: { items: InfoAction[] }) {
             </a>
             {action.kind !== "external" && (
               <div
-                className="select-text text-center text-[12px] font-semibold mt-1.5 break-all"
+                className="select-text text-center text-read-label mt-1.5 break-all"
                 style={{ color: "var(--c-text-4)" }}
               >
                 {action.value}
@@ -247,10 +255,10 @@ function LinkListBlock({ items }: { items: { label: string; href: string }[] }) 
           href={item.href}
           target="_blank"
           rel="noreferrer"
-          className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-[var(--c-card-alt)] focus-visible:bg-[var(--c-card-alt)] focus-visible:outline-none"
+          className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-[var(--c-card-alt)] focus-visible:bg-[var(--c-card-alt)]"
           style={{ borderTop: i === 0 ? "none" : "1px solid var(--c-border)" }}
         >
-          <span className="flex-1 min-w-0 text-[14px] font-semibold" style={{ color: "var(--c-text)" }}>
+          <span className="flex-1 min-w-0 text-headline" style={{ color: "var(--c-text)" }}>
             {item.label}
           </span>
           <ArrowUpRight size={16} className="shrink-0" style={{ color: "var(--c-text-4)" }} />
@@ -264,17 +272,39 @@ function LinkListBlock({ items }: { items: { label: string; href: string }[] }) 
  * Every page carries a link to the GMRC page it was transcribed from, so a
  * rider can always check us against the source (§4.5.1). This is principle 1
  * (§1) as a component: we never ask to be taken on trust.
+ *
+ * **Translated, unlike everything around it.** The titles, blurbs and block
+ * content on these pages stay English deliberately (§6.7) because they are
+ * GMRC's words with no official Hindi or Gujarati source in the repo. This
+ * sentence is Metrothi's own voice — an instruction to the reader — so the rule
+ * that exempts the rest does not reach it.
+ *
+ * The domain is **read off the href** rather than written into the bundle: it
+ * is a proper noun, so it must not be translated (§6.8), and deriving it means
+ * the three locales cannot disagree with the link they sit on, nor go stale if
+ * GMRC ever moves. `www.` is dropped because it is noise to a reader and its
+ * presence is a hosting detail, not part of the name.
  */
 function SourceLinkBlock({ href }: { href: string }) {
+  const { t } = useTranslation();
+  let domain: string;
+  try {
+    domain = new URL(href).hostname.replace(/^www\./, "");
+  } catch {
+    // Not reachable from `officialLinks`, all of which are absolute URLs — but
+    // a bad href must degrade to a link that still works rather than throwing
+    // the whole page away inside a render.
+    domain = href;
+  }
   return (
     <a
       href={href}
       target="_blank"
       rel="noreferrer"
-      className="flex items-center gap-1.5 px-1 py-2 text-[12px] font-semibold"
+      className="flex items-center gap-1.5 px-1 py-2 text-read-label"
       style={{ color: "var(--c-text-4)" }}
     >
-      Read the original on gujaratmetrorail.com
+      {t("you.readOriginal", { domain })}
       <ArrowUpRight size={13} strokeWidth={2.4} />
     </a>
   );

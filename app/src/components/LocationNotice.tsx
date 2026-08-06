@@ -30,28 +30,34 @@ export function LocationNotice({
   if (!copy) return null;
 
   return (
+    // The tinted block and its text were a hand-rolled yellow — text-yellow-600
+    // on an 8% yellow tint, which measures 2.59:1. This is the state a rider
+    // sees the very first time they open the app with location blocked, so it
+    // is both the most common notice in the product and the least readable one.
+    // Same 8%/22% shape, from the warn tokens, which clear 4.9:1 on their own
+    // tint in both themes.
     <div
-      className="flex items-start gap-2.5 p-3 rounded-xl"
-      style={{ background: 'rgba(250,204,21,0.08)', border: '1px solid rgba(250,204,21,0.22)' }}
+      className="flex items-start gap-3 p-3 rounded-card"
+      style={{ background: 'var(--c-warn-bg)', border: '1px solid var(--c-warn-border)' }}
       role="status"
     >
-      <LocateFixed size={14} className="text-yellow-600 shrink-0 mt-0.5" />
+      <LocateFixed size={16} strokeWidth={2.2} className="shrink-0 mt-0.5" style={{ color: 'var(--c-warn)' }} />
       <div className="flex-1 min-w-0">
-        <div className="text-xs font-bold text-yellow-600">
+        <div className="text-footnote font-bold" style={{ color: 'var(--c-warn)' }}>
           {t(copy.title)}
         </div>
         {!compact && (
-          <div className="text-[11px] font-medium mt-0.5" style={{ color: 'var(--c-text-3)' }}>
+          <div className="text-footnote mt-0.5" style={{ color: 'var(--c-text-3)' }}>
             {t(copy.hint)}
           </div>
         )}
       </div>
       <button
         onClick={(e) => { e.stopPropagation(); onRetry(); }}
-        className="flex items-center justify-center gap-1 text-[11px] font-bold px-3 min-h-[44px] rounded-lg shrink-0 active:opacity-70 transition-opacity text-yellow-600"
-        style={{ border: '1px solid rgba(250,204,21,0.35)' }}
+        className="flex items-center justify-center gap-1 text-footnote font-bold px-3 rounded-control shrink-0 active:opacity-70 transition-opacity"
+        style={{ minHeight: 'var(--touch-min)', color: 'var(--c-warn)', border: '1px solid var(--c-warn-border)' }}
       >
-        <RotateCw size={11} /> {t('location.retry')}
+        <RotateCw size={16} strokeWidth={2.2} /> {t('location.retry')}
       </button>
     </div>
   );

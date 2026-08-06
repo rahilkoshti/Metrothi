@@ -3,7 +3,7 @@ import { LINE_META } from "../../engine/journeyEngine";
 import { formatDuration } from "../../engine/journeyEngine";
 import { LineBadge } from "../../../../components/LineBadge";
 import { ExitGuidance } from "../ExitGuidance";
-import { LINE_DOT_BG, LINE_TRACK_BG } from "../../constants";
+import { LINE_COLOR } from "../../constants";
 
 /**
  * The stops timeline for a planned journey — origin walk, every station with
@@ -22,7 +22,7 @@ export function RouteTimeline({ result, active }: { result: any; active: any }) 
 
   return (
     <div className="rounded-2xl p-5" style={{ background: 'var(--c-bg)' }}>
-      <h3 className="text-[9px] font-bold uppercase tracking-widest mb-6" style={{ color: 'var(--c-text-3)' }}>{t('journey.route')}</h3>
+      <h3 className="text-caption font-bold uppercase mb-6" style={{ color: 'var(--c-text-3)' }}>{t('journey.route')}</h3>
       <div className="relative">
         {sourcePlace && (
           <div className="flex items-stretch gap-4">
@@ -63,21 +63,28 @@ export function RouteTimeline({ result, active }: { result: any; active: any }) 
               <div key={st.id + i} className="flex items-stretch gap-4">
                 {/* Track column */}
                 <div className="flex flex-col items-center" style={{ width: 20, minWidth: 20 }}>
+                  {/* The dot and rail were Tailwind class strings whose yellow
+                      (bg-yellow-400, #facc15) disagreed with the signage hex
+                      every other surface uses (#EAB308) — the same line drawn
+                      in two different yellows depending on which component you
+                      were looking at. One map, one fill. */}
                   <div
                     className={`rounded-full shrink-0 z-10 ${
                       isEndpoint
-                        ? `w-4 h-4 ${LINE_DOT_BG[lineKey]}`
+                        ? "w-4 h-4"
                         : isInterchange
                         ? "w-3.5 h-3.5 border-2"
-                        : `w-2 h-2 ${LINE_DOT_BG[lineKey]} opacity-60`
+                        : "w-2 h-2 opacity-60"
                     }`}
                     style={{
                       marginTop: isEndpoint ? 2 : isInterchange ? 3 : 5,
-                      ...(isInterchange ? { background: 'var(--c-bg)', borderColor: 'var(--c-text)' } : {}),
+                      ...(isInterchange
+                        ? { background: 'var(--c-bg)', borderColor: 'var(--c-text)' }
+                        : { background: LINE_COLOR[lineKey] }),
                     }}
                   />
                   {!isLast && (
-                    <div className={`w-0.5 flex-1 min-h-[28px] ${LINE_TRACK_BG[lineKey]} opacity-40`} />
+                    <div className="w-0.5 flex-1 min-h-[28px] opacity-40" style={{ background: LINE_COLOR[lineKey] }} />
                   )}
                   {isLast && destPlace && (
                     <div className="w-0.5 flex-1 min-h-[28px] border-l-2 border-dashed opacity-50" style={{ borderColor: 'var(--c-border-2)' }} />
@@ -96,7 +103,10 @@ export function RouteTimeline({ result, active }: { result: any; active: any }) 
                   >
                     {st.name}
                     {st.operational === false && (
-                      <span className="ml-2 text-[9px] font-bold uppercase tracking-wide text-yellow-700 border border-yellow-900 px-1 rounded">
+                      <span
+                        className="ml-2 text-caption font-bold uppercase px-1 rounded-chip"
+                        style={{ color: 'var(--c-warn)', border: '1px solid var(--c-warn-border)' }}
+                      >
                         {t('journey.soon')}
                       </span>
                     )}

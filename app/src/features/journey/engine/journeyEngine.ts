@@ -334,7 +334,18 @@ export function haversineKm(a: { lat: number, lng: number }, b: { lat: number, l
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-function findNearestStation(loc: { lat: number, lng: number }) {
+/**
+ * The station a place resolves to, and how far it is.
+ *
+ * Exported because both search surfaces have to *preview* this answer before
+ * the rider commits to it — "Motera Stadium · 400 m · 5 min walk" under a
+ * landmark result — and a second implementation of it in a component is a
+ * second implementation that can disagree with the plan the engine then
+ * builds. It did: the search overlay carried its own copy while the planner
+ * carried none at all and printed "Select to find nearest station" under every
+ * result instead.
+ */
+export function findNearestStation(loc: { lat: number, lng: number }) {
   let best: StationRecord | null = null, bestDist = Infinity;
   for (const s of STATIONS) {
     if (s.lat == null || s.operational === false) continue;

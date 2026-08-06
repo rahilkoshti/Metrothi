@@ -107,7 +107,7 @@ function AuthForm() {
         placeholder="you@example.com"
         autoComplete="email"
         required
-        className="w-full rounded-xl px-3 py-2.5 text-[14px] outline-none focus-visible:border-[var(--c-accent)]"
+        className="w-full rounded-control px-3 py-2.5 text-callout focus-visible:border-[var(--c-border-focus)]"
         style={inputStyle}
       />
       <input
@@ -120,7 +120,7 @@ function AuthForm() {
         autoComplete={mode === 'in' ? 'current-password' : 'new-password'}
         required
         minLength={6}
-        className="w-full rounded-xl px-3 py-2.5 text-[14px] outline-none focus-visible:border-[var(--c-accent)]"
+        className="w-full rounded-control px-3 py-2.5 text-callout focus-visible:border-[var(--c-border-focus)]"
         style={inputStyle}
       />
 

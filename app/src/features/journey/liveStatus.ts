@@ -61,9 +61,14 @@ export interface LiveStatus {
   /** The one thing to do next, as a sentence the caller renders. */
   instruction: LiveText;
   /** Right-aligned figure, and what it counts down *to*. Null when there is
-   *  nothing left to wait for. The value is a duration and stays English until
-   *  §6.6 phase 4; the label is a key. */
-  countdown: { value: string; labelKey: string } | null;
+   *  nothing left to wait for.
+   *
+   *  A **number of minutes**, not a formatted string. This used to hand over
+   *  "6 min" — a formatting decision, and an English one, made by a module
+   *  whose whole contract is that it decides *which* sentence and never what it
+   *  says. The caller renders the numeral at the app's largest size with the
+   *  unit set smaller beside it, which needs the two apart anyway. */
+  countdown: { mins: number; labelKey: string } | null;
   /** Where the rider leaves this train and when. Held separately from the
    *  instruction because it changes once per leg while the instruction changes
    *  every stop — a bar whose bottom line is stable is one you can read at a
@@ -106,7 +111,7 @@ export function liveStatusOf(result: PlanResult, session: SessionSlice): LiveSta
   /** A countdown, or nothing at all until the timeline exists — an unhedged
    *  "0 min" beside "Train departs" is worse than a blank slot. */
   const inMins = (m: number, labelKey: string) =>
-    ready ? { value: `${Math.max(0, Math.ceil(m))} min`, labelKey } : null;
+    ready ? { mins: Math.max(0, Math.ceil(m)), labelKey } : null;
 
   // A door-to-door trip ends at a place a short walk past the last station, so
   // the trip's total and its arrival clock both have to carry that walk.

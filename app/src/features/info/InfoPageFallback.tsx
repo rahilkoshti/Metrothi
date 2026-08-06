@@ -20,7 +20,10 @@ export function InfoPageFallback() {
       >
         <div className="w-9 h-9 rounded-full shrink-0" style={{ background: "var(--c-card)" }} />
       </div>
-      <div className="p-5 max-w-[var(--layout-max-width)] mx-auto">
+      {/* Tracks `InfoPage`'s own measure — the point of drawing real furniture
+          is that nothing moves when the chunk lands, and a 768px placeholder
+          under a 34rem page is exactly the jump this exists to avoid. */}
+      <div className="p-5 max-w-[var(--measure-read)] mx-auto">
         <div className="h-9 rounded-lg mt-4" style={{ background: "var(--c-card)", width: "70%" }} />
         <div className="flex flex-col gap-2.5 mt-8">
           {[96, 140, 72].map((height) => (

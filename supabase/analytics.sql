@@ -86,6 +86,20 @@ create table if not exists public.events (
 --   station_viewed     from_station only
 --   language_changed   props{to}
 --   install_prompted / installed   §7.1 installability, actually observed
+--
+-- Added 2026-08-04, all four for the phase-F dashboard. Each is a count or a
+-- low-cardinality enum, and none of them widens what §5.8 collects:
+--   signed_in          that a sign-in happened, and nothing about who. There is
+--                      still no user_id on this table and this does not add one
+--                      — `auth.uid()` is deliberately not readable from here.
+--   nearby_resolved    which station was offered as nearest, in from_station.
+--                      The COORDINATE that produced it is never sent; this is
+--                      the same granularity as any other station id. Emitted
+--                      only when geolocation actually succeeded, so the
+--                      `old-high-court` fallback never pollutes the count.
+--   train_viewed       a schedule opened. from_station + props{line, hour}: a
+--                      station, a line and an hour is what identifies a train.
+--   topic_viewed       props{topic}, one of the eight §4.5.1 reference slugs.
 
 alter table public.events drop constraint if exists events_name_allowlist;
 alter table public.events add constraint events_name_allowlist check (
@@ -101,7 +115,11 @@ alter table public.events add constraint events_name_allowlist check (
     'station_viewed',
     'language_changed',
     'install_prompted',
-    'installed'
+    'installed',
+    'signed_in',
+    'nearby_resolved',
+    'train_viewed',
+    'topic_viewed'
   )
 );
 

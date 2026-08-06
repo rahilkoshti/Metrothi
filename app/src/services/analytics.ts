@@ -57,6 +57,14 @@ export const EVENT_NAMES = [
   'language_changed',
   'install_prompted',
   'installed',
+  // Added 2026-08-04. `signed_in` counts sign-ins and says nothing about who —
+  // this table still has no `user_id` and adding one of these did not add one.
+  // `nearby_resolved` carries the station geolocation resolved to, never the
+  // coordinate that resolved it.
+  'signed_in',
+  'nearby_resolved',
+  'train_viewed',
+  'topic_viewed',
 ] as const;
 
 export type EventName = (typeof EVENT_NAMES)[number];

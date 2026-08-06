@@ -73,7 +73,7 @@ export function Row({
       {...(href && !disabled ? { href } : {})}
       {...(href && external && !disabled ? { target: "_blank", rel: "noreferrer" } : {})}
       {...(Tag === "button" ? { type: "button" as const, onClick, disabled } : {})}
-      className={`w-full flex items-center gap-4 px-5 py-4 text-left transition-colors ${interactive ? 'hover:bg-[var(--c-card-alt)] focus-visible:bg-[var(--c-card-alt)] focus-visible:outline-none' : ''}`}
+      className={`w-full flex items-center gap-4 px-5 py-4 text-left transition-colors ${interactive ? 'hover:bg-[var(--c-card-alt)] focus-visible:bg-[var(--c-card-alt)]' : ''}`}
       style={{
         background: 'transparent',
         ...(interactive ? { cursor: 'pointer' } : {}),
@@ -188,7 +188,9 @@ export function Switch({
       aria-checked={checked}
       aria-label={label}
       onClick={() => onChange(!checked)}
-      className="relative rounded-full shrink-0 transition-colors duration-200 active:scale-95"
+      /* The track stays 44x26 — a switch that is 44px *tall* reads as a
+         button — and `hit-44` grows only the axis that is short. */
+      className="hit-44 relative rounded-full shrink-0 transition-colors duration-200 active:scale-[0.97]"
       style={{
         width: 44,
         height: 26,
@@ -200,9 +202,9 @@ export function Switch({
         style={{
           width: 18,
           height: 18,
-          background: checked ? 'var(--c-accent-fg)' : '#fff',
+          background: checked ? 'var(--c-accent-fg)' : 'var(--c-card)',
           left: checked ? 22 : 4,
-          boxShadow: '0 1px 4px rgba(0,0,0,0.3)',
+          boxShadow: 'var(--shadow-float)',
         }}
       />
     </button>

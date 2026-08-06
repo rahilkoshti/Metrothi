@@ -48,6 +48,17 @@ export interface Topic extends TopicEntry {
   sections: TopicSection[];
   /** The GMRC page this was transcribed from, for the footer link. */
   source: string;
+  /**
+   * A note about the **source document**, not about any one section — rendered
+   * with the source link rather than inside the content.
+   *
+   * Exists because the conduct page's poster note had nowhere else correct to
+   * live: it describes a document carrying both the Do and the Don't columns,
+   * and sat under Don't alone. A section is the wrong scope for a fact about
+   * the whole transcription, and duplicating it into every section would say
+   * the same sentence twice on a two-section page.
+   */
+  sourceNote?: string;
 }
 
 const LINKS = passengerInfo.officialLinks;
@@ -232,19 +243,24 @@ function conductSections(): TopicSection[] {
     {
       label: "Don't",
       icon: Ban,
-      blocks: [
-        { kind: "list", marker: "dont", items: passengerInfo.dosAndDonts.donts },
-        {
-          kind: "note",
-          // Sets up §6.7: the Gujarati and Hindi columns of this same poster are
-          // the authoritative translations, so this topic is unblocked for
-          // localization in a way the English-only GMRC pages are not.
-          text: "GMRC publishes this as a poster in Gujarati, Hindi and English. The English column is transcribed here.",
-        },
-      ],
+      blocks: [{ kind: "list", marker: "dont", items: passengerInfo.dosAndDonts.donts }],
     },
   ];
 }
+
+/**
+ * Sets up §6.7: the Gujarati and Hindi columns of this same poster are the
+ * authoritative translations, so this topic is unblocked for localization in a
+ * way the English-only GMRC pages are not.
+ *
+ * A `sourceNote` rather than a block inside a section, which is where it used
+ * to be — under **Don't** alone, though the poster carries both columns. That
+ * placement understated what is available: a translator reading it there learns
+ * the Don't column has an official Gujarati and Hindi source and is told
+ * nothing about the Do column, which has exactly the same one.
+ */
+const CONDUCT_SOURCE_NOTE =
+  "GMRC publishes this as a poster in Gujarati, Hindi and English. The English column is transcribed here.";
 
 // ─── Prohibited items ────────────────────────────────────────────────────────
 
@@ -262,6 +278,25 @@ function conductSections(): TopicSection[] {
 function prohibitedSections(): TopicSection[] {
   const p = passengerInfo.prohibitedItems;
   const dim = metroInfo.luggage.maxDimensionsCm;
+
+  /**
+   * All three statutory lists are the Act's, so all three say so.
+   *
+   * `legalBasis` sits at the top of `prohibitedItems`, not inside any one of
+   * them — the data models it as covering the set — and each of the three opens
+   * with the Act's own phrasing ("No person shall take or cause to be taken on
+   * the metro railway…"). It used to print under Offensive materials alone, so
+   * a rider reading the pets rule could not see it was law.
+   *
+   * Repeated per section rather than printed once for the page, because the
+   * page is not all statute: **Luggage** comes from `metroInfo.luggage` —
+   * GMRC's fare-rules and train-information pages, quoted as bare numbers with
+   * no legal basis of its own — and a single footer note would sweep it in.
+   * Attributing a limit to an Act that may not set it is the same overclaim in
+   * the other direction (§7.6).
+   */
+  const legalBasis: Block = { kind: "note", text: `Under the ${p.legalBasis}.` };
+
   return [
     {
       label: "Pets & live animals",
@@ -269,6 +304,7 @@ function prohibitedSections(): TopicSection[] {
       blocks: [
         { kind: "prose", text: p.liveAnimals.rule },
         { kind: "note", text: p.liveAnimals.exception },
+        legalBasis,
       ],
     },
     {
@@ -291,6 +327,7 @@ function prohibitedSections(): TopicSection[] {
       blocks: [
         { kind: "prose", text: p.dangerous.heading },
         { kind: "list", marker: "bullet", items: p.dangerous.items },
+        legalBasis,
       ],
     },
     {
@@ -300,7 +337,7 @@ function prohibitedSections(): TopicSection[] {
         { kind: "prose", text: p.offensive.heading },
         { kind: "list", marker: "bullet", items: p.offensive.items },
         { kind: "note", text: p.offensive.exception },
-        { kind: "note", text: `Under the ${p.legalBasis}.` },
+        legalBasis,
       ],
     },
   ];
@@ -437,6 +474,30 @@ function contactSections(): TopicSection[] {
 
 // ─── Lost & found ────────────────────────────────────────────────────────────
 
+/**
+ * GMRC writes the office as "Lost & Found office, Apparel Park Depot" and the
+ * hours as "10:30 to 18:10 hrs". Both repeat what the row's own label already
+ * says, so both are trimmed.
+ *
+ * These were `.replace("Lost & Found office, ", "")` and `.replace(" hrs", "")`
+ * — exact-wording matches, correct today and **silently** no-ops the day a
+ * re-scrape rewords either field, leaving "Office: Lost & Found office, Apparel
+ * Park Depot" under a label that already says Office. Patterns instead, so a
+ * different case, separator or "hours" spelling still trims; and the strip is
+ * asserted on its *output* in `topics.test.ts`, which holds however GMRC words
+ * it next.
+ *
+ * Trimmed here rather than in the JSON deliberately: `passengerInfo.json` holds
+ * GMRC's strings as published, and presentation is this module's job.
+ *
+ * `&|and` is not hypothetical hedging: GMRC uses **both spellings in this same
+ * record** — `office` says "Lost & Found office" while `howToReport[2]` says
+ * "at the Lost and Found office" — so the two are plainly interchangeable to
+ * whoever maintains that page.
+ */
+const OFFICE_LABEL_PREFIX = /^lost\s*(?:&|and)\s*found\s*office\s*[,:–—-]\s*/i;
+const HOURS_UNIT_SUFFIX = /\s*(hrs?|hours)\.?$/i;
+
 function lostAndFoundSections(): TopicSection[] {
   const l = passengerInfo.lostAndFound;
   return [
@@ -447,8 +508,8 @@ function lostAndFoundSections(): TopicSection[] {
         {
           kind: "keyValue",
           rows: [
-            { label: "Office", value: l.office.replace("Lost & Found office, ", "") },
-            { label: "Open", value: l.officeHours.replace(" hrs", "") },
+            { label: "Office", value: l.office.replace(OFFICE_LABEL_PREFIX, "") },
+            { label: "Open", value: l.officeHours.replace(HOURS_UNIT_SUFFIX, "") },
           ],
         },
         {
@@ -538,9 +599,16 @@ function linksSections(): TopicSection[] {
 
 // ─── Registry ────────────────────────────────────────────────────────────────
 
-const BUILDERS: Record<TopicSlug, { sections: () => TopicSection[]; source: string }> = {
+const BUILDERS: Record<
+  TopicSlug,
+  { sections: () => TopicSection[]; source: string; sourceNote?: string }
+> = {
   fares: { sections: faresSections, source: LINKS.fareRules },
-  conduct: { sections: conductSections, source: LINKS.dosAndDonts },
+  conduct: {
+    sections: conductSections,
+    source: LINKS.dosAndDonts,
+    sourceNote: CONDUCT_SOURCE_NOTE,
+  },
   prohibited: { sections: prohibitedSections, source: LINKS.dosAndDonts },
   facilities: { sections: facilitiesSections, source: LINKS.facilities },
   safety: { sections: safetySections, source: LINKS.safetyAndSecurity },
@@ -561,5 +629,10 @@ export function getTopic(slug: string | undefined): Topic | null {
   const entry = ALL_TOPICS.find((t) => t.slug === slug);
   if (!entry) return null;
   const builder = BUILDERS[entry.slug];
-  return { ...entry, sections: builder.sections(), source: builder.source };
+  return {
+    ...entry,
+    sections: builder.sections(),
+    source: builder.source,
+    sourceNote: builder.sourceNote,
+  };
 }
